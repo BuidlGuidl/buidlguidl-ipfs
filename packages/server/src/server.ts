@@ -75,8 +75,8 @@ app.post(
   "/upload/text",
   express.text(),
   handleUpload(
-    (text) => pinner.add.text(text),
-    (body) => typeof body === "string",
+    (req) => pinner.add.text(req.body),
+    (req) => typeof req.body === "string",
     "Text content is required"
   )
 );
@@ -85,8 +85,8 @@ app.post(
   "/upload/json",
   express.json(),
   handleUpload(
-    (json) => pinner.add.json(json),
-    (body) => typeof body === "object" && body !== null,
+    (req) => pinner.add.json(req.body),
+    (req) => typeof req.body === "object" && req.body !== null,
     "JSON content is required"
   )
 );
