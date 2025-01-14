@@ -3,69 +3,76 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
+# Add logging function
+logger() {
+    local level=$1
+    shift
+    echo "[$level] $*" >&2
+}
+
 # Install dependencies
 install_deps() {
-    echo "Installing dependencies..."
+    logger "INFO" "Installing dependencies..."
     sudo apt-get update
     sudo apt-get install -y \
         apt-transport-https \
         ca-certificates \
         curl \
         software-properties-common
+    logger "INFO" "Dependencies installed successfully"
 }
 
 # Install Docker
 install_docker() {
-    echo "Installing Docker..."
+    logger "INFO" "Installing Docker..."
     curl -fsSL https://get.docker.com -o get-docker.sh
     sudo sh get-docker.sh
     sudo usermod -aG docker $USER
-    echo "Please log out and back in for docker group changes to take effect"
+    logger "WARN" "Please log out and back in for docker group changes to take effect"
 }
 
 # Install docker-compose
 install_compose() {
-    echo "Installing Docker Compose V2..."
+    logger "INFO" "Installing Docker Compose V2..."
     if [ "$(uname)" = "Darwin" ]; then
-        echo "On macOS, Docker Compose V2 is included with Docker Desktop"
+        logger "INFO" "On macOS, Docker Compose V2 is included with Docker Desktop"
     else
-        # Docker Compose V2 is now included with Docker Engine
         if ! { docker compose version > /dev/null 2>&1; }; then
-            echo "Docker Compose plugin not found, installing..."
+            logger "INFO" "Docker Compose plugin not found, installing..."
             DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
             mkdir -p $DOCKER_CONFIG/cli-plugins
             curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m) -o $DOCKER_CONFIG/cli-plugins/docker-compose
             chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
         else
-            echo "Docker Compose V2 is already installed"
+            logger "INFO" "Docker Compose V2 is already installed"
         fi
     fi
 }
 
 # Fetch configuration files if not present
 fetch_configuration_files() {
-    echo "Installing configuration files..."
+    logger "INFO" "Installing configuration files..."
     local base_url="https://bgipfs.com/peer-setup"
     local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json" "nginx.conf")
     
     for file in "${files[@]}"; do
         if [ ! -f "$file" ]; then
-            echo "Downloading $file..."
+            logger "INFO" "Downloading $file..."
             if curl -sf "$base_url/$file" -o "$file"; then
-                echo "Successfully downloaded $file"
+                logger "INFO" "Successfully downloaded $file"
             else
-                echo "Failed to download $file"
+                logger "ERROR" "Failed to download $file"
                 return 1
             fi
         else
-            echo "$file already exists, skipping..."
+            logger "INFO" "$file already exists, skipping..."
         fi
     done
 }
 
 # Install IPFS Cluster Control
 install_cluster_ctl() {
-    echo "Installing IPFS Cluster Control..."
+    logger "INFO" "Installing IPFS Cluster Control..."
     wget https://dist.ipfs.tech/ipfs-cluster-ctl/v1.0.6/ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
     tar xvzf ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
     sudo mv ipfs-cluster-ctl/ipfs-cluster-ctl /usr/local/bin/
@@ -83,7 +90,7 @@ ensure_newline() {
 init() {
     # Check if containers are running
     if { docker compose ps --quiet | grep -q .; }; then
-        echo "Error: Containers are currently running. Please stop them first with 'stop_services'"
+        logger "ERROR" "Containers are currently running. Please stop them first with 'stop_services'"
         return 1
     fi
 
@@ -101,7 +108,7 @@ init() {
         fi
     else
         current_peername=$(grep PEERNAME .env | cut -d= -f2)
-        echo "Using existing peer name: $current_peername"
+        logger "INFO" "Using existing peer name: $current_peername"
     fi
 
     # Determine if this is the first node and handle SECRET and PEERADDRESSES accordingly
@@ -129,25 +136,25 @@ init() {
                 ensure_newline
                 generated_secret=$(openssl rand -hex 32)
                 printf "SECRET=$generated_secret\n" >> .env
-                echo "Generated new secret: $generated_secret"
-                echo "Save this secret! You'll need it when adding more nodes to the cluster."
+                logger "INFO" "Generated new secret: $generated_secret"
+                logger "INFO" "Save this secret! You'll need it when adding more nodes to the cluster."
             fi
             if ! grep -q "PEERADDRESSES=" .env; then
                 ensure_newline
                 printf "PEERADDRESSES=\n" >> .env
             fi
-            echo "Skipping peer addresses for first node"
+            logger "INFO" "Skipping peer addresses for first node"
         fi
     fi
 
     # Show existing secret/addresses if they exist
     if grep -q "SECRET=" .env; then
         current_secret=$(grep SECRET .env | cut -d= -f2)
-        echo "Using secret (ends with ...${current_secret: -8})"
+        logger "INFO" "Using secret (ends with ...${current_secret: -8})"
     fi
     if grep -q "PEERADDRESSES=" .env; then
         current_peeraddresses=$(grep PEERADDRESSES .env | cut -d= -f2)
-        echo "Using peer addresses: $current_peeraddresses"
+        logger "INFO" "Using peer addresses: $current_peeraddresses"
     fi
 
     # Handle BASICAUTHCREDENTIALS
@@ -159,61 +166,58 @@ init() {
         fi
     else
         current_auth=$(grep BASICAUTHCREDENTIALS .env | cut -d= -f2)
-        echo "Using existing basic auth credentials"
+        logger "INFO" "Using existing basic auth credentials"
     fi
 
-    echo "Environment initialisation complete, you can make subsequent changes to the .env file"
+    logger "INFO" "Environment initialisation complete, you can make subsequent changes to the .env file"
     
     if [ -f "./data/ipfs-cluster/identity.json" ]; then
-        echo "identity.json already exists. Skipping initialization."
+        logger "INFO" "identity.json already exists. Skipping initialization."
         peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
-        echo "Peer ID: $peer_id"
+        logger "INFO" "Peer ID: $peer_id"
     else
-        echo "Creating identity.json and service.json"
+        logger "INFO" "Creating identity.json and service.json"
         docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1
-        echo "Waiting for identity file to be created..."
+        logger "INFO" "Waiting for identity file to be created..."
         sleep 2
-        echo "Identity file has been created at ./data/ipfs-cluster/identity.json"
         peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
-        echo "Peer ID: $peer_id"
-        echo "Service configuration has been created at ./data/ipfs-cluster/service.json"
+        logger "INFO" "Identity file has been created at ./data/ipfs-cluster/identity.json"
+        logger "INFO" "Peer ID: $peer_id"
+        logger "INFO" "Service configuration has been created at ./data/ipfs-cluster/service.json"
     fi
 }
 
 # Start services
 start_services() {
-    echo "Starting services..."
+    logger "INFO" "Starting services..."
     docker compose up -d
-    echo "Waiting for services to start..."
+    logger "INFO" "Waiting for services to start..."
     sleep 5
     
-    # Show recent logs from each service
-    echo "Recent logs from services:"
-    echo "=== IPFS Logs ==="
+    logger "INFO" "Recent logs from services:"
+    logger "INFO" "=== IPFS Logs ==="
     docker compose logs --tail=5 ipfs
-    echo -e "\n=== IPFS Cluster Logs ==="
+    logger "INFO" "=== IPFS Cluster Logs ==="
     docker compose logs --tail=5 cluster
 }
 
 # Clone public Git repository
 setup_git_repo() {
-    echo "Setting up Git repository..."
+    logger "INFO" "Setting up Git repository..."
     
-    # Install Git if not present
     if ! { command -v git &> /dev/null; }; then
-        echo "Installing Git..."
+        logger "INFO" "Installing Git..."
         sudo apt-get install -y git
     fi
     
-    # Clone the repository
-    echo "Cloning repository..."
+    logger "INFO" "Cloning repository..."
     read -p "Enter public Git repository URL: " repo_url
     git clone $repo_url
     
     if [ $? -eq 0 ]; then
-        echo "Repository cloned successfully"
+        logger "INFO" "Repository cloned successfully"
     else
-        echo "Failed to clone repository"
+        logger "ERROR" "Failed to clone repository"
         return 1
     fi
 }
@@ -231,23 +235,25 @@ main() {
 
 # Additional utility functions
 stop_services() {
+    logger "INFO" "Stopping Docker containers..."
     docker compose down
-    echo "Docker containers stopped"
+    logger "INFO" "Docker containers stopped"
 }
 
 clean_services() {
     docker compose down --remove-orphans -v
-    echo "Docker containers stopped and removed"
+    logger "INFO" "Docker containers stopped and removed"
 }
 
 reset() {
     read -p "Are you sure you want to reset? This will remove all IPFS cluster data [y/N]: " confirm
     if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+        logger "WARN" "Performing reset..."
         clean_services
         rm -rf data
-        echo "Reset complete"
+        logger "INFO" "Reset complete"
     else
-        echo "Reset cancelled"
+        logger "INFO" "Reset cancelled"
     fi
 }
 
@@ -262,32 +268,52 @@ get_peer_address() {
     
     if [ ! -z "$domain" ] && [ ! -z "$peerid" ]; then
         formatted_address="/dns4/$domain/tcp/9096/ipfs/$peerid"
-        echo "Formatted peer address:"
-        echo "$formatted_address"
+        logger "INFO" "Formatted peer address:"
+        logger "INFO" "$formatted_address"
         
-        # Optionally copy to clipboard if xclip is available
         if { command -v xclip >/dev/null 2>&1; }; then
             echo "$formatted_address" | xclip -selection clipboard
-            echo "Address copied to clipboard"
+            logger "INFO" "Address copied to clipboard"
         fi
     else
-        echo "Error: Both domain/IP and peer ID are required"
+        logger "ERROR" "Both domain/IP and peer ID are required"
     fi
+}
+
+show_help() {
+    cat << EOF
+Usage: $(basename "$0") [COMMAND]
+
+Commands:
+    init            Initialize the IPFS cluster peer
+    start_services  Start the IPFS cluster services
+    stop_services   Stop the IPFS cluster services
+    clean_services  Stop and remove all containers and volumes
+    reset          Reset all IPFS cluster data
+    show_logs      Show container logs
+    get_peer_address Generate peer address from domain and ID
+    help           Show this help message
+
+If no command is provided, runs the full installation sequence.
+EOF
 }
 
 # Command line argument handling
 if [ $# -gt 0 ]; then
-    # Get all function names from the script
-    functions=$(declare -F | cut -d' ' -f3)
-    
-    # Check if the argument matches any function
-    if echo "$functions" | grep -q "^$1\$"; then
-        $1
-    else
-        echo "Unknown command: $1"
-        echo "Available commands:"
-        echo "$functions" | grep -v "^_" | sort
-    fi
+    case "$1" in
+        help|-h|--help)
+            show_help
+            exit 0
+            ;;
+        init|start_services|stop_services|clean_services|reset|show_logs|get_peer_address)
+            "$1"
+            ;;
+        *)
+            logger "ERROR" "Unknown command '$1'"
+            show_help
+            exit 1
+            ;;
+    esac
 else
     main
 fi 
