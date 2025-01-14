@@ -1,0 +1,12 @@
+services:
+  cluster:
+    container_name: cluster-init
+    image: ipfs/ipfs-cluster:v1.1.2
+    environment:
+      CLUSTER_PEERNAME: ${PEERNAME}
+      CLUSTER_SECRET: ${SECRET}
+      CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
+      CLUSTER_PINSVCAPI_BASICAUTHCREDENTIALS: ${BASICAUTHCREDENTIALS}
+    volumes:
+      - ./data/ipfs-cluster:/data/ipfs-cluster
+    command: ["ipfs-cluster-service", "init"] #, "./init.service.json"]

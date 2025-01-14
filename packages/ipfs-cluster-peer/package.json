@@ -1,0 +1,17 @@
+{
+  "name": "@buidlguidl/ipfs-cluster-peer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IPFS Cluster peer setup scripts and configuration",
+  "files": [
+    "setup.sh",
+    "docker-compose.yml",
+    "init.docker-compose.yml",
+    "init.service.json"
+  ],
+  "keywords": [
+    "ipfs",
+    "ipfs-cluster",
+    "docker"
+  ]
+} 

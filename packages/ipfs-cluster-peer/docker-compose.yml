@@ -1,0 +1,42 @@
+services:
+  ipfs:
+    container_name: ipfs
+    image: ipfs/kubo:release
+    ports:
+      - "4001:4001" # ipfs swarm
+      - "5001:5001" # ipfs api (don't expose publicly)
+      - "8080:8080" # ipfs gateway
+    volumes:
+      - ./data/ipfs:/data/ipfs
+
+  cluster:
+    container_name: cluster
+    image: ipfs/ipfs-cluster:v1.1.2
+    depends_on:
+      - ipfs
+    environment:
+      CLUSTER_PEERNAME: ${PEERNAME}
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001 # connect to the ipfs node
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094 # expose the cluster api
+      CLUSTER_PINSVCAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9098 # expose the pinning service api using 9098, so we can use nginx to proxy to it
+      CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_MONITORPINGINTERVAL: 5s
+      CLUSTER_SECRET: ${SECRET}
+      CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
+      CLUSTER_PINSVCAPI_BASICAUTHCREDENTIALS: ${BASICAUTHCREDENTIALS} # uncomment to enable basic auth
+      # IPFS_CLUSTER_LOG_LEVEL: debug
+    ports:
+      - "9094:9094"     # Cluster API (don't expose publicly)
+      - "9095:9095"     # IPFS Proxy endpoint (don't expose publicly)
+      - "9096:9096"     # Cluster swarm endpoint
+    volumes:
+      - ./data/ipfs-cluster:/data/ipfs-cluster
+
+  pinsvcapi-proxy:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "9097:9097"
+    depends_on:
+      - cluster
