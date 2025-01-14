@@ -4,7 +4,7 @@ export interface IpfsPinnerConfig {
 }
 export interface UploadResult {
     cid: string;
-    status: 'pinned' | 'failed';
+    status: "pinned" | "failed";
 }
 export interface FileArrayResult extends UploadResult {
     files: {
@@ -12,10 +12,14 @@ export interface FileArrayResult extends UploadResult {
         cid: string;
     }[];
 }
+export interface GlobSourceFile {
+    path: string;
+    content: string | Uint8Array | Buffer;
+}
 export declare class IpfsPinner {
     private helia;
+    private rpcClient;
     private config;
-    private interfaces;
     constructor(config?: IpfsPinnerConfig);
     add: {
         file: (input: File | string) => Promise<UploadResult>;
@@ -23,6 +27,7 @@ export declare class IpfsPinner {
         json: (content: any) => Promise<UploadResult>;
         directory: (path: string, pattern?: string) => Promise<UploadResult>;
         files: (files: File[]) => Promise<FileArrayResult>;
+        globFiles: (files: GlobSourceFile[]) => Promise<FileArrayResult>;
     };
     initialize(): Promise<void>;
     private pinCid;

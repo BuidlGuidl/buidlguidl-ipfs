@@ -26,7 +26,7 @@ export default function PinPage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/pin/api', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_UPLOAD_URL}/upload/file`, {
         method: 'POST',
         body: formData,
       })

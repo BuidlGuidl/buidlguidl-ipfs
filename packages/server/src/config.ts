@@ -5,22 +5,25 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 const envSchema = z.object({
-  PORT: z.string().transform(Number).default('3000')
-})
+  PORT: z.string().transform(Number).default("3001"),
+  CORS_ORIGIN: z.string().default("http://localhost:3000"),
+});
 
 // This will throw if required env vars are missing
-const env = envSchema.parse(process.env)
+const env = envSchema.parse(process.env);
 
 interface Config {
   server: {
     port: number;
+    corsOrigin: string;
   };
 }
 
 const config: Config = {
   server: {
-    port: env.PORT
-  }
-}
+    port: env.PORT,
+    corsOrigin: env.CORS_ORIGIN,
+  },
+};
 
 export default config 
