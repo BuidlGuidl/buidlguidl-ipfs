@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Exit on error, undefined vars, and pipe failures
+set -euo pipefail
+
 # Install dependencies
 install_deps() {
     echo "Installing dependencies..."
@@ -27,7 +30,7 @@ install_compose() {
         echo "On macOS, Docker Compose V2 is included with Docker Desktop"
     else
         # Docker Compose V2 is now included with Docker Engine
-        if ! docker compose version > /dev/null 2>&1; then
+        if ! { docker compose version > /dev/null 2>&1; }; then
             echo "Docker Compose plugin not found, installing..."
             DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
             mkdir -p $DOCKER_CONFIG/cli-plugins
@@ -79,7 +82,7 @@ ensure_newline() {
 # Initialize identity
 init() {
     # Check if containers are running
-    if docker compose ps --quiet | grep -q .; then
+    if { docker compose ps --quiet | grep -q .; }; then
         echo "Error: Containers are currently running. Please stop them first with 'stop_services'"
         return 1
     fi
@@ -197,7 +200,7 @@ setup_git_repo() {
     echo "Setting up Git repository..."
     
     # Install Git if not present
-    if ! command -v git &> /dev/null; then
+    if ! { command -v git &> /dev/null; }; then
         echo "Installing Git..."
         sudo apt-get install -y git
     fi
@@ -263,7 +266,7 @@ get_peer_address() {
         echo "$formatted_address"
         
         # Optionally copy to clipboard if xclip is available
-        if command -v xclip >/dev/null 2>&1; then
+        if { command -v xclip >/dev/null 2>&1; }; then
             echo "$formatted_address" | xclip -selection clipboard
             echo "Address copied to clipboard"
         fi
