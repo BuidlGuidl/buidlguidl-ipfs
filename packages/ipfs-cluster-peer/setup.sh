@@ -17,7 +17,7 @@ install_docker() {
     curl -fsSL https://get.docker.com -o get-docker.sh
     sudo sh get-docker.sh
     sudo usermod -aG docker $USER
-    newgrp docker || true
+    echo "Please log out and back in for docker group changes to take effect"
 }
 
 # Install docker-compose
@@ -157,11 +157,16 @@ init() {
     
     if [ -f "./data/ipfs-cluster/identity.json" ]; then
         echo "identity.json already exists. Skipping initialization."
+        peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
+        echo "Peer ID: $peer_id"
     else
+        echo "Creating identity.json and service.json"
         docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1
         echo "Waiting for identity file to be created..."
         sleep 2
         echo "Identity file has been created at ./data/ipfs-cluster/identity.json"
+        peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
+        echo "Peer ID: $peer_id"
         echo "Service configuration has been created at ./data/ipfs-cluster/service.json"
     fi
 }
@@ -211,7 +216,6 @@ main() {
     fetch_configuration_files
     install_compose
     install_cluster_ctl
-    setup_git_repo
     init
     start_services
 }
