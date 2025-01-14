@@ -78,6 +78,12 @@ ensure_newline() {
 
 # Initialize identity
 init() {
+    # Check if containers are running
+    if docker compose ps --quiet | grep -q .; then
+        echo "Error: Containers are currently running. Please stop them first with 'stop_services'"
+        return 1
+    fi
+
     # Create .env file if it doesn't exist
     touch .env
 
