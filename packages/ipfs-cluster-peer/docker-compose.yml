@@ -1,3 +1,4 @@
+# Base services
 services:
   ipfs:
     container_name: ipfs
@@ -24,7 +25,6 @@ services:
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
       CLUSTER_SECRET: ${SECRET}
       CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
-      # IPFS_CLUSTER_LOG_LEVEL: debug
     ports:
       - "9094:9094"     # Cluster API (don't expose publicly)
       - "9095:9095"     # IPFS Proxy endpoint (don't expose publicly)

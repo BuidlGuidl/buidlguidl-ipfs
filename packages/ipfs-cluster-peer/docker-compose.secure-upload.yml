@@ -1,0 +1,14 @@
+# Optional nginx service
+services:
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - cluster
+    ports:
+      - "5555:5555"
+    environment:
+      - AUTH_USERNAME=${AUTH_USERNAME:-ipfs}
+      - AUTH_PASSWORD=${AUTH_PASSWORD}
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./htpasswd:/etc/nginx/.htpasswd:ro 

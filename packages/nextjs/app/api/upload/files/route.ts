@@ -1,0 +1,19 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { pinner } from '@/app/lib/ipfs';
+
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    const files = formData.getAll('files') as File[];
+    
+    if (!files.length) {
+      return NextResponse.json({ error: 'Files are required' }, { status: 400 });
+    }
+
+    const result = await pinner.add.files(files);
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Upload failed:', error);
+    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+  }
+} 

@@ -17,7 +17,21 @@ app.use(
 app.use(express.json());
 
 const upload = multer();
-const pinner = new IpfsPinner({ url: "http://127.0.0.1:9095" });
+
+const headers: Record<string, string> = {};
+
+// Add auth headers only if credentials are provided
+if (config.auth.username && config.auth.password) {
+  const auth = Buffer.from(
+    `${config.auth.username}:${config.auth.password}`
+  ).toString("base64");
+  headers.Authorization = `Basic ${auth}`;
+}
+
+const pinner = new IpfsPinner({
+  url: config.ipfs.url,
+  headers,
+});
 
 const handleUpload = (
   handler: (data: any) => Promise<any>,
@@ -88,15 +102,15 @@ app.post(
  * @apiName UploadFiles
  * @apiGroup Upload
  * @apiVersion 1.0.0
- * 
+ *
  * @apiDescription Upload multiple files to IPFS.
- * 
+ *
  * @apiBody {File[]} files Array of files to upload (multipart/form-data)
- * 
+ *
  * @apiSuccess {Object[]} results Array of upload results
  * @apiSuccess {String} results.cid IPFS Content Identifier
  * @apiSuccess {String} results.name File name
- * 
+ *
  * @apiSuccessExample {json} Success-Response:
  *     HTTP/1.1 200 OK
  *     {
@@ -106,7 +120,7 @@ app.post(
  *         "cid": "QmW2WQi7j6c7UgJTarActp7tDNikE4B2qXtFCfLPdsgaTQ"
  *       }]
  *     }
- * 
+ *
  * @apiUse ErrorResponse
  */
 app.post(
@@ -132,13 +146,13 @@ app.post(
  * @apiName UploadText
  * @apiGroup Upload
  * @apiVersion 1.0.0
- * 
+ *
  * @apiDescription Upload text content to IPFS.
- * 
+ *
  * @apiBody {String} content Text content to upload
- * 
+ *
  * @apiSuccess {String} cid IPFS Content Identifier
- * 
+ *
  * @apiUse ErrorResponse
  */
 app.post(
@@ -156,13 +170,13 @@ app.post(
  * @apiName UploadJSON
  * @apiGroup Upload
  * @apiVersion 1.0.0
- * 
+ *
  * @apiDescription Upload JSON content to IPFS.
- * 
+ *
  * @apiBody {Object} content JSON content to upload
- * 
+ *
  * @apiSuccess {String} cid IPFS Content Identifier
- * 
+ *
  * @apiUse ErrorResponse
  */
 app.post(
@@ -180,15 +194,15 @@ app.post(
  * @apiName UploadGlob
  * @apiGroup Upload
  * @apiVersion 1.0.0
- * 
+ *
  * @apiDescription Upload multiple files using glob pattern.
- * 
+ *
  * @apiBody {Object[]} files Array of file objects
  * @apiBody {String} files.path File path
  * @apiBody {String|Buffer} files.content File content
- * 
+ *
  * @apiSuccess {String} cid IPFS Content Identifier
- * 
+ *
  * @apiUse ErrorResponse
  */
 app.post(

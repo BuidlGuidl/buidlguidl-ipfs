@@ -4,6 +4,7 @@ import * as jsonCodec from "multiformats/codecs/json";
 
 export interface IpfsPinnerConfig {
   url?: string;
+  headers?: Record<string, string>;
 }
 
 export interface UploadResult {
@@ -26,8 +27,12 @@ export class IpfsPinner {
   constructor(config?: IpfsPinnerConfig) {
     this.config = {
       url: config?.url ?? "http://127.0.0.1:9095",
+      headers: config?.headers ?? {},
     };
-    this.rpcClient = create({ url: this.config.url });
+    this.rpcClient = create({
+      url: this.config.url,
+      headers: this.config.headers,
+    });
   }
 
   add = {

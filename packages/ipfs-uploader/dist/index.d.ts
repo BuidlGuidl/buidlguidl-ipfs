@@ -1,5 +1,6 @@
 export interface IpfsPinnerConfig {
     url?: string;
+    headers?: Record<string, string>;
 }
 export interface UploadResult {
     cid: string;
