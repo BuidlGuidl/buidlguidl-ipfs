@@ -1,12 +1,12 @@
-# Base services
+# Base configuration - development mode
 services:
   ipfs:
     container_name: ipfs
     image: ipfs/kubo:release
     ports:
-      - "4001:4001" # ipfs swarm
-      - "5001:5001" # ipfs api (don't expose publicly)
-      - "8080:8080" # ipfs gateway
+      - "4001:4001"  # swarm
+      - "8080:8080"  # gateway (dev only)
+      - "5001:5001"  # api
     volumes:
       - ./data/ipfs:/data/ipfs
 

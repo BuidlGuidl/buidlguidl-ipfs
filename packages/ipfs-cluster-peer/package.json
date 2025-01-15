@@ -5,15 +5,17 @@
   "description": "IPFS Cluster peer setup scripts and configuration",
   "files": [
     "setup.sh",
-    "docker-compose.yml",
-    "init.docker-compose.yml",
     "init.service.json",
+    "init.docker-compose.yml",
+    "docker-compose.yml",
     "docker-compose.secure-upload.yml",
-    "nginx.conf"
+    "docker-compose.prod.yml",
+    "nginx.dev.conf",
+    "nginx.prod.conf"
   ],
   "keywords": [
     "ipfs",
     "ipfs-cluster",
     "docker"
   ]
-} 
+}

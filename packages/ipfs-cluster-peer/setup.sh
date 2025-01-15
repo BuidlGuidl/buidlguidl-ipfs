@@ -301,13 +301,14 @@ start() {
     check_docker_permissions
 
     local use_nginx=false
-    local use_https=false
+    local mode="dev"
     
     # Parse arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
             --secure-upload) use_nginx=true ;;
-            --https) use_https=true ;;
+            --dev) mode="dev" ;;
+            --prod) mode="prod" ;;
             *) logger "ERROR" "Unknown parameter: $1"; return 1 ;;
         esac
         shift
@@ -318,30 +319,30 @@ start() {
     # Build compose files array
     local compose_files=("-f" "docker-compose.yml")
     
+    if [ "$mode" = "prod" ]; then
+        # Check for required production files
+        for file in docker-compose.prod.yml nginx.prod.conf; do
+            if [ ! -f "$file" ]; then
+                logger "ERROR" "Missing required file for production: $file"
+                return 1
+            fi
+        done
+        if [ ! -d "data/certbot/conf" ]; then
+            logger "ERROR" "Production certificates not found. Please run 'setup_prod' first"
+            return 1
+        fi
+        compose_files+=("-f" "docker-compose.prod.yml")
+    fi
+
     if [ "$use_nginx" = true ]; then
         # Check for required secure upload files
-        for file in docker-compose.secure-upload.yml nginx.conf; do
+        for file in docker-compose.secure-upload.yml "nginx.${mode}.conf"; do
             if [ ! -f "$file" ]; then
                 logger "ERROR" "Missing required file for secure upload: $file"
                 return 1
             fi
         done
         compose_files+=("-f" "docker-compose.secure-upload.yml")
-    fi
-    
-    if [ "$use_https" = true ]; then
-        # Check for required HTTPS files
-        for file in docker-compose.https.yml nginx.gateway.conf; do
-            if [ ! -f "$file" ]; then
-                logger "ERROR" "Missing required file for HTTPS: $file"
-                return 1
-            fi
-        done
-        if [ ! -d "data/certbot/conf" ]; then
-            logger "ERROR" "HTTPS certificates not found. Please run 'setup_https' first"
-            return 1
-        fi
-        compose_files+=("-f" "docker-compose.https.yml")
     fi
 
     # Handle auth file for secure upload
@@ -360,8 +361,8 @@ start() {
     
     # Log startup configuration
     logger "INFO" "Services started with configuration:"
+    logger "INFO" "- Mode: ${mode}"
     [ "$use_nginx" = true ] && logger "INFO" "- Secure upload endpoint enabled (port 5555)"
-    [ "$use_https" = true ] && logger "INFO" "- HTTPS gateway enabled (port 443)"
 
     # Wait for services to start
     logger "INFO" "Waiting for services to initialize..."
@@ -513,18 +514,19 @@ Usage: $(basename "$0") [COMMAND]
 
 Commands:
     install        Install dependencies and configure Docker permissions
-    init_and_start Initialize and start all services (accepts --secure-upload flag)
+    init_and_start Initialize and start all services
     init          Initialize the IPFS cluster peer
     start         Start the IPFS cluster services
                  Options:
+                   --dev           Development mode (default)
+                   --prod          Production mode with HTTPS gateway
                    --secure-upload  Enable authenticated public upload endpoint on port 5555
-                   --https         Enable HTTPS for gateway endpoint
     stop          Stop the IPFS cluster services
     clean         Stop and remove all containers and volumes
     reset         Reset all IPFS cluster data
     show_logs     Show container logs
     create_auth   Create new authentication credentials (use this if you lost your password)
-    setup_https   Set up HTTPS certificates for gateway endpoint
+    setup_prod    Set up production environment (SSL certificates, etc)
     get_peer_address Generate peer address from domain and ID
     setup_git_repo Clone a public Git repository
     install_deps   Install system dependencies
@@ -577,35 +579,42 @@ create_auth() {
 }
 
 # Additional utility functions
-setup_gateway_https() {
+setup_prod() {
     check_domain
     
-    echo "Setting up HTTPS for gateway.${DOMAIN}"
+    echo "Setting up production environment for ${DOMAIN}"
     
-    # Create required directories
-    mkdir -p data/certbot/conf
-    mkdir -p data/certbot/www
+    # Ensure production nginx config exists
+    if [ ! -f "nginx.prod.conf" ]; then
+        logger "ERROR" "Missing nginx.prod.conf"
+        return 1
+    fi
     
-    # Copy gateway nginx config
-    cp nginx.gateway.conf nginx.conf
-    
-    # Ensure nginx is running for certbot challenge
-    docker compose -f docker-compose.yml -f docker-compose.https.yml up -d nginx
+    # Start a temporary nginx for certbot challenge
+    docker run -d --rm \
+        --name certbot-nginx \
+        -p 80:80 \
+        -v $PWD/data/certbot/www:/var/www/certbot \
+        nginx:alpine
     
     # Wait a bit for nginx to start
     sleep 5
     
     # Request certificate
-    docker compose -f docker-compose.yml -f docker-compose.https.yml run --rm certbot certonly \
+    docker run --rm \
+        -v $PWD/data/certbot/conf:/etc/letsencrypt \
+        -v $PWD/data/certbot/www:/var/www/certbot \
+        certbot/certbot certonly \
         --webroot \
         --webroot-path /var/www/certbot \
         --email admin@${DOMAIN} \
         --agree-tos \
         --no-eff-email \
-        -d gateway.${DOMAIN}
+        -d gateway.${DOMAIN} \
+        -d upload.${DOMAIN}
     
-    # Restart nginx to pick up new certificates
-    docker compose -f docker-compose.yml -f docker-compose.https.yml restart nginx
+    # Stop the temporary nginx
+    docker stop certbot-nginx
     
     echo "HTTPS setup complete for gateway.${DOMAIN}"
     echo "Please ensure your DNS is configured with:"
@@ -642,7 +651,7 @@ if [ $# -gt 0 ]; then
             ;;
         init|start|stop|clean|reset|show_logs|get_peer_address|\
         setup_git_repo|install_deps|install_docker|install_compose|install_cluster_ctl|\
-        fetch_configuration_files|install|init_and_start|create_auth|setup_gateway_https)
+        fetch_configuration_files|install|init_and_start|create_auth|setup_prod)
             cmd="$1"
             shift
             $cmd "$@"

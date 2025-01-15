@@ -1,4 +1,4 @@
-# Optional nginx service
+# Optional nginx for secure upload
 services:
   nginx:
     image: nginx:alpine
@@ -6,9 +6,6 @@ services:
       - cluster
     ports:
       - "5555:5555"
-    environment:
-      - AUTH_USERNAME=${AUTH_USERNAME:-ipfs}
-      - AUTH_PASSWORD=${AUTH_PASSWORD}
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - ./htpasswd:/etc/nginx/.htpasswd:ro 
