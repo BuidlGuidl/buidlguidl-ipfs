@@ -341,11 +341,14 @@ start() {
             return 1
         fi
         compose_files+=("-f" "docker-compose.prod.yml")
+        export NGINX_CONF="./nginx.prod.conf"
+    else
+        export NGINX_CONF="./nginx.dev.conf"
     fi
 
     if [ "$use_nginx" = true ]; then
         # Check for required secure upload files
-        for file in docker-compose.secure-upload.yml "nginx.${mode}.conf"; do
+        for file in docker-compose.secure-upload.yml; do
             if [ ! -f "$file" ]; then
                 logger "ERROR" "Missing required file for secure upload: $file"
                 return 1

@@ -7,5 +7,5 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ${NGINX_CONF:-./nginx.dev.conf}:/etc/nginx/nginx.conf:ro
       - ./htpasswd:/etc/nginx/.htpasswd:ro 
