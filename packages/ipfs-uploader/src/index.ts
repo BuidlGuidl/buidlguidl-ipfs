@@ -8,7 +8,6 @@ export interface IpfsPinnerConfig {
 
 export interface UploadResult {
   cid: string;
-  status: "pinned" | "failed";
 }
 
 export interface FileArrayResult extends UploadResult {
@@ -32,63 +31,90 @@ export class IpfsPinner {
 
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
-      await this.initialize();
+      try {
+        await this.initialize();
 
-      let content: Uint8Array;
-      if (input instanceof File) {
-        const buffer = await input.arrayBuffer();
-        content = new Uint8Array(buffer);
-      } else if (typeof window === "undefined") {
-        // Only try to use fs in Node.js environment
-        const { readFile } = await import("fs/promises");
-        const buffer = await readFile(input);
-        content = new Uint8Array(buffer);
-      } else {
+        let content: Uint8Array;
+        try {
+          if (input instanceof File) {
+            const buffer = await input.arrayBuffer();
+            content = new Uint8Array(buffer);
+          } else if (typeof window === "undefined") {
+            const { readFile } = await import("fs/promises");
+            const buffer = await readFile(input);
+            content = new Uint8Array(buffer);
+          } else {
+            throw new Error(
+              "File path strings are only supported in Node.js environments"
+            );
+          }
+        } catch (error) {
+          throw new Error(
+            `Failed to read file content: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+
+        const add = await this.rpcClient.add(content, {
+          cidVersion: 1,
+        });
+        return { cid: add.cid.toString() };
+      } catch (error) {
         throw new Error(
-          "File path strings are only supported in Node.js environments"
+          `Failed to add file to IPFS: ${error instanceof Error ? error.message : String(error)}`
         );
       }
-
-      const add = await this.rpcClient.add(content, {
-        cidVersion: 1,
-      });
-      const status = await this.pinCid(add.cid);
-      return { cid: add.cid.toString(), status };
     },
 
     text: async (content: string): Promise<UploadResult> => {
-      await this.initialize();
-      const add = await this.rpcClient.add(content, {
-        cidVersion: 1,
-      });
-      const status = await this.pinCid(add.cid);
-      return { cid: add.cid.toString(), status };
+      try {
+        await this.initialize();
+        const add = await this.rpcClient.add(content, {
+          cidVersion: 1,
+        });
+        return { cid: add.cid.toString() };
+      } catch (error) {
+        throw new Error(
+          `Failed to add text content to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
 
     json: async (content: any): Promise<UploadResult> => {
-      await this.initialize();
-      const buf = jsonCodec.encode(content);
-      const add = await this.rpcClient.add(buf, {
-        cidVersion: 1,
-      });
+      try {
+        await this.initialize();
+        let buf: Uint8Array;
+        try {
+          buf = jsonCodec.encode(content);
+        } catch (error) {
+          throw new Error(
+            `Failed to encode JSON content: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
 
-      const status = await this.pinCid(add.cid);
-      return { cid: add.cid.toString(), status };
+        const add = await this.rpcClient.add(buf, {
+          cidVersion: 1,
+        });
+        return { cid: add.cid.toString() };
+      } catch (error) {
+        throw new Error(
+          `Failed to add JSON content to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
     },
 
     directory: async (
       path: string,
       pattern: string = "**/*"
     ): Promise<UploadResult> => {
-      await this.initialize();
-
-      if (typeof window !== "undefined") {
-        throw new Error(
-          "Directory uploads are only supported in Node.js environments"
-        );
-      }
-
       try {
+        await this.initialize();
+
+        if (typeof window !== "undefined") {
+          throw new Error(
+            "Directory uploads are only supported in Node.js environments"
+          );
+        }
+
         let rootCid: CID | undefined;
         for await (const file of this.rpcClient.addAll(
           globSource(path, pattern),
@@ -97,26 +123,32 @@ export class IpfsPinner {
             cidVersion: 1,
           }
         )) {
-          console.log(file);
           rootCid = file.cid;
         }
+
         if (!rootCid) {
-          throw new Error("No root CID found");
+          throw new Error("No files found in directory or directory is empty");
         }
-        const status = await this.pinCid(rootCid);
-        return { cid: rootCid.toString(), status };
+        return { cid: rootCid.toString() };
       } catch (error) {
-        console.error(error);
-        throw new Error(`Failed to add directory: ${error}`);
+        if (error instanceof Error && error.message.includes("ENOENT")) {
+          throw new Error(`Directory not found: ${path}`);
+        }
+        throw new Error(
+          `Failed to add directory to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     },
 
     files: async (files: File[]): Promise<FileArrayResult> => {
-      await this.initialize();
-
       try {
-        let root: CID | undefined;
+        await this.initialize();
 
+        if (files.length === 0) {
+          throw new Error("No files provided");
+        }
+
+        let root: CID | undefined;
         const fileResults: { name: string; cid: CID }[] = [];
 
         for await (const file of this.rpcClient.addAll(
@@ -126,33 +158,36 @@ export class IpfsPinner {
             wrapWithDirectory: true,
           }
         )) {
-          console.log("file to Kubo", file);
           fileResults.push({ name: file.path, cid: file.cid });
           root = file.cid;
         }
-        if (!root) {
-          throw new Error("No root CID found");
-        }
-        console.log("rootCid", root.toString());
 
-        const status = await this.pinCid(root);
+        if (!root) {
+          throw new Error("Failed to process files: No root CID generated");
+        }
+
         return {
           cid: root.toString(),
-          status,
           files: fileResults.map((f) => ({
             name: f.name,
             cid: f.cid.toString(),
           })),
         };
       } catch (error) {
-        throw new Error(`Failed to process files: ${error}`);
+        throw new Error(
+          `Failed to add files to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     },
 
     globFiles: async (files: GlobSourceFile[]): Promise<FileArrayResult> => {
-      await this.initialize();
-
       try {
+        await this.initialize();
+
+        if (files.length === 0) {
+          throw new Error("No files provided");
+        }
+
         let root: CID | undefined;
         const fileResults: { name: string; cid: CID }[] = [];
 
@@ -160,27 +195,25 @@ export class IpfsPinner {
           cidVersion: 1,
           wrapWithDirectory: true,
         })) {
-          console.log("file to Kubo", file);
           fileResults.push({ name: file.path, cid: file.cid });
           root = file.cid;
         }
 
         if (!root) {
-          throw new Error("No root CID found");
+          throw new Error("Failed to process files: No root CID generated");
         }
-        console.log("rootCid", root.toString());
 
-        const status = await this.pinCid(root);
         return {
           cid: root.toString(),
-          status,
           files: fileResults.map((f) => ({
             name: f.name,
             cid: f.cid.toString(),
           })),
         };
       } catch (error) {
-        throw new Error(`Failed to process glob files: ${error}`);
+        throw new Error(
+          `Failed to add glob files to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     },
   };
@@ -189,17 +222,6 @@ export class IpfsPinner {
     if (this.rpcClient) return;
 
     this.rpcClient = create({ url: this.config.url });
-  }
-
-  private async pinCid(cid: CID): Promise<"pinned" | "failed"> {
-    try {
-      console.log("pinning cid", cid.toString());
-      await this.rpcClient.pin.add(cid.toString());
-      return "pinned";
-    } catch (error) {
-      console.error("Error pinning to cluster:", error);
-      return "failed";
-    }
   }
 }
 

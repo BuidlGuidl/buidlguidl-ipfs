@@ -3,7 +3,6 @@ export interface IpfsPinnerConfig {
 }
 export interface UploadResult {
     cid: string;
-    status: "pinned" | "failed";
 }
 export interface FileArrayResult extends UploadResult {
     files: {
@@ -28,6 +27,5 @@ export declare class IpfsPinner {
         globFiles: (files: GlobSourceFile[]) => Promise<FileArrayResult>;
     };
     initialize(): Promise<void>;
-    private pinCid;
 }
 export default IpfsPinner;
