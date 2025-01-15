@@ -629,6 +629,7 @@ setup_prod() {
     echo "Please ensure your DNS is configured with:"
     echo "- A record: gateway.${DOMAIN} -> <your-ip>"
     echo "- A record: upload.${DOMAIN} -> <your-ip>"
+}
 
 check_domain() {
     if [ -z "${DOMAIN:-}" ]; then
