@@ -1,15 +1,14 @@
 # IPFS Uploader
 
-Client implementation of the IPFS Pinning Service API specification.
+Simple client for uploading and pinning content of various typesto an IPFS cluster.
 
 ## Functions
 - Add and pin files
 - Add and pin text/JSON content
 - Add and pin directories (Node.js)
 - Add and pin an array of files
+- Add and pin a glob
 
-Leveraging [Helia](https://github.com/ipfs/helia) and [Helia remote pinning](https://github.com/ipfs/helia-remote-pinning) for IPFS interaction.
-
-Note: this currently only works with a local IPFS cluster pinning service.
+Note: this currently only works with a local IPFS cluster.
 
 Note: Browser support is currently unstable.
