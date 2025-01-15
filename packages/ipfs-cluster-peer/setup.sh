@@ -80,8 +80,14 @@ fetch_configuration_files() {
     # Read required files from package.json
     local package_json="package.json"
     if [ -f "$package_json" ]; then
-        # Extract files array using grep and sed
-        local files=$(grep -A 100 '"files"' "$package_json" | sed -n '/\[/,/\]/p' | grep -v '[][]' | tr -d ' ",' | grep .)
+        # More precise extraction of the files array using awk
+        local files=$(awk '/^[[:space:]]*"files":[[:space:]]*\[/,/]/' "$package_json" | 
+                     grep -v '"files"' | 
+                     grep -v '^\[' | 
+                     grep -v '^\]' | 
+                     sed 's/[",]//g' | 
+                     tr -d ' ' |
+                     grep .)
     else
         # Fallback to hardcoded list if package.json not found
         local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json" "docker-compose.secure-upload.yml" "nginx.conf")
