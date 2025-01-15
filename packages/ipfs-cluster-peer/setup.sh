@@ -309,13 +309,11 @@ init() {
 start() {
     check_docker_permissions
 
-    local use_nginx=false
     local mode="dev"
     
     # Parse arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
-            --secure-upload) use_nginx=true ;;
             --dev) mode="dev" ;;
             --prod) mode="prod" ;;
             *) logger "ERROR" "Unknown parameter: $1"; return 1 ;;
@@ -340,32 +338,20 @@ start() {
             logger "ERROR" "Production certificates not found. Please run 'setup_prod' first"
             return 1
         fi
+    fi
+
+    # Add prod config last to ensure it overrides secure-upload
+    if [ "$mode" = "prod" ]; then
         compose_files+=("-f" "docker-compose.prod.yml")
-        export NGINX_CONF="./nginx.prod.conf"
+    fi
+
+    # Handle auth file for nginx
+    if [ ! -f htpasswd ]; then
+        logger "INFO" "No auth credentials found, generating..."
+        create_auth
     else
-        export NGINX_CONF="./nginx.dev.conf"
-    fi
-
-    if [ "$use_nginx" = true ]; then
-        # Check for required secure upload files
-        for file in docker-compose.secure-upload.yml; do
-            if [ ! -f "$file" ]; then
-                logger "ERROR" "Missing required file for secure upload: $file"
-                return 1
-            fi
-        done
-        compose_files+=("-f" "docker-compose.secure-upload.yml")
-    fi
-
-    # Handle auth file for secure upload
-    if [ "$use_nginx" = true ]; then
-        if [ ! -f htpasswd ]; then
-            logger "INFO" "No auth credentials found, generating..."
-            create_auth
-        else
-            logger "INFO" "Using existing auth credentials in htpasswd file"
-            logger "INFO" "To generate new credentials, run: $0 create_auth"
-        fi
+        logger "INFO" "Using existing auth credentials in htpasswd file"
+        logger "INFO" "To generate new credentials, run: $0 create_auth"
     fi
 
     # Start services with all required compose files
@@ -374,7 +360,6 @@ start() {
     # Log startup configuration
     logger "INFO" "Services started with configuration:"
     logger "INFO" "- Mode: ${mode}"
-    [ "$use_nginx" = true ] && logger "INFO" "- Secure upload endpoint enabled (port 5555)"
 
     # Wait for services to start
     logger "INFO" "Waiting for services to initialize..."
@@ -468,14 +453,12 @@ main() {
 # Additional utility functions
 stop() {
     logger "INFO" "Stopping Docker containers..."
-    # Stop both regular and secure-upload configurations
-    docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml stop
+    docker compose stop
     logger "INFO" "Docker containers stopped"
 }
 
 clean() {
-    # Clean up both regular and secure-upload configurations
-    docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml down --remove-orphans -v
+    docker compose down --remove-orphans -v
     
     # Force remove the network if it still exists
     if docker network ls | grep -q ipfs-cluster-peer_default; then
@@ -532,7 +515,6 @@ Commands:
                  Options:
                    --dev           Development mode (default)
                    --prod          Production mode with HTTPS gateway
-                   --secure-upload  Enable authenticated public upload endpoint on port 5555
     stop          Stop the IPFS cluster services
     clean         Stop and remove all containers and volumes
     reset         Reset all IPFS cluster data

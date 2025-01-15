@@ -17,18 +17,28 @@ services:
       - ipfs
     environment:
       CLUSTER_PEERNAME: ${PEERNAME}
-      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001 # connect to the ipfs node
-      CLUSTER_IPFSHTTP_HTTPLISTENMULTIADDRESS: /ip4/ipfs/tcp/5001 # Expose API
-      CLUSTER_IPFSPROXY_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001 # Make IPFS Proxy work
-      CLUSTER_IPFSPROXY_LISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9095 # Expose IPFS Proxy API
-      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094 # expose the cluster api
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSHTTP_HTTPLISTENMULTIADDRESS: /ip4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_LISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9095
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
       CLUSTER_SECRET: ${SECRET}
       CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
     ports:
-      - "9094:9094"     # Cluster API (don't expose publicly)
-      - "9095:9095"     # IPFS Proxy endpoint (don't expose publicly)
-      - "9096:9096"     # Cluster swarm endpoint
+      - "9094:9094"
+      - "9095:9095"
+      - "9096:9096"
     volumes:
       - ./data/ipfs-cluster:/data/ipfs-cluster
-      - ./identity.json:/data/ipfs-cluster/identity.json
+
+# Optional nginx service (enabled in both dev and prod)
+nginx:
+  image: nginx:alpine
+  depends_on:
+    - cluster
+  ports:
+    - "5555:5555"
+  volumes:
+    - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    - ./htpasswd:/etc/nginx/.htpasswd:ro
