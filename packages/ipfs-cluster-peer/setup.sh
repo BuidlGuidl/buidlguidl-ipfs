@@ -613,7 +613,7 @@ setup_gateway_https() {
 }
 
 check_domain() {
-    if [ -z "${DOMAIN}" ]; then
+    if [ -z "${DOMAIN:-}" ]; then
         echo "No domain configured in .env"
         read -p "Please enter your domain (e.g. example.com): " domain
         
