@@ -91,35 +91,22 @@ app.post(
   )
 );
 
-app.post("/upload/glob-test", async (_req: Request, res: Response) => {
-  try {
-    // Create some test files in the glob format
-    const testFiles = [
-      {
-        path: "folder1/hello.txt",
-        content: "Hello from file 1!",
-      },
-      {
-        path: "folder1/nested/world.txt",
-        content: "Hello from file 2!",
-      },
-      {
-        path: "folder2/test.json",
-        content: JSON.stringify({ message: "Hello from JSON!" }),
-      },
-      {
-        path: "test.txt",
-        content: "Hello from the root",
-      },
-    ];
-
-    const result = await pinner.add.globFiles(testFiles);
-    res.json(result);
-  } catch (error) {
-    logger.error("Glob test upload failed:", error);
-    res.status(500).json({ error: "Upload failed" });
-  }
-});
+app.post(
+  "/upload/glob",
+  express.json(),
+  handleUpload(
+    (req) => pinner.add.globFiles(req.body),
+    (req) =>
+      Array.isArray(req.body) &&
+      req.body.length > 0 &&
+      req.body.every(
+        (file: any) =>
+          typeof file.path === "string" &&
+          (typeof file.content === "string" || file.content instanceof Buffer)
+      ),
+    "Invalid glob source format. Expected array of {path: string, content: string|Buffer}"
+  )
+);
 
 app.get("/ping", (_req: Request, res: Response) => {
   res.json({ message: "pong" });
