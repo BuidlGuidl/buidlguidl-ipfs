@@ -127,8 +127,25 @@ install_cluster_ctl() {
     fi
     
     logger "INFO" "Installing IPFS Cluster Control..."
-    wget https://dist.ipfs.tech/ipfs-cluster-ctl/v1.1.2/ipfs-cluster-ctl_v1.1.2_darwin-arm64.tar.gz | tar xvzf -
-    tar xvzf ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
+    
+    # Detect OS and architecture
+    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    local arch=$(uname -m)
+    
+    # Convert architecture names to match IPFS naming
+    case "$arch" in
+        x86_64) arch="amd64" ;;
+        aarch64) arch="arm64" ;;
+        armv7l) arch="arm" ;;
+    esac
+    
+    local version="v1.1.2"
+    local filename="ipfs-cluster-ctl_${version}_${os}-${arch}.tar.gz"
+    local download_url="https://dist.ipfs.tech/ipfs-cluster-ctl/${version}/${filename}"
+    
+    logger "INFO" "Downloading ${filename}..."
+    curl -L -o "$filename" "$download_url"
+    tar xzf "$filename"
     sudo mv ipfs-cluster-ctl/ipfs-cluster-ctl /usr/local/bin/
     rm -rf ipfs-cluster-ctl*
 }
