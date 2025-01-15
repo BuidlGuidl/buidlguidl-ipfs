@@ -601,7 +601,9 @@ setup_prod() {
     docker run -d --rm \
         --name certbot-nginx \
         -p 80:80 \
+        -v $PWD/certbot.conf:/etc/nginx/conf.d/default.conf:ro \
         -v $PWD/data/certbot/www:/var/www/certbot \
+        -e DOMAIN=${DOMAIN} \
         nginx:alpine
     
     # Wait a bit for nginx to start
