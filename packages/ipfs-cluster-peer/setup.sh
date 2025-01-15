@@ -77,23 +77,31 @@ fetch_configuration_files() {
     logger "INFO" "Installing configuration files..."
     local base_url="https://buidlguidl-ipfs.vercel.app/peer-setup"
     
+    # Install jq if not present
+    if ! command_exists jq; then
+        logger "INFO" "Installing jq..."
+        sudo apt-get update && sudo apt-get install -y jq
+    fi
+    
     # Read required files from package.json
     local package_json="package.json"
     if [ -f "$package_json" ]; then
-        # More precise extraction of the files array using awk
-        local files=$(awk '/^[[:space:]]*"files":[[:space:]]*\[/,/]/' "$package_json" | 
-                     grep -v '"files"' | 
-                     grep -v '^\[' | 
-                     grep -v '^\]' | 
-                     sed 's/[",]//g' | 
-                     tr -d ' ' |
-                     grep .)
+        local files=$(jq -r '.files[]' "$package_json")
     else
         # Fallback to hardcoded list if package.json not found
-        local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json" "docker-compose.secure-upload.yml" "nginx.conf")
+        local files=(
+            "docker-compose.yml"
+            "init.docker-compose.yml"
+            "init.service.json"
+            "docker-compose.secure-upload.yml"
+            "nginx.conf"
+        )
+        printf "%s\n" "${files[@]}"
     fi
     
-    for file in $files; do
+    # Process each file
+    echo "$files" | while read -r file; do
+        [ -z "$file" ] && continue
         if [ ! -f "$file" ]; then
             logger "INFO" "Downloading $file..."
             if curl -sf "$base_url/$file" -o "$file"; then
