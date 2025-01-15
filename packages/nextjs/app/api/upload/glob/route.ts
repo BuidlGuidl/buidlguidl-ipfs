@@ -24,11 +24,12 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function isValidGlobFile(file: any): file is GlobFile {
+function isValidGlobFile(file: unknown): file is GlobFile {
   return (
-    typeof file === 'object' &&
+    typeof file === "object" &&
     file !== null &&
-    typeof file.path === 'string' &&
-    (typeof file.content === 'string' || file.content instanceof Buffer)
+    typeof (file as Record<string, unknown>).path === "string" &&
+    (typeof (file as Record<string, unknown>).content === "string" ||
+      (file as Record<string, unknown>).content instanceof Buffer)
   );
 } 

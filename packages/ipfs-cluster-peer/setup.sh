@@ -584,11 +584,9 @@ setup_prod() {
     
     echo "Setting up production environment for ${DOMAIN}"
     
-    # Ensure production nginx config exists
-    if [ ! -f "nginx.prod.conf" ]; then
-        logger "ERROR" "Missing nginx.prod.conf"
-        return 1
-    fi
+    # Cleanup any existing temporary containers
+    docker stop certbot-nginx 2>/dev/null || true
+    docker rm certbot-nginx 2>/dev/null || true
     
     # Start a temporary nginx for certbot challenge
     docker run -d --rm \
