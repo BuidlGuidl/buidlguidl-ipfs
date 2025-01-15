@@ -625,10 +625,10 @@ setup_prod() {
     # Stop the temporary nginx
     docker stop certbot-nginx
     
-    echo "HTTPS setup complete for gateway.${DOMAIN}"
+    echo "HTTPS setup complete for gateway.${DOMAIN} and upload.${DOMAIN}"
     echo "Please ensure your DNS is configured with:"
     echo "- A record: gateway.${DOMAIN} -> <your-ip>"
-}
+    echo "- A record: upload.${DOMAIN} -> <your-ip>"
 
 check_domain() {
     if [ -z "${DOMAIN:-}" ]; then
