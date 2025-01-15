@@ -20,20 +20,19 @@ export interface GlobSourceFile {
 }
 
 export class IpfsPinner {
-  private rpcClient!: KuboRPCClient;
+  private rpcClient: KuboRPCClient;
   private config: IpfsPinnerConfig;
 
   constructor(config?: IpfsPinnerConfig) {
     this.config = {
       url: config?.url ?? "http://127.0.0.1:9095",
     };
+    this.rpcClient = create({ url: this.config.url });
   }
 
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
       try {
-        await this.initialize();
-
         let content: Uint8Array;
         try {
           if (input instanceof File) {
@@ -67,7 +66,6 @@ export class IpfsPinner {
 
     text: async (content: string): Promise<UploadResult> => {
       try {
-        await this.initialize();
         const add = await this.rpcClient.add(content, {
           cidVersion: 1,
         });
@@ -81,7 +79,6 @@ export class IpfsPinner {
 
     json: async (content: any): Promise<UploadResult> => {
       try {
-        await this.initialize();
         let buf: Uint8Array;
         try {
           buf = jsonCodec.encode(content);
@@ -107,8 +104,6 @@ export class IpfsPinner {
       pattern: string = "**/*"
     ): Promise<UploadResult> => {
       try {
-        await this.initialize();
-
         if (typeof window !== "undefined") {
           throw new Error(
             "Directory uploads are only supported in Node.js environments"
@@ -142,8 +137,6 @@ export class IpfsPinner {
 
     files: async (files: File[]): Promise<FileArrayResult> => {
       try {
-        await this.initialize();
-
         if (files.length === 0) {
           throw new Error("No files provided");
         }
@@ -182,8 +175,6 @@ export class IpfsPinner {
 
     globFiles: async (files: GlobSourceFile[]): Promise<FileArrayResult> => {
       try {
-        await this.initialize();
-
         if (files.length === 0) {
           throw new Error("No files provided");
         }
@@ -217,12 +208,6 @@ export class IpfsPinner {
       }
     },
   };
-
-  async initialize() {
-    if (this.rpcClient) return;
-
-    this.rpcClient = create({ url: this.config.url });
-  }
 }
 
 export default IpfsPinner;

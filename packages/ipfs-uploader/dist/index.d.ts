@@ -26,6 +26,5 @@ export declare class IpfsPinner {
         files: (files: File[]) => Promise<FileArrayResult>;
         globFiles: (files: GlobSourceFile[]) => Promise<FileArrayResult>;
     };
-    initialize(): Promise<void>;
 }
 export default IpfsPinner;

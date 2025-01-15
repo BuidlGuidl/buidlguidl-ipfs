@@ -5,7 +5,6 @@ export class IpfsPinner {
         this.add = {
             file: async (input) => {
                 try {
-                    await this.initialize();
                     let content;
                     try {
                         if (input instanceof File) {
@@ -35,7 +34,6 @@ export class IpfsPinner {
             },
             text: async (content) => {
                 try {
-                    await this.initialize();
                     const add = await this.rpcClient.add(content, {
                         cidVersion: 1,
                     });
@@ -47,7 +45,6 @@ export class IpfsPinner {
             },
             json: async (content) => {
                 try {
-                    await this.initialize();
                     let buf;
                     try {
                         buf = jsonCodec.encode(content);
@@ -66,7 +63,6 @@ export class IpfsPinner {
             },
             directory: async (path, pattern = "**/*") => {
                 try {
-                    await this.initialize();
                     if (typeof window !== "undefined") {
                         throw new Error("Directory uploads are only supported in Node.js environments");
                     }
@@ -91,7 +87,6 @@ export class IpfsPinner {
             },
             files: async (files) => {
                 try {
-                    await this.initialize();
                     if (files.length === 0) {
                         throw new Error("No files provided");
                     }
@@ -121,7 +116,6 @@ export class IpfsPinner {
             },
             globFiles: async (files) => {
                 try {
-                    await this.initialize();
                     if (files.length === 0) {
                         throw new Error("No files provided");
                     }
@@ -153,10 +147,6 @@ export class IpfsPinner {
         this.config = {
             url: config?.url ?? "http://127.0.0.1:9095",
         };
-    }
-    async initialize() {
-        if (this.rpcClient)
-            return;
         this.rpcClient = create({ url: this.config.url });
     }
 }
