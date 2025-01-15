@@ -301,19 +301,23 @@ start() {
     check_docker_permissions
 
     local use_nginx=false
+    local use_https=false
     
     # Parse arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
             --secure-upload) use_nginx=true ;;
+            --https) use_https=true ;;
             *) logger "ERROR" "Unknown parameter: $1"; return 1 ;;
         esac
         shift
     done
 
-    logger "INFO" "use_nginx: $use_nginx"
-    
     logger "INFO" "Starting services..."
+    
+    # Build compose files array
+    local compose_files=("-f" "docker-compose.yml")
+    
     if [ "$use_nginx" = true ]; then
         # Check for required secure upload files
         for file in docker-compose.secure-upload.yml nginx.conf; do
@@ -322,8 +326,26 @@ start() {
                 return 1
             fi
         done
+        compose_files+=("-f" "docker-compose.secure-upload.yml")
+    fi
+    
+    if [ "$use_https" = true ]; then
+        # Check for required HTTPS files
+        for file in docker-compose.https.yml nginx.gateway.conf; do
+            if [ ! -f "$file" ]; then
+                logger "ERROR" "Missing required file for HTTPS: $file"
+                return 1
+            fi
+        done
+        if [ ! -d "data/certbot/conf" ]; then
+            logger "ERROR" "HTTPS certificates not found. Please run 'setup_https' first"
+            return 1
+        fi
+        compose_files+=("-f" "docker-compose.https.yml")
+    fi
 
-        # Start with nginx if requested
+    # Handle auth file for secure upload
+    if [ "$use_nginx" = true ]; then
         if [ ! -f htpasswd ]; then
             logger "INFO" "No auth credentials found, generating..."
             create_auth
@@ -331,13 +353,15 @@ start() {
             logger "INFO" "Using existing auth credentials in htpasswd file"
             logger "INFO" "To generate new credentials, run: $0 create_auth"
         fi
-        docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml up -d
-        logger "INFO" "Services started with secure public upload endpoint on port 5555"
-    else
-        # Start without nginx
-        docker compose up -d
-        logger "INFO" "Services started"
     fi
+
+    # Start services with all required compose files
+    docker compose "${compose_files[@]}" up -d
+    
+    # Log startup configuration
+    logger "INFO" "Services started with configuration:"
+    [ "$use_nginx" = true ] && logger "INFO" "- Secure upload endpoint enabled (port 5555)"
+    [ "$use_https" = true ] && logger "INFO" "- HTTPS gateway enabled (port 443)"
 
     # Wait for services to start
     logger "INFO" "Waiting for services to initialize..."
@@ -410,7 +434,7 @@ init_and_start() {
     fi
     
     init
-    start $@
+    start "$@"
 }
 
 # Update main to be simpler
@@ -494,11 +518,13 @@ Commands:
     start         Start the IPFS cluster services
                  Options:
                    --secure-upload  Enable authenticated public upload endpoint on port 5555
+                   --https         Enable HTTPS for gateway endpoint
     stop          Stop the IPFS cluster services
     clean         Stop and remove all containers and volumes
     reset         Reset all IPFS cluster data
     show_logs     Show container logs
     create_auth   Create new authentication credentials (use this if you lost your password)
+    setup_https   Set up HTTPS certificates for gateway endpoint
     get_peer_address Generate peer address from domain and ID
     setup_git_repo Clone a public Git repository
     install_deps   Install system dependencies
@@ -550,6 +576,63 @@ create_auth() {
     echo "If you lose them, run '$0 create_auth' to generate new ones"
 }
 
+# Additional utility functions
+setup_gateway_https() {
+    check_domain
+    
+    echo "Setting up HTTPS for gateway.${DOMAIN}"
+    
+    # Create required directories
+    mkdir -p data/certbot/conf
+    mkdir -p data/certbot/www
+    
+    # Copy gateway nginx config
+    cp nginx.gateway.conf nginx.conf
+    
+    # Ensure nginx is running for certbot challenge
+    docker compose -f docker-compose.yml -f docker-compose.https.yml up -d nginx
+    
+    # Wait a bit for nginx to start
+    sleep 5
+    
+    # Request certificate
+    docker compose -f docker-compose.yml -f docker-compose.https.yml run --rm certbot certonly \
+        --webroot \
+        --webroot-path /var/www/certbot \
+        --email admin@${DOMAIN} \
+        --agree-tos \
+        --no-eff-email \
+        -d gateway.${DOMAIN}
+    
+    # Restart nginx to pick up new certificates
+    docker compose -f docker-compose.yml -f docker-compose.https.yml restart nginx
+    
+    echo "HTTPS setup complete for gateway.${DOMAIN}"
+    echo "Please ensure your DNS is configured with:"
+    echo "- A record: gateway.${DOMAIN} -> <your-ip>"
+}
+
+check_domain() {
+    if [ -z "${DOMAIN}" ]; then
+        echo "No domain configured in .env"
+        read -p "Please enter your domain (e.g. example.com): " domain
+        
+        # Add DOMAIN to .env if it doesn't exist
+        if ! grep -q "^DOMAIN=" .env; then
+            ensure_newline
+            echo "DOMAIN=${domain}" >> .env
+        else
+            # Replace existing DOMAIN line
+            sed -i "s/^DOMAIN=.*/DOMAIN=${domain}/" .env
+        fi
+        
+        # Reload environment variables
+        set -a
+        source .env
+        set +a
+    fi
+}
+
 # Command line argument handling
 if [ $# -gt 0 ]; then
     case "$1" in
@@ -559,7 +642,7 @@ if [ $# -gt 0 ]; then
             ;;
         init|start|stop|clean|reset|show_logs|get_peer_address|\
         setup_git_repo|install_deps|install_docker|install_compose|install_cluster_ctl|\
-        fetch_configuration_files|install|init_and_start|create_auth)
+        fetch_configuration_files|install|init_and_start|create_auth|setup_gateway_https)
             cmd="$1"
             shift
             $cmd "$@"
