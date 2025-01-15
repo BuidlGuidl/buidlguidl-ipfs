@@ -163,25 +163,10 @@ check_docker_permissions() {
 init() {
     check_docker_permissions
 
-    # Check if containers are running - use temporary env for first run
-    if [ ! -f ".env" ]; then
-        # Create temporary env with default values for container check
-        TMP_ENV=$(mktemp)
-        echo "PEERNAME=temp" > "$TMP_ENV"
-        echo "SECRET=temp" >> "$TMP_ENV"
-        echo "PEERADDRESSES=" >> "$TMP_ENV"
-        
-        if { docker compose --env-file "$TMP_ENV" ps --quiet | grep -q .; }; then
-            rm "$TMP_ENV"
-            logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
-            return 1
-        fi
-        rm "$TMP_ENV"
-    else
-        if { docker compose ps --quiet | grep -q .; }; then
-            logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
-            return 1
-        fi
+    # Only check for running containers if .env exists
+    if [ -f ".env" ] && { docker compose ps --quiet 2>/dev/null | grep -q .; }; then
+        logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
+        return 1
     fi
 
     # Create .env file if it doesn't exist
