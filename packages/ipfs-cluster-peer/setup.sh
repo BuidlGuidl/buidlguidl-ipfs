@@ -372,6 +372,9 @@ start() {
     logger "INFO" "IPFS Cluster logs:"
     docker compose logs cluster | tail -n 5
     
+    logger "INFO" "Nginx logs:"
+    docker compose logs nginx | tail -n 5
+    
     logger "INFO" "Services are ready!"
 }
 
