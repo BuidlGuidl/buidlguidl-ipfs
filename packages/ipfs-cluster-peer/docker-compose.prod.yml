@@ -9,12 +9,13 @@ services:
       - "9096:9096"  # swarm
   nginx:
     image: nginx:alpine
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     ports:
       - "80:80"
       - "443:443"
       - "5555:5555"  # optional secure upload
     volumes:
-      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf.template:ro
       - ./htpasswd:/etc/nginx/.htpasswd:ro
       - ./data/certbot/conf:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
