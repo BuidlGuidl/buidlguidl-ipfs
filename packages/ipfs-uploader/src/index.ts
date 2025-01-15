@@ -1,12 +1,10 @@
-import { Helia, createHelia, libp2pDefaults } from "helia";
-import { heliaWithRemotePins } from "@helia/remote-pinning";
 import { CID } from "multiformats/cid";
 import { create, KuboRPCClient, globSource } from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
 
 export interface IpfsPinnerConfig {
-  endpointUrl?: string;
-  accessToken?: string;
+  kuboUrl?: string;
+  clusterUrl?: string;
 }
 
 export interface UploadResult {
@@ -24,16 +22,13 @@ export interface GlobSourceFile {
 }
 
 export class IpfsPinner {
-  private helia!: Helia;
   private rpcClient!: KuboRPCClient;
-  private config: Required<IpfsPinnerConfig>;
+  private config: IpfsPinnerConfig;
 
   constructor(config?: IpfsPinnerConfig) {
     this.config = {
-      endpointUrl: config?.endpointUrl ?? "http://127.0.0.1:9097",
-      accessToken:
-        config?.accessToken ??
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ1c2VyIn0.X9ko6ogtJ0Yi7EQDpOU7E7i4aNBSTh-rJL5nCYnkm20",
+      kuboUrl: config?.kuboUrl ?? "http://127.0.0.1:9095",
+      clusterUrl: config?.clusterUrl ?? "http://127.0.0.1:9094",
     };
   }
 
@@ -193,42 +188,32 @@ export class IpfsPinner {
   };
 
   async initialize() {
-    if (this.helia) return;
+    if (this.rpcClient) return;
 
-    const libp2p = libp2pDefaults();
-    libp2p.services = { ...libp2p.services };
-    delete (libp2p.services as any).upnp;
-
-    this.helia = heliaWithRemotePins(
-      await createHelia({
-        libp2p,
-      }),
-      {
-        endpointUrl: this.config.endpointUrl,
-        accessToken: this.config.accessToken,
-      }
-    );
-
-    this.rpcClient = create();
+    this.rpcClient = create({ url: this.config.kuboUrl });
   }
 
   private async pinCid(cid: CID): Promise<"pinned" | "failed"> {
     try {
-      for await (const _ of this.helia.pins.add(cid, {
-        signal: AbortSignal.timeout(30000),
-      })) {
-        // Generator needs to be consumed
+      const response = await fetch(
+        `${this.config.clusterUrl}/pins/${cid.toString()}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Failed to pin to cluster:", await response.text());
+        return "failed";
       }
+
       return "pinned";
     } catch (error) {
-      console.log("Pinning failed", error);
+      console.error("Error pinning to cluster:", error);
       return "failed";
-    }
-  }
-
-  async stop() {
-    if (this.helia) {
-      await this.helia.stop();
     }
   }
 }

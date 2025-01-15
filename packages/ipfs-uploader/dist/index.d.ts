@@ -1,6 +1,6 @@
 export interface IpfsPinnerConfig {
-    endpointUrl?: string;
-    accessToken?: string;
+    kuboUrl?: string;
+    clusterUrl?: string;
 }
 export interface UploadResult {
     cid: string;
@@ -17,7 +17,6 @@ export interface GlobSourceFile {
     content: string | Uint8Array | Buffer;
 }
 export declare class IpfsPinner {
-    private helia;
     private rpcClient;
     private config;
     constructor(config?: IpfsPinnerConfig);
@@ -31,6 +30,5 @@ export declare class IpfsPinner {
     };
     initialize(): Promise<void>;
     private pinCid;
-    stop(): Promise<void>;
 }
 export default IpfsPinner;

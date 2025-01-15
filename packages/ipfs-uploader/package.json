@@ -17,11 +17,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@helia/json": "^4.0.1",
-    "@helia/remote-pinning": "^2.0.1",
-    "@helia/strings": "^4.0.1",
-    "@helia/unixfs": "^1.0.0",
-    "helia": "^5.1.1",
     "kubo-rpc-client": "^5.0.2",
     "multiformats": "^13.3.1"
   },

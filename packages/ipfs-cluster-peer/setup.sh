@@ -157,18 +157,6 @@ init() {
         logger "INFO" "Using peer addresses: $current_peeraddresses"
     fi
 
-    # Handle BASICAUTHCREDENTIALS
-    if ! grep -q "BASICAUTHCREDENTIALS=" .env; then
-        ensure_newline
-        read -p "Enter basic auth credentials (comma-separated, format: user1:password1,user2:password2): " input_auth
-        if [ ! -z "$input_auth" ]; then
-            printf "BASICAUTHCREDENTIALS=$input_auth\n" >> .env
-        fi
-    else
-        current_auth=$(grep BASICAUTHCREDENTIALS .env | cut -d= -f2)
-        logger "INFO" "Using existing basic auth credentials"
-    fi
-
     logger "INFO" "Environment initialisation complete, you can make subsequent changes to the .env file"
     
     if [ -f "./data/ipfs-cluster/identity.json" ]; then

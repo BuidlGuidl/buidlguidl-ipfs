@@ -134,7 +134,7 @@ const server = app.listen(config.server.port, () => {
 async function shutdown() {
   logger.info("Shutdown initiated");
   try {
-    await Promise.all([server.close(), pinner.stop()]);
+    await Promise.all([server.close()]);
     process.exit(0);
   } catch (error) {
     logger.error("Error during shutdown:", error);
