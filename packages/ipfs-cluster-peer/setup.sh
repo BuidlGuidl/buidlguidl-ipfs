@@ -150,8 +150,19 @@ services:
 EOF
 }
 
+# Check Docker permissions and refresh if needed
+check_docker_permissions() {
+    if ! docker ps >/dev/null 2>&1; then
+        logger "INFO" "Docker permission denied. Refreshing Docker group membership..."
+        exec newgrp docker
+        # Note: The script will restart in a new shell after this point
+    fi
+}
+
 # Initialize identity
 init() {
+    check_docker_permissions
+
     # Check if containers are running - use temporary env for first run
     if [ ! -f ".env" ]; then
         # Create temporary env with default values for container check
@@ -285,6 +296,8 @@ init() {
 
 # Start services
 start() {
+    check_docker_permissions
+
     local use_nginx=false
     
     # Parse arguments
