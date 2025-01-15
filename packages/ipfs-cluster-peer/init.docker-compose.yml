@@ -9,7 +9,6 @@ services:
       CLUSTER_IPFSPROXY_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001 # Make IPFS Proxy work
       CLUSTER_IPFSPROXY_LISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9095 # Expose IPFS Proxy API
       CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094 # expose the cluster api
-      CLUSTER_PINSVCAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9098 # expose the pinning service api using 9098, so we can use nginx to proxy to it
       CLUSTER_CRDT_TRUSTEDPEERS: '*'
       CLUSTER_SECRET: ${SECRET}
       CLUSTER_PEERADDRESSES: ${PEERADDRESSES}

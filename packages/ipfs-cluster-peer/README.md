@@ -4,8 +4,7 @@ Docker configuration for running an IPFS node with cluster service that implemen
 
 ## Components
 - IPFS daemon (ipfs/kubo)
-- IPFS Cluster service with pinning API endpoint
-- Nginx proxy for securing the pinning API endpoint
+- IPFS Cluster service
 - Deployment scripts
 
 ## Usage

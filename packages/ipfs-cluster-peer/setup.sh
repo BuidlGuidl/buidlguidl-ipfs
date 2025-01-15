@@ -53,7 +53,7 @@ install_compose() {
 fetch_configuration_files() {
     logger "INFO" "Installing configuration files..."
     local base_url="https://bgipfs.com/peer-setup"
-    local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json" "nginx.conf")
+    local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json")
     
     for file in "${files[@]}"; do
         if [ ! -f "$file" ]; then
