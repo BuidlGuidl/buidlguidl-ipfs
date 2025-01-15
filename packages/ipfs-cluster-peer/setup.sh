@@ -3,6 +3,13 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 # Add logging function
 logger() {
     local level=$1
@@ -195,8 +202,10 @@ init() {
         read -p "Enter peer name (default: cluster0): " input_peername
         if [ -z "$input_peername" ]; then
             printf "PEERNAME=cluster0\n" >> .env
+            export PEERNAME="cluster0"
         else
             printf "PEERNAME=$input_peername\n" >> .env
+            export PEERNAME="$input_peername"
         fi
     else
         current_peername=$(grep PEERNAME .env | cut -d= -f2)
@@ -633,10 +642,8 @@ check_domain() {
             sed -i "s/^DOMAIN=.*/DOMAIN=${domain}/" .env
         fi
         
-        # Reload environment variables
-        set -a
-        source .env
-        set +a
+        # Just export the new value
+        export DOMAIN="${domain}"
     fi
 }
 
