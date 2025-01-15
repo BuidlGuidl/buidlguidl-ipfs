@@ -38,6 +38,36 @@ const handleUpload = (
   };
 };
 
+/**
+ * @apiDefine ErrorResponse
+ * @apiError {String} error Error message
+ * @apiErrorExample {json} Error-Response:
+ *     HTTP/1.1 500 Internal Server Error
+ *     {
+ *       "error": "Upload failed"
+ *     }
+ */
+
+/**
+ * @api {post} /upload/file Upload Single File
+ * @apiName UploadFile
+ * @apiGroup Upload
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Upload a single file to IPFS.
+ * 
+ * @apiBody {File} file The file to upload (multipart/form-data)
+ * 
+ * @apiSuccess {String} cid IPFS Content Identifier
+ * 
+ * @apiSuccessExample {json} Success-Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "cid": "QmW2WQi7j6c7UgJTarActp7tDNikE4B2qXtFCfLPdsgaTQ"
+ *     }
+ * 
+ * @apiUse ErrorResponse
+ */
 app.post(
   "/upload/file",
   upload.single("file"),
@@ -53,6 +83,32 @@ app.post(
   )
 );
 
+/**
+ * @api {post} /upload/files Upload Multiple Files
+ * @apiName UploadFiles
+ * @apiGroup Upload
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Upload multiple files to IPFS.
+ * 
+ * @apiBody {File[]} files Array of files to upload (multipart/form-data)
+ * 
+ * @apiSuccess {Object[]} results Array of upload results
+ * @apiSuccess {String} results.cid IPFS Content Identifier
+ * @apiSuccess {String} results.name File name
+ * 
+ * @apiSuccessExample {json} Success-Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "cid": "QmW2WQi7j6c7UgJTarActp7tDNikE4B2qXtFCfLPdsgaTQ",
+ *       "files": [{
+ *         "name": "example.txt",
+ *         "cid": "QmW2WQi7j6c7UgJTarActp7tDNikE4B2qXtFCfLPdsgaTQ"
+ *       }]
+ *     }
+ * 
+ * @apiUse ErrorResponse
+ */
 app.post(
   "/upload/files",
   upload.array("files"),
@@ -71,6 +127,20 @@ app.post(
   )
 );
 
+/**
+ * @api {post} /upload/text Upload Text
+ * @apiName UploadText
+ * @apiGroup Upload
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Upload text content to IPFS.
+ * 
+ * @apiBody {String} content Text content to upload
+ * 
+ * @apiSuccess {String} cid IPFS Content Identifier
+ * 
+ * @apiUse ErrorResponse
+ */
 app.post(
   "/upload/text",
   express.text(),
@@ -81,6 +151,20 @@ app.post(
   )
 );
 
+/**
+ * @api {post} /upload/json Upload JSON
+ * @apiName UploadJSON
+ * @apiGroup Upload
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Upload JSON content to IPFS.
+ * 
+ * @apiBody {Object} content JSON content to upload
+ * 
+ * @apiSuccess {String} cid IPFS Content Identifier
+ * 
+ * @apiUse ErrorResponse
+ */
 app.post(
   "/upload/json",
   express.json(),
@@ -91,6 +175,22 @@ app.post(
   )
 );
 
+/**
+ * @api {post} /upload/glob Upload Files from Glob
+ * @apiName UploadGlob
+ * @apiGroup Upload
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Upload multiple files using glob pattern.
+ * 
+ * @apiBody {Object[]} files Array of file objects
+ * @apiBody {String} files.path File path
+ * @apiBody {String|Buffer} files.content File content
+ * 
+ * @apiSuccess {String} cid IPFS Content Identifier
+ * 
+ * @apiUse ErrorResponse
+ */
 app.post(
   "/upload/glob",
   express.json(),
@@ -108,11 +208,29 @@ app.post(
   )
 );
 
+/**
+ * @api {get} /ping Health Check
+ * @apiName Ping
+ * @apiGroup System
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription Check if the API is running.
+ * 
+ * @apiSuccess {String} message Pong response
+ * 
+ * @apiSuccessExample {json} Success-Response:
+ *     HTTP/1.1 200 OK
+ *     {
+ *       "message": "pong"
+ *     }
+ */
 app.get("/ping", (_req: Request, res: Response) => {
   res.json({ message: "pong" });
 });
 
 app.use(errorHandler);
+
+app.use("/docs", express.static("docs"));
 
 const server = app.listen(config.server.port, () => {
   logger.info(`Server running on port ${config.server.port}`);
