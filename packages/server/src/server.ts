@@ -17,7 +17,7 @@ app.use(
 app.use(express.json());
 
 const upload = multer();
-const pinner = new IpfsPinner({});
+const pinner = new IpfsPinner({ url: "http://127.0.0.1:9095" });
 
 const handleUpload = (
   handler: (data: any) => Promise<any>,

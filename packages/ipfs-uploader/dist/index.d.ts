@@ -1,6 +1,5 @@
 export interface IpfsPinnerConfig {
-    kuboUrl?: string;
-    clusterUrl?: string;
+    url?: string;
 }
 export interface UploadResult {
     cid: string;

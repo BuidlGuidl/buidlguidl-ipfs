@@ -86,12 +86,37 @@ ensure_newline() {
     fi
 }
 
+# Create temporary docker-compose override file for identity mounting
+create_identity_override() {
+    cat > docker-compose.override.yml <<-EOF
+services:
+  cluster:
+    volumes:
+      - ./identity.json:/data/ipfs-cluster/identity.json
+EOF
+}
+
 # Initialize identity
 init() {
-    # Check if containers are running
-    if { docker compose ps --quiet | grep -q .; }; then
-        logger "ERROR" "Containers are currently running. Please stop them first with 'stop_services'"
-        return 1
+    # Check if containers are running - use temporary env for first run
+    if [ ! -f ".env" ]; then
+        # Create temporary env with default values for container check
+        TMP_ENV=$(mktemp)
+        echo "PEERNAME=temp" > "$TMP_ENV"
+        echo "SECRET=temp" >> "$TMP_ENV"
+        echo "PEERADDRESSES=" >> "$TMP_ENV"
+        
+        if { docker compose --env-file "$TMP_ENV" ps --quiet | grep -q .; }; then
+            rm "$TMP_ENV"
+            logger "ERROR" "Containers are currently running. Please stop them first with 'stop_services'"
+            return 1
+        fi
+        rm "$TMP_ENV"
+    else
+        if { docker compose ps --quiet | grep -q .; }; then
+            logger "ERROR" "Containers are currently running. Please stop them first with 'stop_services'"
+            return 1
+        fi
     fi
 
     # Create .env file if it doesn't exist
@@ -159,20 +184,49 @@ init() {
 
     logger "INFO" "Environment initialisation complete, you can make subsequent changes to the .env file"
     
-    if [ -f "./data/ipfs-cluster/identity.json" ]; then
-        logger "INFO" "identity.json already exists. Skipping initialization."
-        peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
-        logger "INFO" "Peer ID: $peer_id"
+    # Handle existing identity.json
+    if [ -f "./identity.json" ]; then
+        logger "INFO" "identity.json already exists."
+        
+        create_identity_override
+        
+        logger "INFO" "Initialising cluster peer..."
+        # Start containers with identity file mounted
+        if ! docker compose -f init.docker-compose.yml -f docker-compose.override.yml up -d --quiet-pull > /dev/null 2>&1; then
+            logger "ERROR" "Docker Compose failed to start"
+            rm docker-compose.override.yml
+            return 1
+        fi
+        
+        # Clean up temporary file
+        rm docker-compose.override.yml
     else
-        logger "INFO" "Creating identity.json and service.json"
-        docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1
-        logger "INFO" "Waiting for identity file to be created..."
-        sleep 2
-        peer_id=$(grep '"id":' "./data/ipfs-cluster/identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/')
-        logger "INFO" "Identity file has been created at ./data/ipfs-cluster/identity.json"
-        logger "INFO" "Peer ID: $peer_id"
-        logger "INFO" "Service configuration has been created at ./data/ipfs-cluster/service.json"
+        # Start containers without identity file
+        logger "INFO" "Initialising cluster peer..."
+        if ! docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1; then
+            logger "ERROR" "Docker Compose failed to start"
+            return 1
+        fi
     fi
+    
+    # Wait for containers to initialize
+    sleep 2
+    
+    # Copy identity file if it doesn't exist
+    if [ ! -f "./identity.json" ]; then
+        cp ./data/ipfs-cluster/identity.json ./identity.json
+    fi
+    
+    # Extract and validate peer ID
+    if ! peer_id=$(grep '"id":' "./identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/'); then
+        logger "ERROR" "Failed to extract peer ID"
+        return 1
+    fi
+    
+    # Log success information
+    logger "INFO" "Peer ID: $peer_id"
+    logger "INFO" "Identity file has been created at ./identity.json"
+    logger "INFO" "Service configuration has been created at ./data/ipfs-cluster/service.json"
 }
 
 # Start services

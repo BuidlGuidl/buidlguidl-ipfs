@@ -3,8 +3,7 @@ import { create, KuboRPCClient, globSource } from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
 
 export interface IpfsPinnerConfig {
-  kuboUrl?: string;
-  clusterUrl?: string;
+  url?: string;
 }
 
 export interface UploadResult {
@@ -27,8 +26,7 @@ export class IpfsPinner {
 
   constructor(config?: IpfsPinnerConfig) {
     this.config = {
-      kuboUrl: config?.kuboUrl ?? "http://127.0.0.1:9095",
-      clusterUrl: config?.clusterUrl ?? "http://127.0.0.1:9094",
+      url: config?.url ?? "http://127.0.0.1:9095",
     };
   }
 
@@ -190,26 +188,13 @@ export class IpfsPinner {
   async initialize() {
     if (this.rpcClient) return;
 
-    this.rpcClient = create({ url: this.config.kuboUrl });
+    this.rpcClient = create({ url: this.config.url });
   }
 
   private async pinCid(cid: CID): Promise<"pinned" | "failed"> {
     try {
-      const response = await fetch(
-        `${this.config.clusterUrl}/pins/${cid.toString()}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!response.ok) {
-        console.error("Failed to pin to cluster:", await response.text());
-        return "failed";
-      }
-
+      console.log("pinning cid", cid.toString());
+      await this.rpcClient.pin.add(cid.toString());
       return "pinned";
     } catch (error) {
       console.error("Error pinning to cluster:", error);

@@ -15,4 +15,4 @@ services:
       CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
     volumes:
       - ./data/ipfs-cluster:/data/ipfs-cluster
-    command: ["ipfs-cluster-service", "init"] #, "./init.service.json"]
+    command: ["ipfs-cluster-service", "init", "./init.service.json"]
