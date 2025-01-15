@@ -127,7 +127,7 @@ install_cluster_ctl() {
     fi
     
     logger "INFO" "Installing IPFS Cluster Control..."
-    wget https://dist.ipfs.tech/ipfs-cluster-ctl/v1.0.6/ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
+    wget https://dist.ipfs.tech/ipfs-cluster-ctl/v1.1.2/ipfs-cluster-ctl_v1.1.2_darwin-arm64.tar.gz | tar xvzf -
     tar xvzf ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
     sudo mv ipfs-cluster-ctl/ipfs-cluster-ctl /usr/local/bin/
     rm -rf ipfs-cluster-ctl*
