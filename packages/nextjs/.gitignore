@@ -20,7 +20,7 @@
 # production
 /build
 
-/public/peer-setup
+/public/bgipfs-cli
 
 # misc
 .DS_Store

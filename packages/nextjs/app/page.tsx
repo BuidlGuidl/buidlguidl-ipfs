@@ -1,48 +1,84 @@
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <h1 className="text-4xl font-bold">BuidlGuidl IPFS</h1>
-        <ol className="list-inside list-decimal text-sm text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-4">
-            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/bgipfs-cli">
-              bgipfs-cli: run an ipfs cluster
-            </a>
-          </li>
-          <li className="mb-4">
-            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/ipfs-uploader">
-              ipfs-uploader: library for easy addition of multiple content types
-            </a>
-          </li>
-          <li className="mb-4">
-            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/nextjs">
-              nextjs: this app
-            </a>
-          </li>
-          <li className="mb-4">
-            <a href="https://gateway.bgipfs.com/ipfs/bafkreibmcwvxstzb2x3cdcx7oqf65v2abgjikq5ja725mr6xdhe5zyf7cm">
-              gateway.bgipfs.com: buidlguidl ipfs gateway
-            </a>
-          </li>
-        </ol>
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
+      <div className="max-w-4xl mx-auto px-4 py-16 sm:py-24">
+        <main className="flex flex-col items-center sm:items-start space-y-10">
+          {/* Header Section */}
+          <div className="text-center sm:text-left space-y-4">
+            <h1 className="text-5xl sm:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-400">
+              BuidlGuidl IPFS
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium italic">
+              Alpha software, under active development
+            </p>
+          </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="/pin"
-          >
-            Pin Content
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://github.com/azf20/buidlguidl-ipfs"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Github
-          </a>
-        </div>
-      </main>
+          {/* Features List */}
+          <ol className="list-decimal list-inside space-y-6 text-base sm:text-lg font-[family-name:var(--font-geist-mono)] pl-4">
+            <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
+              <a
+                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/bgipfs-cli"
+                className="hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                bgipfs-cli: run an ipfs cluster
+              </a>
+            </li>
+            <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
+              <a
+                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/ipfs-uploader"
+                className="hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ipfs-uploader: library for easy addition of multiple content
+                types
+              </a>
+            </li>
+            <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
+              <a
+                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/nextjs"
+                className="hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                nextjs: this app
+              </a>
+            </li>
+            <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
+              <a
+                href="https://gateway.bgipfs.com/ipfs/bafkreibmcwvxstzb2x3cdcx7oqf65v2abgjikq5ja725mr6xdhe5zyf7cm"
+                className="hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                gateway.bgipfs.com: buidlguidl ipfs gateway
+              </a>
+            </li>
+          </ol>
+
+          {/* Action Buttons */}
+          <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">
+            <a
+              className="rounded-lg px-8 py-3 bg-black dark:bg-white text-white dark:text-black font-semibold 
+                         transition-all hover:scale-105 hover:shadow-lg"
+              href="/pin"
+            >
+              Pin Content
+            </a>
+            <a
+              className="rounded-lg px-8 py-3 border border-gray-200 dark:border-gray-700 
+                         hover:bg-gray-50 dark:hover:bg-gray-800 transition-all font-semibold"
+              href="https://github.com/azf20/buidlguidl-ipfs"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

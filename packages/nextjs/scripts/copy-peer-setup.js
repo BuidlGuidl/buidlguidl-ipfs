@@ -5,7 +5,7 @@ const peerPackage = require("@buidlguidl/bgipfs-cli/package.json");
 const sourceDir = path.dirname(
   require.resolve("@buidlguidl/bgipfs-cli/package.json")
 );
-const targetDir = path.join(__dirname, "../public/peer-setup");
+const targetDir = path.join(__dirname, "../public/bgipfs-cli");
 
 // Create target directory
 fs.mkdirSync(targetDir, { recursive: true });
