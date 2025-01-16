@@ -21,12 +21,12 @@ jobs:
       - name: Update default version
         run: |
           cd packages/bgipfs-cli
-          ./scripts/prebuild.sh
+          bash ./scripts/prebuild.sh
       
       - name: Build packages
         run: |
           cd packages/bgipfs-cli
-          ./scripts/build.sh
+          bash ./scripts/build.sh
       
       - name: Upload Release Asset
         run: |
