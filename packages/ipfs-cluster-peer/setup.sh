@@ -637,14 +637,23 @@ setup_dns() {
         local domain=$1
         echo "Getting certificate for ${domain}"
         
+        # Make sure any existing certbot-nginx container is removed
+        docker rm -f certbot-nginx 2>/dev/null || true
+        
         # Start temporary nginx for this domain
-        docker run -d --rm \
+        if ! docker run -d --rm \
             --name certbot-nginx \
             -p 80:80 \
             -v $PWD/certbot.conf:/etc/nginx/conf.d/default.conf:ro \
             -v $PWD/data/certbot/www:/var/www/certbot \
             -e DOMAIN="${domain}" \
-            nginx:alpine
+            nginx:alpine; then
+            logger "ERROR" "Failed to start temporary nginx container"
+            return 1
+        fi
+
+        # Ensure cleanup on exit
+        trap "docker rm -f certbot-nginx 2>/dev/null || true" EXIT
 
         sleep 5
 
@@ -657,7 +666,15 @@ setup_dns() {
                 --register-unsafely-without-email --agree-tos --no-eff-email -d ${domain}
         fi
 
-        docker stop certbot-nginx
+        local result=$?
+        
+        # Clean up the temporary nginx container
+        docker rm -f certbot-nginx 2>/dev/null || true
+        
+        # Remove the trap since we've cleaned up
+        trap - EXIT
+        
+        return $result
     }
 
     # Get certificates for configured domains
