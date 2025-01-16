@@ -47,14 +47,21 @@ init_command() {
         
         logger "INFO" "Initializing cluster peer..."
         # Start containers with identity file mounted
-        docker compose -f init.docker-compose.yml -f docker-compose.override.yml up
+        if ! docker compose -f init.docker-compose.yml -f docker-compose.override.yml up -d --quiet-pull > /dev/null 2>&1; then
+            logger "ERROR" "Docker Compose failed to start"
+            rm docker-compose.override.yml
+            return 1
+        fi
         
         # Clean up temporary file
         rm docker-compose.override.yml
     else
         # Start containers without identity file
         logger "INFO" "Initializing cluster peer..."
-        docker compose -f init.docker-compose.yml up
+        docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1; then
+            logger "ERROR" "Docker Compose failed to start"
+            return 1
+        fi
     fi
     
     # Wait for containers to initialize
@@ -75,4 +82,11 @@ init_command() {
     logger "INFO" "Peer ID: $peer_id"
     logger "INFO" "Identity file has been created at ./identity.json"
     logger "INFO" "Service configuration has been created at ./data/ipfs-cluster/service.json"
-} 
+
+    # Stop and remove the initialization containers
+    logger "INFO" "Cleaning up initialization containers..."
+    if ! docker compose -f init.docker-compose.yml down > /dev/null 2>&1; then
+        logger "ERROR" "Failed to clean up initialization containers"
+        return 1
+    fi
+}
