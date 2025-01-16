@@ -11,6 +11,9 @@
     "commands",
     "templates"
   ],
+  "hostedFiles": [
+    "install.sh"
+  ],
   "scripts": {
     "postinstall": "chmod +x ./bin/bgipfs"
   },

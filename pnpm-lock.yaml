@@ -8,6 +8,8 @@ importers:
 
   .: {}
 
+  packages/bgipfs-cli: {}
+
   packages/ipfs-cluster-peer: {}
 
   packages/ipfs-uploader:
@@ -86,9 +88,9 @@ importers:
         specifier: ^3.22.4
         version: 3.24.1
     devDependencies:
-      '@buidlguidl/ipfs-cluster-peer':
+      '@buidlguidl/bgipfs-cli':
         specifier: workspace:*
-        version: link:../ipfs-cluster-peer
+        version: link:../bgipfs-cli
       '@eslint/eslintrc':
         specifier: ^3
         version: 3.2.0
