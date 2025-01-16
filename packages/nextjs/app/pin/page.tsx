@@ -2,69 +2,92 @@
 
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
+import Link from "next/link";
 
 export default function PinPage() {
-  const [uploading, setUploading] = useState(false)
-  const [result, setResult] = useState<{ cid: string; status: string } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<{ cid: string; status: string } | null>(
+    null
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    setFile(acceptedFiles[0])
-  }, [])
+    setFile(acceptedFiles[0]);
+  }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop })
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
   const handleFileUpload = async () => {
-    if (!file) return
-    
-    setUploading(true)
-    setError(null)
-    setResult(null)
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    setResult(null);
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      const formData = new FormData();
+      formData.append("file", file);
 
       const response = await fetch(`/api/upload/file`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
-      })
+      });
 
       if (!response.ok) {
-        throw new Error('Upload failed')
+        throw new Error("Upload failed");
       }
 
-      const uploadResult = await response.json()
-      setResult(uploadResult)
+      const uploadResult = await response.json();
+      setResult(uploadResult);
     } catch (err) {
-      console.error('Upload error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to upload file')
+      console.error("Upload error:", err);
+      setError(err instanceof Error ? err.message : "Failed to upload file");
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-xl">
+        <Link
+          href="/"
+          className="mb-6 inline-flex items-center text-blue-500 hover:text-blue-400"
+        >
+          <svg
+            className="w-5 h-5 mr-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
+          </svg>
+          Back to Home
+        </Link>
+
         <div className="space-y-4">
           <div className="space-y-2">
             <div
               {...getRootProps()}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-blue-500 transition-colors"
+              className="border-2 border-dashed border-gray-600 rounded-lg p-6 cursor-pointer hover:border-blue-500 transition-colors"
             >
               <input {...getInputProps()} />
               <div className="text-center">
                 {isDragActive ? (
                   <p className="text-blue-500">Drop the file here...</p>
                 ) : (
-                  <p className="text-gray-500">
+                  <p className="text-gray-400">
                     Drag and drop a file here, or click to select a file
                   </p>
                 )}
                 {file && (
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-400">
                     Selected: {file.name}
                   </p>
                 )}
@@ -73,7 +96,7 @@ export default function PinPage() {
             <button
               onClick={handleFileUpload}
               disabled={uploading || !file}
-              className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300"
+              className="w-full py-2 px-4 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 disabled:bg-gray-600 disabled:text-gray-400"
             >
               {uploading ? "Uploading..." : "Upload to IPFS"}
             </button>

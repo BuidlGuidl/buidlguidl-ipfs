@@ -11,15 +11,27 @@ DEFAULT_VERSION="0.1.0"
 # Installation directory
 INSTALL_DIR="/usr/local/lib/bgipfs"
 
+# Check if running in non-interactive mode (like through curl pipe)
+if [ -t 0 ]; then
+    INTERACTIVE=true
+else
+    INTERACTIVE=false
+fi
+
 # Check for existing installation
 if [ -d "$INSTALL_DIR" ] && [ "$(ls -A $INSTALL_DIR 2>/dev/null)" ]; then
     echo "Existing bgipfs installation found at $INSTALL_DIR"
-    printf "Do you want to replace it? [y/N] "
-    read REPLY
-    echo
-    if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
-        echo "Installation cancelled"
-        exit 1
+    if [ "$INTERACTIVE" = true ]; then
+        printf "Do you want to replace it? [y/N] "
+        read REPLY
+        echo
+        if [ "$REPLY" != "y" ] && [ "$REPLY" != "Y" ]; then
+            echo "Installation cancelled"
+            exit 1
+        fi
+    else
+        # In non-interactive mode, proceed with installation
+        echo "Running in non-interactive mode - proceeding with installation"
     fi
     echo "Removing existing installation..."
     sudo rm -rf "$INSTALL_DIR"
