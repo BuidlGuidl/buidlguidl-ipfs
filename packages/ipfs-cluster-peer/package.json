@@ -8,10 +8,10 @@
     "init.service.json",
     "init.docker-compose.yml",
     "docker-compose.yml",
-    "docker-compose.secure-upload.yml",
     "docker-compose.prod.yml",
     "nginx.dev.conf",
-    "nginx.prod.conf"
+    "nginx.prod.conf",
+    "certbot.conf"
   ],
   "keywords": [
     "ipfs",
