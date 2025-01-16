@@ -72,6 +72,12 @@ init_command() {
         cp ./data/ipfs-cluster/identity.json ./identity.json
     fi
     
+    # Check if identity.json exists and is non-empty
+    if [ ! -f "./identity.json" ] || [ ! -s "./identity.json" ]; then
+        logger "ERROR" "identity.json file not found or is empty"
+        return 1
+    fi
+
     # Extract and validate peer ID
     if ! peer_id=$(grep '"id":' "./identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/'); then
         logger "ERROR" "Failed to extract peer ID"
@@ -81,7 +87,9 @@ init_command() {
     # Log success information
     logger "INFO" "Peer ID: $peer_id"
     logger "INFO" "Identity file has been created at ./identity.json"
-    logger "INFO" "Service configuration has been created at ./data/ipfs-cluster/service.json"
+
+    cp ./data/ipfs-cluster/service.json ./service.json
+    logger "INFO" "Service configuration has been created at ./service.json"
 
     # Stop and remove the initialization containers
     logger "INFO" "Cleaning up initialization containers..."

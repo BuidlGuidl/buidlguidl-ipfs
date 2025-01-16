@@ -8,7 +8,14 @@ reset_command() {
     if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
         logger "WARN" "Performing reset..."
         clean_command
-        rm -rf data
+        
+        # Check if running on Ubuntu/Debian
+        if [ -f /etc/os-release ] && grep -qi "ubuntu\|debian" /etc/os-release; then
+            sudo rm -rf data
+        else
+            rm -rf data
+        fi
+        
         logger "INFO" "Reset complete"
     else
         logger "INFO" "Reset cancelled"
