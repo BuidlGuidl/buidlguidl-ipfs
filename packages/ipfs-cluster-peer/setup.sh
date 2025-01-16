@@ -655,7 +655,9 @@ setup_dns() {
         # Ensure cleanup on exit
         trap "docker rm -f certbot-nginx 2>/dev/null || true" EXIT
 
-        sleep 5
+        # Wait for nginx to start and show logs to help debug
+        sleep 2
+        docker logs certbot-nginx
 
         # Build certbot command based on whether email is provided
         if [ ! -z "${EMAIL:-}" ]; then

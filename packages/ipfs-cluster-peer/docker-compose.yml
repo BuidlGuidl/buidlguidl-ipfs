@@ -41,6 +41,3 @@ services:
     volumes:
       - ./nginx.ip.conf:/etc/nginx/nginx.conf:ro
       - ./htpasswd:/etc/nginx/.htpasswd:ro
-    environment:
-      - DOMAIN=${DOMAIN}
-      - SUBDOMAINS=${SUBDOMAINS}
