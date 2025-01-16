@@ -1,3 +1,7 @@
 node_modules
 data/
 .DS_Store
+.env
+identity.json
+htpasswd
+docker-compose.override.yml

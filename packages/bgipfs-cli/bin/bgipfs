@@ -1,0 +1,91 @@
+#!/bin/bash
+
+VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source logger first as it's used by everything
+source "$BASE_DIR/lib/logger.sh"
+source "$BASE_DIR/lib/config.sh"
+
+# Ensure .env exists and load environment variables
+touch "$BASE_DIR/.env"
+set -o allexport
+source "$BASE_DIR/.env"
+set +o allexport
+
+# Development mode check - quiet refresh of config files
+if [ "$CLI_DEVELOPMENT_MODE" = "true" ]; then
+    logger "INFO" "Refreshing template files..."
+    fetch_config_files --force >/dev/null 2>&1
+fi
+
+# Dynamically load all command modules
+for command_file in "$BASE_DIR"/commands/*.sh; do
+    if [ -f "$command_file" ]; then
+        source "$command_file"
+    fi
+done
+
+# Show help message
+show_help() {
+    cat << EOF
+bgipfs - BuidlGuidl IPFS Cluster Management Tool v${VERSION}
+
+Usage: bgipfs <command> [options]
+
+Commands:
+EOF
+    # Dynamically list available commands
+    for command_file in "$BASE_DIR"/commands/*.sh; do
+        if [ -f "$command_file" ]; then
+            command_name=$(basename "$command_file" .sh)
+            # Extract description from command file if available
+            description=$(grep "^# Description:" "$command_file" | cut -d: -f2- | sed 's/^[[:space:]]*//')
+            printf "    %-12s %s\n" "$command_name" "${description:-No description available}"
+        fi
+    done
+
+    cat << EOF
+
+For first-time setup:
+    1. bgipfs install    # Install dependencies
+    2. bgipfs init       # Initialize cluster node
+    3. bgipfs start      # Start services
+
+For more information, visit: https://github.com/buidlguidl/ipfs-cluster
+EOF
+}
+
+# Main command router
+main() {
+    local command=$1
+    if [ -z "$command" ]; then
+        show_help
+        exit 0
+    fi
+
+    # Check if command exists by looking for its function
+    local command_function="${command}_command"
+    if declare -f "$command_function" > /dev/null; then
+        shift
+        $command_function "$@"
+    else
+        case "$command" in
+            help|-h|--help)
+                show_help
+                ;;
+            version|-v|--version)
+                echo "bgipfs version ${VERSION}"
+                ;;
+            *)
+                logger "ERROR" "Unknown command: $command"
+                logger "INFO" "Run 'bgipfs help' for usage information"
+                exit 1
+                ;;
+        esac
+    fi
+}
+
+# Execute main function with all arguments
+main "$@" 

@@ -1,0 +1,38 @@
+{
+  "cluster": {
+    "peername": "a369b38b8027",
+    "secret": "7db39467134aff366141cf49c56592d8ca9ae7e741687ad37cade31d0a4242a2",
+    "leave_on_shutdown": false,
+    "listen_multiaddress": [
+      "/ip4/0.0.0.0/tcp/9096",
+      "/ip4/0.0.0.0/udp/9096/quic"
+    ],
+    "announce_multiaddress": [],
+    "no_announce_multiaddress": [],
+    "enable_relay_hop": true,
+    "connection_manager": {
+      "high_water": 400,
+      "low_water": 100,
+      "grace_period": "2m0s"
+    },
+    "pubsub": {
+      "seen_messages_ttl": "30m0s",
+      "heartbeat_interval": "10s",
+      "d_factor": 4,
+      "history_gossip": 2,
+      "history_length": 6,
+      "flood_publish": false
+    }
+  },
+  "consensus": {
+    "crdt": {
+      "cluster_name": "ipfs-cluster",
+      "trusted_peers": ["*"],
+      "batching": {
+        "max_batch_size": 0,
+        "max_batch_age": "0s"
+      },
+      "repair_interval": "1h0m0s"
+    }
+  }
+}
