@@ -2,10 +2,12 @@
 # Description: Show version information for bgipfs and its components
 
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/system.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/version.sh"
 
 version_command() {
-    # Show bgipfs version
-    logger "INFO" "bgipfs version: ${VERSION}"
+    # Show bgipfs version using shared function
+    local bgipfs_version=$(get_bgipfs_version "$BASE_DIR")
+    logger "INFO" "bgipfs version: ${bgipfs_version}"
     
     # Get IPFS Cluster CTL version (from system installation)
     if command -v ipfs-cluster-ctl >/dev/null 2>&1; then

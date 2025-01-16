@@ -1,8 +1,13 @@
 #!/bin/bash
 
-VERSION="0.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source version helper
+source "$BASE_DIR/lib/version.sh"
+
+# Get version using shared function
+VERSION=$(get_bgipfs_version "$BASE_DIR")
 
 # Source logger first as it's used by everything
 source "$BASE_DIR/lib/logger.sh"
