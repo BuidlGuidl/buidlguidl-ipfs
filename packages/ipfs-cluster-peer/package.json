@@ -8,9 +8,9 @@
     "init.service.json",
     "init.docker-compose.yml",
     "docker-compose.yml",
-    "docker-compose.prod.yml",
-    "nginx.dev.conf",
-    "nginx.prod.conf",
+    "docker-compose.dns.yml",
+    "nginx.ip.conf",
+    "nginx.dns.conf",
     "certbot.conf"
   ],
   "keywords": [

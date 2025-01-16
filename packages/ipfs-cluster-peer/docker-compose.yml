@@ -1,11 +1,11 @@
-# Base configuration - development mode
+# Base configuration - IP-based mode
 services:
   ipfs:
     container_name: ipfs
     image: ipfs/kubo:release
     ports:
       - "4001:4001"  # swarm
-      - "8080:8080"  # gateway (dev only)
+      - "8080:8080"  # gateway (IP mode only)
       - "5001:5001"  # api
     volumes:
       - ./data/ipfs:/data/ipfs
@@ -32,7 +32,6 @@ services:
     volumes:
       - ./data/ipfs-cluster:/data/ipfs-cluster
 
-  # Optional nginx service (enabled in both dev and prod)
   nginx:
     image: nginx:alpine
     depends_on:
@@ -40,5 +39,8 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.ip.conf:/etc/nginx/nginx.conf:ro
       - ./htpasswd:/etc/nginx/.htpasswd:ro
+    environment:
+      - DOMAIN=${DOMAIN}
+      - SUBDOMAINS=${SUBDOMAINS}

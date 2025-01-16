@@ -309,13 +309,13 @@ init() {
 start() {
     check_docker_permissions
 
-    local mode="dev"
+    local mode="ip"
     
     # Parse arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
-            --dev) mode="dev" ;;
-            --prod) mode="prod" ;;
+            --ip) mode="ip" ;;
+            --dns) mode="dns" ;;
             *) logger "ERROR" "Unknown parameter: $1"; return 1 ;;
         esac
         shift
@@ -326,23 +326,19 @@ start() {
     # Build compose files array
     local compose_files=("-f" "docker-compose.yml")
     
-    if [ "$mode" = "prod" ]; then
-        # Check for required production files
-        for file in docker-compose.prod.yml nginx.prod.conf; do
+    if [ "$mode" = "dns" ]; then
+        # Check for required DNS mode files
+        for file in docker-compose.dns.yml nginx.dns.conf; do
             if [ ! -f "$file" ]; then
-                logger "ERROR" "Missing required file for production: $file"
+                logger "ERROR" "Missing required file for DNS mode: $file"
                 return 1
             fi
         done
         if [ ! -d "data/certbot/conf" ]; then
-            logger "ERROR" "Production certificates not found. Please run 'setup_prod' first"
+            logger "ERROR" "SSL certificates not found. Please run 'setup_dns' first"
             return 1
         fi
-    fi
-
-    # Add prod config last to ensure it overrides secure-upload
-    if [ "$mode" = "prod" ]; then
-        compose_files+=("-f" "docker-compose.prod.yml")
+        compose_files+=("-f" "docker-compose.dns.yml")
     fi
 
     # Handle auth file for nginx
@@ -360,7 +356,7 @@ start() {
     # Log startup configuration
     logger "INFO" "Services started with configuration:"
     logger "INFO" "- Mode: ${mode}"
-
+    
     # Wait for services to start
     logger "INFO" "Waiting for services to initialize..."
     sleep 5
@@ -516,14 +512,16 @@ Commands:
     init          Initialize the IPFS cluster peer
     start         Start the IPFS cluster services
                  Options:
-                   --dev           Development mode (default)
-                   --prod          Production mode with HTTPS gateway
+                   --ip            IP-based mode (default)
+                   --dns          DNS mode with HTTPS gateway
     stop          Stop the IPFS cluster services
     clean         Stop and remove all containers and volumes
     reset         Reset all IPFS cluster data
     show_logs     Show container logs
-    create_auth   Create new authentication credentials (use this if you lost your password)
-    setup_prod    Set up production environment (SSL certificates, etc)
+    create_auth   Create new authentication credentials
+    setup_dns     Set up HTTPS certificates for domains
+                 Will prompt for domains if not configured in environment
+                 Domains must be pointed to your server's public IP first
     get_peer_address Generate peer address from domain and ID
     setup_git_repo Clone a public Git repository
     install_deps   Install system dependencies
@@ -537,8 +535,14 @@ For first-time setup, run these commands in order:
     1. $0 install
     2. $0 init_and_start
     3. Optional: $0 create_auth to generate new credentials
+    4. Optional: $0 setup_dns for HTTPS (will prompt for domain configuration)
 
-If no command is provided, runs the installation step only.
+Environment variables for DNS setup (optional):
+    GATEWAY_DOMAIN  Domain for IPFS gateway (e.g. gateway.example.com)
+    UPLOAD_DOMAIN   Domain for secure upload endpoint (e.g. upload.example.com)
+    Set to empty string ("") to explicitly skip a domain
+    If not set, setup_dns will prompt for input
+    Note: Domains must be configured with A records pointing to your server's public IP
 EOF
 }
 
@@ -576,66 +580,78 @@ create_auth() {
 }
 
 # Additional utility functions
-setup_prod() {
-    check_domain
-    
-    echo "Setting up production environment for ${DOMAIN}"
-    
-    # Cleanup any existing temporary containers
-    docker stop certbot-nginx 2>/dev/null || true
-    docker rm certbot-nginx 2>/dev/null || true
-    
-    # Start a temporary nginx for certbot challenge
-    docker run -d --rm \
-        --name certbot-nginx \
-        -p 80:80 \
-        -v $PWD/certbot.conf:/etc/nginx/conf.d/default.conf:ro \
-        -v $PWD/data/certbot/www:/var/www/certbot \
-        -e DOMAIN=${DOMAIN} \
-        nginx:alpine
-    
-    # Wait a bit for nginx to start
-    sleep 5
-    
-    # Request certificate
-    docker run --rm \
-        -v $PWD/data/certbot/conf:/etc/letsencrypt \
-        -v $PWD/data/certbot/www:/var/www/certbot \
-        certbot/certbot certonly \
-        --webroot \
-        --webroot-path /var/www/certbot \
-        --email admin@${DOMAIN} \
-        --agree-tos \
-        --no-eff-email \
-        -d gateway.${DOMAIN} \
-        -d upload.${DOMAIN}
-    
-    # Stop the temporary nginx
-    docker stop certbot-nginx
-    
-    echo "HTTPS setup complete for gateway.${DOMAIN} and upload.${DOMAIN}"
-    echo "Please ensure your DNS is configured with:"
-    echo "- A record: gateway.${DOMAIN} -> <your-ip>"
-    echo "- A record: upload.${DOMAIN} -> <your-ip>"
-}
-
-check_domain() {
-    if [ -z "${DOMAIN:-}" ]; then
-        echo "No domain configured in .env"
-        read -p "Please enter your domain (e.g. example.com): " domain
-        
-        # Add DOMAIN to .env if it doesn't exist
-        if ! grep -q "^DOMAIN=" .env; then
+setup_dns() {
+    # Check/prompt for gateway domain only if unset
+    if [ -z "${GATEWAY_DOMAIN+x}" ]; then
+        echo "Note: Domain must already be configured with an A record pointing to your server's public IP"
+        read -p "Enter gateway domain (e.g. gateway.example.com) or press enter to skip: " gateway_domain
+        if [ ! -z "$gateway_domain" ]; then
             ensure_newline
-            echo "DOMAIN=${domain}" >> .env
+            echo "GATEWAY_DOMAIN=${gateway_domain}" >> .env
+            export GATEWAY_DOMAIN="${gateway_domain}"
         else
-            # Replace existing DOMAIN line
-            sed -i "s/^DOMAIN=.*/DOMAIN=${domain}/" .env
+            export GATEWAY_DOMAIN=""
         fi
-        
-        # Just export the new value
-        export DOMAIN="${domain}"
     fi
+
+    # Check/prompt for upload domain only if unset
+    if [ -z "${UPLOAD_DOMAIN+x}" ]; then
+        echo "Note: Domain must already be configured with an A record pointing to your server's public IP"
+        read -p "Enter upload domain (e.g. upload.example.com) or press enter to skip: " upload_domain
+        if [ ! -z "$upload_domain" ]; then
+            ensure_newline
+            echo "UPLOAD_DOMAIN=${upload_domain}" >> .env
+            export UPLOAD_DOMAIN="${upload_domain}"
+        else
+            export UPLOAD_DOMAIN=""
+        fi
+    fi
+
+    # Validate that at least one domain was specified
+    if [ -z "${GATEWAY_DOMAIN}" ] && [ -z "${UPLOAD_DOMAIN}" ]; then
+        logger "ERROR" "No domains specified. At least one domain is required."
+        return 1
+    fi
+
+    echo "Setting up DNS environment"
+
+    # Function to get certificate for a domain
+    get_certificate() {
+        local domain=$1
+        echo "Getting certificate for ${domain}"
+        
+        # Start temporary nginx for this domain
+        docker run -d --rm \
+            --name certbot-nginx \
+            -p 80:80 \
+            -v $PWD/certbot.conf:/etc/nginx/conf.d/default.conf:ro \
+            -v $PWD/data/certbot/www:/var/www/certbot \
+            -e DOMAIN="${domain}" \
+            nginx:alpine
+
+        sleep 5
+
+        docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
+            --email ${EMAIL} --agree-tos --no-eff-email -d ${domain}
+
+        docker stop certbot-nginx
+    }
+
+    # Get certificates for configured domains
+    if [ ! -z "${GATEWAY_DOMAIN}" ]; then
+        echo "Setting up Gateway domain: ${GATEWAY_DOMAIN}"
+        get_certificate "${GATEWAY_DOMAIN}"
+    fi
+
+    if [ ! -z "${UPLOAD_DOMAIN}" ]; then
+        echo "Setting up Upload domain: ${UPLOAD_DOMAIN}"
+        get_certificate "${UPLOAD_DOMAIN}"
+    fi
+
+    echo "HTTPS setup complete for:"
+    [ ! -z "${GATEWAY_DOMAIN}" ] && echo "- Gateway: ${GATEWAY_DOMAIN}"
+    [ ! -z "${UPLOAD_DOMAIN}" ] && echo "- Upload: ${UPLOAD_DOMAIN}"
+    echo "Please ensure your DNS is configured with A records pointing to your IP for each domain"
 }
 
 # Command line argument handling
@@ -647,7 +663,7 @@ if [ $# -gt 0 ]; then
             ;;
         init|start|stop|clean|reset|show_logs|get_peer_address|\
         setup_git_repo|install_deps|install_docker|install_compose|install_cluster_ctl|\
-        fetch_configuration_files|install|init_and_start|create_auth|setup_prod)
+        fetch_configuration_files|install|init_and_start|create_auth|setup_dns)
             cmd="$1"
             shift
             $cmd "$@"
