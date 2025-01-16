@@ -31,6 +31,8 @@ services:
       - "9096:9096"
     volumes:
       - ./data/ipfs-cluster:/data/ipfs-cluster
+      - ./service.json:/data/ipfs-cluster/service.json
+      - ./identity.json:/data/ipfs-cluster/identity.json
 
   nginx:
     image: nginx:alpine
@@ -40,4 +42,4 @@ services:
       - "5555:5555"
     volumes:
       - ./nginx.ip.conf:/etc/nginx/nginx.conf:ro
-      - ./htpasswd:/etc/nginx/.htpasswd:ro
+      - ./htpasswd:/etc/nginx/.htpasswd:ro 

@@ -25,7 +25,7 @@
     "@buidlguidl/ipfs-uploader": "workspace:*"
   },
   "devDependencies": {
-    "@buidlguidl/ipfs-cluster-peer": "workspace:*",
+    "@buidlguidl/bgipfs-cli": "workspace:*",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Get version from release
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+      
+      - name: Update package.json version
+        run: |
+          cd packages/bgipfs-cli
+          npm version ${{ env.VERSION }} --no-git-tag-version
+      
+      - name: Build packages
+        run: |
+          cd packages/bgipfs-cli
+          ./scripts/build.sh
+      
+      - name: Upload Release Assets
+        run: |
+          cd packages/bgipfs-cli/dist
+          for file in *.tar.gz; do
+            gh release upload ${GITHUB_REF#refs/tags/} $file
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

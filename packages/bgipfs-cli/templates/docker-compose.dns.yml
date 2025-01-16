@@ -1,0 +1,21 @@
+# DNS mode overrides
+services:
+  ipfs:
+    ports:
+      - "4001:4001"  # swarm
+      - "5001:5001"  # api
+      # Note: No 8080 port in DNS mode since gateway is handled by nginx
+
+  nginx:
+    ports:
+      - "80:80"     # HTTP (for certbot challenges)
+      - "443:443"   # HTTPS
+      - "5555:5555" # API
+    command: /bin/sh -c "envsubst '$$GATEWAY_DOMAIN $$UPLOAD_DOMAIN' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf && nginx -g 'daemon off;' -c /tmp/nginx.conf"
+    volumes:
+      - ./nginx.dns.conf:/etc/nginx/nginx.conf.template:ro
+      - ./htpasswd:/etc/nginx/.htpasswd:ro
+      - ./data/certbot/conf:/etc/letsencrypt
+    environment:
+      - GATEWAY_DOMAIN=${GATEWAY_DOMAIN}
+      - UPLOAD_DOMAIN=${UPLOAD_DOMAIN} 
