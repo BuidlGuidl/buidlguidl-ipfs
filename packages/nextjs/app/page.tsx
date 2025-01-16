@@ -1,3 +1,5 @@
+import { InstallCommand } from "./components/InstallCommand";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -57,6 +59,9 @@ export default function Home() {
               </a>
             </li>
           </ol>
+
+          {/* Installation Command */}
+          <InstallCommand />
 
           {/* Action Buttons */}
           <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">
