@@ -659,13 +659,29 @@ setup_dns() {
         sleep 2
         docker logs certbot-nginx
 
-        # Build certbot command based on whether email is provided
+        # Run certbot
         if [ ! -z "${EMAIL:-}" ]; then
-            docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
-                --email ${EMAIL} --agree-tos --no-eff-email -d ${domain}
+            docker run --rm \
+                -v $PWD/data/certbot/conf:/etc/letsencrypt \
+                -v $PWD/data/certbot/www:/var/www/certbot \
+                certbot/certbot certonly \
+                --webroot \
+                --webroot-path /var/www/certbot \
+                --email ${EMAIL} \
+                --agree-tos \
+                --no-eff-email \
+                -d ${domain}
         else
-            docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
-                --register-unsafely-without-email --agree-tos --no-eff-email -d ${domain}
+            docker run --rm \
+                -v $PWD/data/certbot/conf:/etc/letsencrypt \
+                -v $PWD/data/certbot/www:/var/www/certbot \
+                certbot/certbot certonly \
+                --webroot \
+                --webroot-path /var/www/certbot \
+                --register-unsafely-without-email \
+                --agree-tos \
+                --no-eff-email \
+                -d ${domain}
         fi
 
         local result=$?
