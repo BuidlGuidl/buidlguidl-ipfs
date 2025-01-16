@@ -47,47 +47,25 @@ init_command() {
         
         logger "INFO" "Initializing cluster peer..."
         # Start containers with identity file mounted
-        if ! output=$(docker compose -f init.docker-compose.yml -f docker-compose.override.yml up -d --quiet-pull 2>&1); then
+        if ! docker compose -f init.docker-compose.yml -f docker-compose.override.yml up -d --quiet-pull > /dev/null 2>&1; then
             logger "ERROR" "Docker Compose failed to start"
-            logger "ERROR" "Command output:"
-            echo "$output"
             rm docker-compose.override.yml
             return 1
         fi
         
-        logger "INFO" "Docker compose output:"
-        echo "$output"
-        
-        # Show container logs
-        logger "INFO" "Container logs:"
-        docker compose -f init.docker-compose.yml logs
-        
-        # Clean up temporary file and containers
+        # Clean up temporary file
         rm docker-compose.override.yml
-        if ! output=$(docker compose -f init.docker-compose.yml down 2>&1); then
-            logger "WARN" "Failed to clean up containers:"
-            echo "$output"
-        fi
     else
         # Start containers without identity file
         logger "INFO" "Initializing cluster peer..."
-        if ! output=$(docker compose -f init.docker-compose.yml up -d --quiet-pull 2>&1); then
+        if ! docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1; then
             logger "ERROR" "Docker Compose failed to start"
-            logger "ERROR" "Command output:"
-            echo "$output"
             return 1
         fi
-        
-        logger "INFO" "Docker compose output:"
-        echo "$output"
-        
-        # Show container logs
-        logger "INFO" "Container logs:"
-        docker compose -f init.docker-compose.yml logs
     fi
     
     # Wait for containers to initialize
-    sleep 2
+    sleep 5
     
     # Copy identity file if it doesn't exist
     if [ ! -f "./identity.json" ]; then
@@ -98,13 +76,6 @@ init_command() {
     if ! peer_id=$(grep '"id":' "./identity.json" | sed 's/.*"id": "\([^"]*\)".*/\1/'); then
         logger "ERROR" "Failed to extract peer ID"
         return 1
-    fi
-    
-    # Clean up initialization containers
-    logger "INFO" "Cleaning up initialization containers..."
-    if ! output=$(docker compose -f init.docker-compose.yml down 2>&1); then
-        logger "WARN" "Failed to clean up containers:"
-        echo "$output"
     fi
     
     # Log success information
