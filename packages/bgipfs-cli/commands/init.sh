@@ -47,21 +47,14 @@ init_command() {
         
         logger "INFO" "Initializing cluster peer..."
         # Start containers with identity file mounted
-        if ! docker compose -f init.docker-compose.yml -f docker-compose.override.yml up -d --quiet-pull > /dev/null 2>&1; then
-            logger "ERROR" "Docker Compose failed to start"
-            rm docker-compose.override.yml
-            return 1
-        fi
+        docker compose -f init.docker-compose.yml -f docker-compose.override.yml up
         
         # Clean up temporary file
         rm docker-compose.override.yml
     else
         # Start containers without identity file
         logger "INFO" "Initializing cluster peer..."
-        if ! docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1; then
-            logger "ERROR" "Docker Compose failed to start"
-            return 1
-        fi
+        docker compose -f init.docker-compose.yml up
     fi
     
     # Wait for containers to initialize
