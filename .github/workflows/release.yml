@@ -18,16 +18,19 @@ jobs:
           cd packages/bgipfs-cli
           npm version ${{ env.VERSION }} --no-git-tag-version
       
+      - name: Update default version
+        run: |
+          cd packages/bgipfs-cli
+          ./scripts/prebuild.sh
+      
       - name: Build packages
         run: |
           cd packages/bgipfs-cli
           ./scripts/build.sh
       
-      - name: Upload Release Assets
+      - name: Upload Release Asset
         run: |
           cd packages/bgipfs-cli/dist
-          for file in *.tar.gz; do
-            gh release upload ${GITHUB_REF#refs/tags/} $file
-          done
+          gh release upload ${GITHUB_REF#refs/tags/} bgipfs-${{ env.VERSION }}.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

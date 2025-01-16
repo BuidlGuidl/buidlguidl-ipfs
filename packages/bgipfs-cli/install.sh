@@ -1,22 +1,24 @@
 #!/bin/bash
 
-# Detect OS and architecture
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+# GitHub repository info
+REPO="buidlguidl/ipfs-cluster"
+GITHUB_API="https://api.github.com/repos/${REPO}"
+GITHUB_DOWNLOAD="https://github.com/${REPO}"
 
-# Convert architecture names
-case "$ARCH" in
-    x86_64) ARCH="amd64" ;;
-    aarch64) ARCH="arm64" ;;
-    armv7l) ARCH="arm" ;;
-esac
+# Default version (will be replaced during build)
+DEFAULT_VERSION="0.0.1"
 
-# Set version and download URL
-VERSION="0.1.0"
-# PLACEHOLDER: Update with actual release URL before publishing
-DOWNLOAD_URL="[PLACEHOLDER_URL]/bgipfs/v${VERSION}/bgipfs-${OS}-${ARCH}.tar.gz"
-# or
-# DOWNLOAD_URL="https://github.com/buidlguidl/ipfs-cluster/releases/download/v${VERSION}/bgipfs-${OS}-${ARCH}.tar.gz"
+# Get latest version from GitHub API
+VERSION=$(curl -s "${GITHUB_API}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+
+# If version fetch fails, fallback to default
+if [ -z "$VERSION" ]; then
+    echo "Warning: Could not fetch latest version, falling back to default"
+    VERSION="${DEFAULT_VERSION}"
+fi
+
+# Set download URL
+DOWNLOAD_URL="${GITHUB_DOWNLOAD}/releases/download/v${VERSION}/bgipfs-${VERSION}.tar.gz"
 
 # Create installation directory
 INSTALL_DIR="/usr/local/lib/bgipfs"
