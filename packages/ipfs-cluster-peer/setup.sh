@@ -3,6 +3,13 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
+# Load environment variables from .env if it exists
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
 # Add logging function
 logger() {
     local level=$1
@@ -77,17 +84,31 @@ fetch_configuration_files() {
     logger "INFO" "Installing configuration files..."
     local base_url="https://buidlguidl-ipfs.vercel.app/peer-setup"
     
+    # Install jq if not present
+    if ! command_exists jq; then
+        logger "INFO" "Installing jq..."
+        sudo apt-get update && sudo apt-get install -y jq
+    fi
+    
     # Read required files from package.json
     local package_json="package.json"
     if [ -f "$package_json" ]; then
-        # Extract files array using grep and sed
-        local files=$(grep -A 100 '"files"' "$package_json" | sed -n '/\[/,/\]/p' | grep -v '[][]' | tr -d ' ",' | grep .)
+        local files=$(jq -r '.files[]' "$package_json")
     else
         # Fallback to hardcoded list if package.json not found
-        local files=("docker-compose.yml" "init.docker-compose.yml" "init.service.json" "docker-compose.secure-upload.yml" "nginx.conf")
+        local files=(
+            "docker-compose.yml"
+            "init.docker-compose.yml"
+            "init.service.json"
+            "docker-compose.secure-upload.yml"
+            "nginx.conf"
+        )
+        printf "%s\n" "${files[@]}"
     fi
     
-    for file in $files; do
+    # Process each file
+    echo "$files" | while read -r file; do
+        [ -z "$file" ] && continue
         if [ ! -f "$file" ]; then
             logger "INFO" "Downloading $file..."
             if curl -sf "$base_url/$file" -o "$file"; then
@@ -113,8 +134,25 @@ install_cluster_ctl() {
     fi
     
     logger "INFO" "Installing IPFS Cluster Control..."
-    wget https://dist.ipfs.tech/ipfs-cluster-ctl/v1.0.6/ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
-    tar xvzf ipfs-cluster-ctl_v1.0.6_linux-amd64.tar.gz
+    
+    # Detect OS and architecture
+    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    local arch=$(uname -m)
+    
+    # Convert architecture names to match IPFS naming
+    case "$arch" in
+        x86_64) arch="amd64" ;;
+        aarch64) arch="arm64" ;;
+        armv7l) arch="arm" ;;
+    esac
+    
+    local version="v1.1.2"
+    local filename="ipfs-cluster-ctl_${version}_${os}-${arch}.tar.gz"
+    local download_url="https://dist.ipfs.tech/ipfs-cluster-ctl/${version}/${filename}"
+    
+    logger "INFO" "Downloading ${filename}..."
+    curl -L -o "$filename" "$download_url"
+    tar xzf "$filename"
     sudo mv ipfs-cluster-ctl/ipfs-cluster-ctl /usr/local/bin/
     rm -rf ipfs-cluster-ctl*
 }
@@ -136,27 +174,23 @@ services:
 EOF
 }
 
+# Check Docker permissions and refresh if needed
+check_docker_permissions() {
+    if ! docker ps >/dev/null 2>&1; then
+        logger "INFO" "Docker permission denied. Refreshing Docker group membership..."
+        exec newgrp docker
+        # Note: The script will restart in a new shell after this point
+    fi
+}
+
 # Initialize identity
 init() {
-    # Check if containers are running - use temporary env for first run
-    if [ ! -f ".env" ]; then
-        # Create temporary env with default values for container check
-        TMP_ENV=$(mktemp)
-        echo "PEERNAME=temp" > "$TMP_ENV"
-        echo "SECRET=temp" >> "$TMP_ENV"
-        echo "PEERADDRESSES=" >> "$TMP_ENV"
-        
-        if { docker compose --env-file "$TMP_ENV" ps --quiet | grep -q .; }; then
-            rm "$TMP_ENV"
-            logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
-            return 1
-        fi
-        rm "$TMP_ENV"
-    else
-        if { docker compose ps --quiet | grep -q .; }; then
-            logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
-            return 1
-        fi
+    check_docker_permissions
+
+    # Only check for running containers if .env exists
+    if [ -f ".env" ] && { docker compose ps --quiet 2>/dev/null | grep -q .; }; then
+        logger "ERROR" "Containers are currently running. Please stop them first with 'stop'"
+        return 1
     fi
 
     # Create .env file if it doesn't exist
@@ -168,8 +202,10 @@ init() {
         read -p "Enter peer name (default: cluster0): " input_peername
         if [ -z "$input_peername" ]; then
             printf "PEERNAME=cluster0\n" >> .env
+            export PEERNAME="cluster0"
         else
             printf "PEERNAME=$input_peername\n" >> .env
+            export PEERNAME="$input_peername"
         fi
     else
         current_peername=$(grep PEERNAME .env | cut -d= -f2)
@@ -271,44 +307,59 @@ init() {
 
 # Start services
 start() {
-    local use_nginx=false
+    check_docker_permissions
+
+    local mode="dev"
     
     # Parse arguments
     while [[ "$#" -gt 0 ]]; do
         case $1 in
-            --secure-upload) use_nginx=true ;;
+            --dev) mode="dev" ;;
+            --prod) mode="prod" ;;
             *) logger "ERROR" "Unknown parameter: $1"; return 1 ;;
         esac
         shift
     done
 
-    logger "INFO" "use_nginx: $use_nginx"
-    
     logger "INFO" "Starting services..."
-    if [ "$use_nginx" = true ]; then
-        # Check for required secure upload files
-        for file in docker-compose.secure-upload.yml nginx.conf; do
+    
+    # Build compose files array
+    local compose_files=("-f" "docker-compose.yml")
+    
+    if [ "$mode" = "prod" ]; then
+        # Check for required production files
+        for file in docker-compose.prod.yml nginx.prod.conf; do
             if [ ! -f "$file" ]; then
-                logger "ERROR" "Missing required file for secure upload: $file"
+                logger "ERROR" "Missing required file for production: $file"
                 return 1
             fi
         done
-
-        # Start with nginx if requested
-        if [ ! -f htpasswd ]; then
-            logger "INFO" "No auth credentials found, generating..."
-            create_auth
-        else
-            logger "INFO" "Using existing auth credentials in htpasswd file"
-            logger "INFO" "To generate new credentials, run: $0 create_auth"
+        if [ ! -d "data/certbot/conf" ]; then
+            logger "ERROR" "Production certificates not found. Please run 'setup_prod' first"
+            return 1
         fi
-        docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml up -d
-        logger "INFO" "Services started with secure public upload endpoint on port 5555"
-    else
-        # Start without nginx
-        docker compose up -d
-        logger "INFO" "Services started"
     fi
+
+    # Add prod config last to ensure it overrides secure-upload
+    if [ "$mode" = "prod" ]; then
+        compose_files+=("-f" "docker-compose.prod.yml")
+    fi
+
+    # Handle auth file for nginx
+    if [ ! -f htpasswd ]; then
+        logger "INFO" "No auth credentials found, generating..."
+        create_auth
+    else
+        logger "INFO" "Using existing auth credentials in htpasswd file"
+        logger "INFO" "To generate new credentials, run: $0 create_auth"
+    fi
+
+    # Start services with all required compose files
+    docker compose "${compose_files[@]}" up -d
+    
+    # Log startup configuration
+    logger "INFO" "Services started with configuration:"
+    logger "INFO" "- Mode: ${mode}"
 
     # Wait for services to start
     logger "INFO" "Waiting for services to initialize..."
@@ -316,10 +367,13 @@ start() {
     
     # Show logs to verify services are running
     logger "INFO" "IPFS Daemon logs:"
-    docker compose logs ipfs | tail -n 5
+    docker compose "${compose_files[@]}" logs ipfs | tail -n 5
     
     logger "INFO" "IPFS Cluster logs:"
-    docker compose logs cluster | tail -n 5
+    docker compose "${compose_files[@]}" logs cluster | tail -n 5
+    
+    logger "INFO" "Nginx logs:"
+    docker compose "${compose_files[@]}" logs nginx
     
     logger "INFO" "Services are ready!"
 }
@@ -381,7 +435,7 @@ init_and_start() {
     fi
     
     init
-    start $@
+    start "$@"
 }
 
 # Update main to be simpler
@@ -402,14 +456,12 @@ main() {
 # Additional utility functions
 stop() {
     logger "INFO" "Stopping Docker containers..."
-    # Stop both regular and secure-upload configurations
-    docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml stop
+    docker compose stop
     logger "INFO" "Docker containers stopped"
 }
 
 clean() {
-    # Clean up both regular and secure-upload configurations
-    docker compose -f docker-compose.yml -f docker-compose.secure-upload.yml down --remove-orphans -v
+    docker compose down --remove-orphans -v
     
     # Force remove the network if it still exists
     if docker network ls | grep -q ipfs-cluster-peer_default; then
@@ -460,16 +512,18 @@ Usage: $(basename "$0") [COMMAND]
 
 Commands:
     install        Install dependencies and configure Docker permissions
-    init_and_start Initialize and start all services (accepts --secure-upload flag)
+    init_and_start Initialize and start all services
     init          Initialize the IPFS cluster peer
     start         Start the IPFS cluster services
                  Options:
-                   --secure-upload  Enable authenticated public upload endpoint on port 5555
+                   --dev           Development mode (default)
+                   --prod          Production mode with HTTPS gateway
     stop          Stop the IPFS cluster services
     clean         Stop and remove all containers and volumes
     reset         Reset all IPFS cluster data
     show_logs     Show container logs
     create_auth   Create new authentication credentials (use this if you lost your password)
+    setup_prod    Set up production environment (SSL certificates, etc)
     get_peer_address Generate peer address from domain and ID
     setup_git_repo Clone a public Git repository
     install_deps   Install system dependencies
@@ -521,6 +575,69 @@ create_auth() {
     echo "If you lose them, run '$0 create_auth' to generate new ones"
 }
 
+# Additional utility functions
+setup_prod() {
+    check_domain
+    
+    echo "Setting up production environment for ${DOMAIN}"
+    
+    # Cleanup any existing temporary containers
+    docker stop certbot-nginx 2>/dev/null || true
+    docker rm certbot-nginx 2>/dev/null || true
+    
+    # Start a temporary nginx for certbot challenge
+    docker run -d --rm \
+        --name certbot-nginx \
+        -p 80:80 \
+        -v $PWD/certbot.conf:/etc/nginx/conf.d/default.conf:ro \
+        -v $PWD/data/certbot/www:/var/www/certbot \
+        -e DOMAIN=${DOMAIN} \
+        nginx:alpine
+    
+    # Wait a bit for nginx to start
+    sleep 5
+    
+    # Request certificate
+    docker run --rm \
+        -v $PWD/data/certbot/conf:/etc/letsencrypt \
+        -v $PWD/data/certbot/www:/var/www/certbot \
+        certbot/certbot certonly \
+        --webroot \
+        --webroot-path /var/www/certbot \
+        --email admin@${DOMAIN} \
+        --agree-tos \
+        --no-eff-email \
+        -d gateway.${DOMAIN} \
+        -d upload.${DOMAIN}
+    
+    # Stop the temporary nginx
+    docker stop certbot-nginx
+    
+    echo "HTTPS setup complete for gateway.${DOMAIN} and upload.${DOMAIN}"
+    echo "Please ensure your DNS is configured with:"
+    echo "- A record: gateway.${DOMAIN} -> <your-ip>"
+    echo "- A record: upload.${DOMAIN} -> <your-ip>"
+}
+
+check_domain() {
+    if [ -z "${DOMAIN:-}" ]; then
+        echo "No domain configured in .env"
+        read -p "Please enter your domain (e.g. example.com): " domain
+        
+        # Add DOMAIN to .env if it doesn't exist
+        if ! grep -q "^DOMAIN=" .env; then
+            ensure_newline
+            echo "DOMAIN=${domain}" >> .env
+        else
+            # Replace existing DOMAIN line
+            sed -i "s/^DOMAIN=.*/DOMAIN=${domain}/" .env
+        fi
+        
+        # Just export the new value
+        export DOMAIN="${domain}"
+    fi
+}
+
 # Command line argument handling
 if [ $# -gt 0 ]; then
     case "$1" in
@@ -530,7 +647,7 @@ if [ $# -gt 0 ]; then
             ;;
         init|start|stop|clean|reset|show_logs|get_peer_address|\
         setup_git_repo|install_deps|install_docker|install_compose|install_cluster_ctl|\
-        fetch_configuration_files|install|init_and_start|create_auth)
+        fetch_configuration_files|install|init_and_start|create_auth|setup_prod)
             cmd="$1"
             shift
             $cmd "$@"

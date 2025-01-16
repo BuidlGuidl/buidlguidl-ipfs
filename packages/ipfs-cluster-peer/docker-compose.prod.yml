@@ -1,0 +1,18 @@
+# Production overrides
+services:
+  ipfs:
+    ports:
+      - "4001:4001"  # swarm
+      - "5001:5001"  # api
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "5555:5555"
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf && nginx -g 'daemon off;' -c /tmp/nginx.conf"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf.template:ro
+      - ./htpasswd:/etc/nginx/.htpasswd:ro
+      - ./data/certbot/conf:/etc/letsencrypt
+    environment:
+      - DOMAIN=${DOMAIN} 

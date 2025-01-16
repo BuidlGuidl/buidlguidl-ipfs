@@ -50,7 +50,6 @@ export default function PinPage() {
       <div className="w-full max-w-xl">
         <div className="space-y-4">
           <div className="space-y-2">
-            <h3 className="text-lg font-medium text-gray-900">Upload File</h3>
             <div
               {...getRootProps()}
               className="border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-blue-500 transition-colors"
@@ -60,10 +59,14 @@ export default function PinPage() {
                 {isDragActive ? (
                   <p className="text-blue-500">Drop the file here...</p>
                 ) : (
-                  <p className="text-gray-500">Drag and drop a file here, or click to select a file</p>
+                  <p className="text-gray-500">
+                    Drag and drop a file here, or click to select a file
+                  </p>
                 )}
                 {file && (
-                  <p className="mt-2 text-sm text-gray-600">Selected: {file.name}</p>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Selected: {file.name}
+                  </p>
                 )}
               </div>
             </div>
@@ -72,7 +75,7 @@ export default function PinPage() {
               disabled={uploading || !file}
               className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300"
             >
-              {uploading ? 'Uploading...' : 'Upload to IPFS'}
+              {uploading ? "Uploading..." : "Upload to IPFS"}
             </button>
           </div>
         </div>
@@ -85,7 +88,9 @@ export default function PinPage() {
 
         {result && (
           <div className="mt-4 p-6 bg-green-50 border border-green-200 rounded-lg shadow-sm">
-            <p className="text-xl font-semibold text-green-800 mb-4">Upload successful!</p>
+            <p className="text-xl font-semibold text-green-800 mb-4">
+              Upload successful!
+            </p>
             <div className="space-y-3">
               <div>
                 <span className="font-medium text-gray-700">CID: </span>
@@ -95,19 +100,31 @@ export default function PinPage() {
               </div>
               <div>
                 <span className="font-medium text-gray-700">Status: </span>
-                <span className={`${result.status === 'failed' ? 'text-red-600' : 'text-green-600'}`}>
+                <span
+                  className={`${result.status === "failed" ? "text-red-600" : "text-green-600"}`}
+                >
                   {result.status}
                 </span>
               </div>
               <a
-                href={`https://ipfs.io/ipfs/${result.cid}`}
+                href={`https://gateway.bgipfs.com/ipfs/${result.cid}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 hover:underline"
               >
-                View on IPFS Gateway 
-                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                View on IPFS Gateway
+                <svg
+                  className="w-4 h-4 ml-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                  />
                 </svg>
               </a>
             </div>
@@ -115,5 +132,5 @@ export default function PinPage() {
         )}
       </div>
     </div>
-  )
+  );
 } 
