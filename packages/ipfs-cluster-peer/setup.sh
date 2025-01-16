@@ -581,6 +581,23 @@ create_auth() {
 
 # Additional utility functions
 setup_dns() {
+    # Check if port 80 is in use
+    if lsof -i:80 >/dev/null 2>&1; then
+        logger "ERROR" "Port 80 is already in use. Please stop any running containers first:"
+        logger "INFO" "Run: $0 stop"
+        return 1
+    fi
+
+    # Check/prompt for email if unset
+    if [ -z "${EMAIL+x}" ]; then
+        read -p "Enter email address for SSL notifications (press enter to skip): " email
+        if [ ! -z "$email" ]; then
+            ensure_newline
+            echo "EMAIL=${email}" >> .env
+            export EMAIL="${email}"
+        fi
+    fi
+
     # Check/prompt for gateway domain only if unset
     if [ -z "${GATEWAY_DOMAIN+x}" ]; then
         echo "Note: Domain must already be configured with an A record pointing to your server's public IP"
@@ -631,8 +648,14 @@ setup_dns() {
 
         sleep 5
 
-        docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
-            --email ${EMAIL} --agree-tos --no-eff-email -d ${domain}
+        # Build certbot command based on whether email is provided
+        if [ ! -z "${EMAIL:-}" ]; then
+            docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
+                --email ${EMAIL} --agree-tos --no-eff-email -d ${domain}
+        else
+            docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot/ \
+                --register-unsafely-without-email --agree-tos --no-eff-email -d ${domain}
+        fi
 
         docker stop certbot-nginx
     }
