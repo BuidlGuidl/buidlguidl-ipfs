@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Source version helper
@@ -14,9 +14,10 @@ source "$BASE_DIR/lib/logger.sh"
 source "$BASE_DIR/lib/config.sh"
 
 # Ensure .env exists and load environment variables
-touch "$BASE_DIR/.env"
+touch .env
+
 set -o allexport
-source "$BASE_DIR/.env"
+source .env
 set +o allexport
 
 # Development mode check - quiet refresh of config files

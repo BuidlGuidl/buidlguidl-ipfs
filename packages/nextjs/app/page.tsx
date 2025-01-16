@@ -4,9 +4,26 @@ export default function Home() {
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
         <h1 className="text-4xl font-bold">BuidlGuidl IPFS</h1>
         <ol className="list-inside list-decimal text-sm text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-4">Simple IPFS cluster setup (Coming soon)</li>
-          <li className="mb-4">Upload library (Coming soon)</li>
-          <li className="mb-4">Server guide (Coming soon)</li>
+          <li className="mb-4">
+            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/bgipfs-cli">
+              bgipfs-cli: run an ipfs cluster
+            </a>
+          </li>
+          <li className="mb-4">
+            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/ipfs-uploader">
+              ipfs-uploader: library for easy addition of multiple content types
+            </a>
+          </li>
+          <li className="mb-4">
+            <a href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/nextjs">
+              nextjs: this app
+            </a>
+          </li>
+          <li className="mb-4">
+            <a href="https://gateway.bgipfs.com/ipfs/bafkreibmcwvxstzb2x3cdcx7oqf65v2abgjikq5ja725mr6xdhe5zyf7cm">
+              gateway.bgipfs.com: buidlguidl ipfs gateway
+            </a>
+          </li>
         </ol>
 
         <div className="flex gap-4 items-center flex-col sm:flex-row">
