@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/commands/hello/index.ts","./src/commands/hello/world.ts"],"version":"5.7.3"}
+{"root":["./src/base-command.ts","./src/index.ts","./src/commands/hello/index.ts","./src/commands/hello/world.ts","./src/commands/install/index.ts","./src/lib/env-manager.ts","./src/lib/env-schema.ts","./src/lib/system.ts"],"version":"5.7.3"}

@@ -1,0 +1,18 @@
+services:
+  cluster:
+    container_name: cluster-init
+    # PLACEHOLDER: Update with latest stable version before release
+    image: ipfs/ipfs-cluster:v1.1.2
+    environment:
+      CLUSTER_PEERNAME: ${PEERNAME}
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSHTTP_HTTPLISTENMULTIADDRESS: /ip4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_LISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9095
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
+      CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_SECRET: ${SECRET}
+      CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
+    volumes:
+      - ./data/ipfs-cluster:/data/ipfs-cluster
+    command: ["ipfs-cluster-service", "init", "./service.json"] 
