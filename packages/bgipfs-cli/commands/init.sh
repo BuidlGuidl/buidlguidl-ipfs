@@ -58,10 +58,7 @@ init_command() {
     else
         # Start containers without identity file
         logger "INFO" "Initializing cluster peer..."
-        if ! docker compose -f init.docker-compose.yml up -d --quiet-pull > /dev/null 2>&1; then
-            logger "ERROR" "Docker Compose failed to start"
-            return 1
-        fi
+        docker compose -f init.docker-compose.yml up
     fi
     
     # Wait for containers to initialize
