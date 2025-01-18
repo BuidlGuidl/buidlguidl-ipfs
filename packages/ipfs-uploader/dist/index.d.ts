@@ -1,4 +1,4 @@
-export interface IpfsPinnerConfig {
+export interface IpfsUploaderConfig {
     url?: string;
     headers?: Record<string, string>;
 }
@@ -15,10 +15,10 @@ export interface GlobSourceFile {
     path: string;
     content: string | Uint8Array | Buffer;
 }
-export declare class IpfsPinner {
+export declare class IpfsUploader {
     private rpcClient;
     private config;
-    constructor(config?: IpfsPinnerConfig);
+    constructor(config?: IpfsUploaderConfig);
     add: {
         file: (input: File | string) => Promise<UploadResult>;
         text: (content: string) => Promise<UploadResult>;
@@ -28,4 +28,4 @@ export declare class IpfsPinner {
         globFiles: (files: GlobSourceFile[]) => Promise<FileArrayResult>;
     };
 }
-export default IpfsPinner;
+export default IpfsUploader;

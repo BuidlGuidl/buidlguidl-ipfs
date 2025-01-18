@@ -68,8 +68,8 @@ install_compose() {
 # Install IPFS Cluster Control
 install_cluster_ctl() {
     if command_exists ipfs-cluster-ctl; then
-        logger "INFO" "IPFS Cluster Control already installed"
-        read -p "Reinstall IPFS Cluster Control? [y/N] " response
+        logger "INFO" "IPFS Cluster CTL already installed"
+        read -p "Reinstall IPFS Cluster CTL? [y/N] " response
         if [[ ! $response =~ ^[Yy]$ ]]; then
             return 0
         fi
@@ -115,7 +115,7 @@ install_all() {
        { docker compose version > /dev/null 2>&1; } && \
        command_exists ipfs-cluster-ctl; then
         logger "INFO" "All components appear to be installed"
-        read -p "Would you like to reinstall everything? [y/N] " response
+        read -p "Would you like to reinstall some or all components? [y/N] " response
         if [[ ! $response =~ ^[Yy]$ ]]; then
             logger "INFO" "Skipping installation. You can now run: bgipfs init"
             return 0
@@ -128,8 +128,10 @@ install_all() {
     install_cluster_ctl
     
     logger "INFO" "Installation complete!"
-    logger "INFO" "Refreshing Docker permissions..."
     
-    # Execute newgrp docker
-    exec newgrp docker
+    # Only refresh Docker permissions on Linux
+    if [ "$(uname)" != "Darwin" ]; then
+        logger "INFO" "Refreshing Docker permissions..."
+        exec newgrp docker
+    fi
 } 

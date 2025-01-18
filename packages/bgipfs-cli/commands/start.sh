@@ -4,6 +4,30 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/system.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/auth.sh"
 
+check_containers_running() {
+    local services=("ipfs" "cluster" "nginx")
+    local failed_services=()
+    
+    for service in "${services[@]}"; do
+        if ! docker compose ps --quiet "$service" >/dev/null 2>&1 || \
+           ! docker compose ps --format '{{.State}}' "$service" 2>/dev/null | grep -q "running"; then
+            failed_services+=("$service")
+        fi
+    done
+    
+    if [ ${#failed_services[@]} -ne 0 ]; then
+        logger "ERROR" "The following services failed to start or exited: ${failed_services[*]}"
+        echo "=== Container Logs ==="
+        for service in "${failed_services[@]}"; do
+            echo "--- $service logs ---"
+            docker compose logs "$service"
+        done
+        return 1
+    fi
+    
+    return 0
+}
+
 start_command() {
     check_docker_permissions
 
@@ -64,15 +88,23 @@ start_command() {
     logger "INFO" "Waiting for services to initialize..."
     sleep 5
     
-    # Show logs to verify services are running
-    logger "INFO" "Nginx logs:"
+    # Show recent logs from each service
+    logger "INFO" "Recent container logs:"
+    echo "--- Nginx logs ---"
     docker compose "${compose_files[@]}" logs nginx | tail -n 5
-
-    logger "INFO" "IPFS Daemon logs:"
+    echo "--- IPFS Daemon logs ---"
     docker compose "${compose_files[@]}" logs ipfs | tail -n 5
-    
-    logger "INFO" "IPFS Cluster logs:"
+    echo "--- IPFS Cluster logs ---"
     docker compose "${compose_files[@]}" logs cluster | tail -n 5
     
+    # Check if all containers are running properly
+    if ! check_containers_running; then
+        logger "ERROR" "Container startup failed"
+        docker compose "${compose_files[@]}" down > /dev/null 2>&1
+        return 1
+    fi
+    
+    logger "INFO" "All containers started successfully"
     logger "INFO" "Services are ready!"
+    return 0
 } 

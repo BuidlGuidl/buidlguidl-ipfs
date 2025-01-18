@@ -1,0 +1,24 @@
+*-debug.log
+*-error.log
+**/.DS_Store
+/.idea
+/dist
+/tmp
+/node_modules
+oclif.manifest.json
+
+
+yarn.lock
+package-lock.json
+
+
+# Local testing files
+/docker-compose.yml
+/init.docker-compose.yml
+/docker-compose.dns.yml
+/nginx.ip.conf
+/nginx.dns.conf
+/certbot.conf
+/init.service.json
+/docker-compose.override.yml
+/service.json

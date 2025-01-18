@@ -1,0 +1,45 @@
+# Base configuration - IP-based mode
+services:
+  ipfs:
+    container_name: ipfs
+    image: ipfs/kubo:release
+    ports:
+      - "4001:4001"  # swarm
+      - "8080:8080"  # gateway (IP mode only)
+      - "5001:5001"  # api
+    volumes:
+      - ./data/ipfs:/data/ipfs
+
+  cluster:
+    container_name: cluster
+    image: ipfs/ipfs-cluster:latest
+    depends_on:
+      - ipfs
+    environment:
+      CLUSTER_PEERNAME: ${PEERNAME}
+      CLUSTER_IPFSHTTP_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSHTTP_HTTPLISTENMULTIADDRESS: /ip4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_NODEMULTIADDRESS: /dns4/ipfs/tcp/5001
+      CLUSTER_IPFSPROXY_LISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9095
+      CLUSTER_RESTAPI_HTTPLISTENMULTIADDRESS: /ip4/0.0.0.0/tcp/9094
+      CLUSTER_CRDT_TRUSTEDPEERS: '*'
+      CLUSTER_SECRET: ${SECRET}
+      CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
+    ports:
+      - "9094:9094"
+      - "9095:9095"
+      - "9096:9096"
+    volumes:
+      - ./data/ipfs-cluster:/data/ipfs-cluster
+      - ./service.json:/data/ipfs-cluster/service.json
+      - ./identity.json:/data/ipfs-cluster/identity.json
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - cluster
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./nginx.ip.conf:/etc/nginx/nginx.conf:ro
+      - ./htpasswd:/etc/nginx/.htpasswd:ro 

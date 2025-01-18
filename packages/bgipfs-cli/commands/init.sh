@@ -15,6 +15,19 @@ services:
 EOF
 }
 
+# Cleanup function to ensure containers are stopped
+cleanup_containers() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        logger "INFO" "Showing container logs due to error:"
+        echo "=== Cluster Container Logs ==="
+        docker compose -f init.docker-compose.yml logs cluster
+    fi
+    
+    logger "INFO" "Cleaning up initialization containers..."
+    docker compose -f init.docker-compose.yml down > /dev/null 2>&1
+}
+
 init_command() {
     # Check Docker permissions
     check_docker_permissions || return 1
@@ -38,6 +51,9 @@ init_command() {
         logger "INFO" "Creating initial authentication credentials..."
         auth_command
     fi
+    
+    # Set trap for cleanup before starting any containers
+    trap 'cleanup_containers' ERR EXIT
     
     # Handle existing identity.json
     if [ -f "./identity.json" ]; then
@@ -69,7 +85,10 @@ init_command() {
     
     # Copy identity file if it doesn't exist
     if [ ! -f "./identity.json" ]; then
-        cp ./data/ipfs-cluster/identity.json ./identity.json
+        if ! cp ./data/ipfs-cluster/identity.json ./identity.json; then
+            logger "ERROR" "Failed to copy identity.json"
+            return 1
+        fi
     fi
     
     # Check if identity.json exists and is non-empty
@@ -88,13 +107,12 @@ init_command() {
     logger "INFO" "Peer ID: $peer_id"
     logger "INFO" "Identity file has been created at ./identity.json"
 
-    cp ./data/ipfs-cluster/service.json ./service.json
-    logger "INFO" "Service configuration has been created at ./service.json"
-
-    # Stop and remove the initialization containers
-    logger "INFO" "Cleaning up initialization containers..."
-    if ! docker compose -f init.docker-compose.yml down > /dev/null 2>&1; then
-        logger "ERROR" "Failed to clean up initialization containers"
+    if ! cp ./data/ipfs-cluster/service.json ./service.json; then
+        logger "ERROR" "Failed to copy service.json"
         return 1
     fi
+    logger "INFO" "Service configuration has been created at ./service.json"
+
+    # Note: We don't need explicit cleanup here as it's handled by the trap
+    return 0
 }

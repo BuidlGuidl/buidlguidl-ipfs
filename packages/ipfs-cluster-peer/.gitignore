@@ -1,5 +1,0 @@
-data/
-.env
-ipfs-cluster-ctl
-identity.json
-htpasswd
