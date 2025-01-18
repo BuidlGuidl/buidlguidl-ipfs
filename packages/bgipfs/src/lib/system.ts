@@ -99,7 +99,7 @@ export async function checkDocker(): Promise<void> {
   } catch (error: unknown) {
     if ((error as Error).message?.includes('permission denied') || (error as string).includes('permission denied')) {
       throw new Error(
-        'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
+        'Docker permission denied. Please run "sudo usermod -aG docker $USER" then close and reopen your terminal to apply group changes.',
       )
     }
 
