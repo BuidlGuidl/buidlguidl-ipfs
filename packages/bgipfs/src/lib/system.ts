@@ -50,7 +50,6 @@ export async function installDockerUbuntu(): Promise<void> {
       ['install', '-y', 'docker-ce', 'docker-ce-cli', 'containerd.io', 'docker-buildx-plugin', 'docker-compose-plugin'],
     ],
     // Create docker group and add user
-    ['groupadd', ['docker']],
     ['sh', ['-c', 'usermod -aG docker $USER']],
   ] as const
 
@@ -95,17 +94,12 @@ export async function installIpfsClusterCtl(): Promise<void> {
 }
 
 export async function checkDocker(): Promise<void> {
-  try {
-    // Try a simple docker command
-    await execa('docker', ['ps'])
-  } catch (error: unknown) {
-    if ((error as Error).message?.includes('permission denied')) {
-      throw new Error(
-        'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
-      )
-    }
-
-    throw error // Re-throw if it's not a permissions error
+  const {stderr, stdout} = await execa('docker', ['ps'])
+  const output = stdout + stderr
+  if (output.includes('permission denied')) {
+    throw new Error(
+      'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
+    )
   }
 }
 
