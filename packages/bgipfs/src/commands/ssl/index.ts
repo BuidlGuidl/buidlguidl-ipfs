@@ -22,38 +22,44 @@ export default class Ssl extends BaseCommand {
     const {flags} = await this.parse(Ssl)
 
     try {
-      // Read environment variables
       const env = new EnvManager()
       const config = await env.readEnv()
-
-      // Prompt for missing env variables
       const updates = []
 
+      // Only prompt for email if not set and user wants notifications
       if (!config.ADMIN_EMAIL) {
-        const email = await input({
-          message: 'Enter admin email for SSL notifications',
-          validate: (value) => this.validateInput(envSchema.shape.ADMIN_EMAIL, value),
-        })
-        updates.push({key: 'ADMIN_EMAIL', value: email})
-        config.ADMIN_EMAIL = email
+        const useEmail = await this.confirm('Would you like to receive certificate expiry notifications?')
+        if (useEmail) {
+          const email = await input({
+            message: 'Enter admin email for SSL notifications',
+            validate: (value) => this.validateInput(envSchema.shape.ADMIN_EMAIL, value),
+          })
+          updates.push({key: 'ADMIN_EMAIL', value: email})
+          config.ADMIN_EMAIL = email
+        }
       }
 
-      if (!config.GATEWAY_DOMAIN) {
-        const domain = await input({
-          message: 'Enter gateway domain (e.g. gateway.example.com)',
-          validate: (value) => this.validateInput(envSchema.shape.GATEWAY_DOMAIN, value),
-        })
-        updates.push({key: 'GATEWAY_DOMAIN', value: domain})
-        config.GATEWAY_DOMAIN = domain
-      }
+      // Domains are required
+      if (!config.GATEWAY_DOMAIN || !config.UPLOAD_DOMAIN) {
+        this.logInfo('Domain configuration required for SSL certificates')
 
-      if (!config.UPLOAD_DOMAIN) {
-        const domain = await input({
-          message: 'Enter upload domain (e.g. upload.example.com)',
-          validate: (value) => this.validateInput(envSchema.shape.UPLOAD_DOMAIN, value),
-        })
-        updates.push({key: 'UPLOAD_DOMAIN', value: domain})
-        config.UPLOAD_DOMAIN = domain
+        if (!config.GATEWAY_DOMAIN) {
+          const domain = await input({
+            message: 'Enter gateway domain (e.g. gateway.example.com)',
+            validate: (value) => this.validateInput(envSchema.shape.GATEWAY_DOMAIN, value),
+          })
+          updates.push({key: 'GATEWAY_DOMAIN', value: domain})
+          config.GATEWAY_DOMAIN = domain
+        }
+
+        if (!config.UPLOAD_DOMAIN) {
+          const domain = await input({
+            message: 'Enter upload domain (e.g. upload.example.com)',
+            validate: (value) => this.validateInput(envSchema.shape.UPLOAD_DOMAIN, value),
+          })
+          updates.push({key: 'UPLOAD_DOMAIN', value: domain})
+          config.UPLOAD_DOMAIN = domain
+        }
       }
 
       // Update env if needed
@@ -87,29 +93,30 @@ export default class Ssl extends BaseCommand {
       this.logSuccess('Temporary nginx server started')
 
       try {
-        // Run certbot
-        this.logInfo(`Generating ${flags.staging ? 'staging ' : ''}certificates...`)
-        const certbotArgs: string[] = [
-          'run',
-          '--rm',
-          '-v',
-          `${process.cwd()}/data/certbot/conf:/etc/letsencrypt`,
-          '-v',
-          `${process.cwd()}/data/certbot/www:/var/www/certbot`,
-          'certbot/certbot',
-          'certonly',
-          '--webroot',
-          '--webroot-path=/var/www/certbot',
-          '--email',
-          config.ADMIN_EMAIL,
-          '--agree-tos',
-          '--no-eff-email',
-          '--non-interactive',
-          ...(flags.staging ? ['--staging'] : []),
-          ...domains.flatMap((domain): string[] => ['-d', domain]),
-        ]
+        // Run certbot for each domain
+        for (const domain of domains) {
+          this.logInfo(`Generating certificates for ${domain}...`)
+          const certbotArgs: string[] = [
+            'run',
+            '--rm',
+            '-v',
+            `${process.cwd()}/data/certbot/conf:/etc/letsencrypt`,
+            '-v',
+            `${process.cwd()}/data/certbot/www:/var/www/certbot`,
+            'certbot/certbot',
+            'certonly',
+            '--webroot',
+            '--webroot-path=/var/www/certbot',
+            ...(config.ADMIN_EMAIL ? ['--email', config.ADMIN_EMAIL] : ['--register-unsafely-without-email']),
+            '--agree-tos',
+            '--no-eff-email',
+            ...(flags.staging ? ['--staging'] : []),
+            '-d',
+            domain,
+          ]
 
-        await execa('docker', certbotArgs, {stdio: 'inherit'})
+          await execa('docker', certbotArgs, {stdio: 'inherit'})
+        }
       } finally {
         // Stop temporary nginx
         this.logInfo('Stopping temporary nginx server...')
