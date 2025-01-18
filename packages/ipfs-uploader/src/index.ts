@@ -1,5 +1,5 @@
 import { CID } from "multiformats/cid";
-import { create, KuboRPCClient, globSource } from "kubo-rpc-client";
+import { create, KuboRPCClient, globSource, urlSource } from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
 
 export interface IpfsUploaderConfig {
@@ -209,6 +209,26 @@ export class IpfsUploader {
       } catch (error) {
         throw new Error(
           `Failed to add glob files to IPFS: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    },
+
+    url: async (url: string): Promise<UploadResult> => {
+      try {
+        // Validate URL
+        try {
+          new URL(url);
+        } catch (error) {
+          throw new Error("Invalid URL provided");
+        }
+
+        const add = await this.rpcClient.add(urlSource(url), {
+          cidVersion: 1,
+        });
+        return { cid: add.cid.toString() };
+      } catch (error) {
+        throw new Error(
+          `Failed to add URL to IPFS: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     },

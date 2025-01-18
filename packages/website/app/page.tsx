@@ -22,7 +22,7 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                bgipfs-cli: run an ipfs cluster
+                bgipfs: CLI for running an ipfs cluster
               </a>
             </li>
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
@@ -43,7 +43,7 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                nextjs: this app
+                website: this website
               </a>
             </li>
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
@@ -63,9 +63,9 @@ export default function Home() {
             <a
               className="rounded-lg px-8 py-3 bg-black dark:bg-white text-white dark:text-black font-semibold 
                          transition-all hover:scale-105 hover:shadow-lg"
-              href="/pin"
+              href="/upload"
             >
-              Pin Content
+              Upload
             </a>
             <a
               className="rounded-lg px-8 py-3 border border-gray-200 dark:border-gray-700 

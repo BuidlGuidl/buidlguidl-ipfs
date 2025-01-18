@@ -100,18 +100,20 @@ export default class Start extends BaseCommand {
       await new Promise((resolve) => setTimeout(resolve, 10_000))
 
       // Check services in parallel
-      const services = ['ipfs', 'cluster', 'nginx']
+      const services = ['nginx', 'ipfs', 'cluster']
       this.logInfo('Checking service health...')
       const results = await Promise.all(
         services.map(async (service) => {
-          this.log(`Checking ${service}...`)
+          this.logInfo(`Checking ${service}...`)
           const isRunning = await this.checkContainerIsRunning(service)
-          if (!isRunning) {
-            const {stdout} = await execa('docker', [...composeCommand, 'logs', service])
-            return {healthy: false, logs: stdout, service}
-          }
+          // Get logs for all services regardless of status
+          const {stdout} = await execa('docker', [...composeCommand, 'logs', '--tail', '5', service])
 
-          return {running: true, service}
+          return {
+            logs: stdout,
+            running: isRunning,
+            service,
+          }
         }),
       )
 
@@ -119,12 +121,13 @@ export default class Start extends BaseCommand {
       let allRunning = true
       for (const result of results) {
         if (result.running) {
-          this.logSuccess(`${result.service} is running `)
+          this.logSuccess(`${result.service} is running`)
         } else {
           allRunning = false
-          this.log(`=== ${result.service} logs ===\n${result.logs}`)
           this.logError(`${result.service} failed to start properly`)
         }
+
+        this.log(`=== ${result.service} recent logs ===\n${result.logs}\n`)
       }
 
       if (allRunning) {
@@ -134,10 +137,10 @@ export default class Start extends BaseCommand {
           const env = new EnvManager()
           const config = await env.readEnv()
           this.log(`- IPFS Gateway: https://${config.GATEWAY_DOMAIN}`)
-          this.log(`- Upload Interface: https://${config.UPLOAD_DOMAIN}`)
+          this.log(`- Upload Endpoint: https://${config.UPLOAD_DOMAIN}`)
         } else {
           this.log('- IPFS Gateway: http://localhost:8080')
-          this.log('- Cluster API: http://localhost:9094')
+          this.log('- Upload Endpoint: http://localhost:5555')
         }
       } else {
         throw new Error('Some services failed to start properly')
