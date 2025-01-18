@@ -35,14 +35,23 @@ export async function installDockerUbuntu(): Promise<void> {
     ['install', ['-m', '0755', '-d', '/etc/apt/keyrings']],
     ['curl', ['-fsSL', 'https://download.docker.com/linux/ubuntu/gpg', '-o', '/etc/apt/keyrings/docker.asc']],
     ['chmod', ['a+r', '/etc/apt/keyrings/docker.asc']],
+    // Add the repository to Apt sources
+    [
+      'sh',
+      [
+        '-c',
+        'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null',
+      ],
+    ],
     // Add repository and install Docker
     ['apt-get', ['update']],
     [
       'apt-get',
       ['install', '-y', 'docker-ce', 'docker-ce-cli', 'containerd.io', 'docker-buildx-plugin', 'docker-compose-plugin'],
     ],
-    // Test installation
-    ['docker', ['run', '--rm', 'hello-world']],
+    // Create docker group and add user
+    ['groupadd', ['docker']],
+    ['sh', ['-c', 'usermod -aG docker $USER']],
   ] as const
 
   for (const [cmd, args] of commands) {
@@ -85,8 +94,24 @@ export async function installIpfsClusterCtl(): Promise<void> {
   }
 }
 
+export async function checkDocker(): Promise<void> {
+  try {
+    // Try a simple docker command
+    await execa('docker', ['ps'])
+  } catch (error: unknown) {
+    if ((error as Error).message?.includes('permission denied')) {
+      throw new Error(
+        'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
+      )
+    }
+
+    throw error // Re-throw if it's not a permissions error
+  }
+}
+
 export async function checkRunningContainers(): Promise<string[]> {
   try {
+    await checkDocker()
     const {stdout} = await execa('docker', ['ps', '--format', '{{.Names}}'])
     return stdout.split('\n').filter(Boolean)
   } catch {
