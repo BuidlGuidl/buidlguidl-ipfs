@@ -24,3 +24,5 @@ nvm use 22
 # Verify Node.js installation
 node --version
 npm --version
+
+npm install -g bgipfs

@@ -1,5 +1,3 @@
-import { InstallCommand } from "./components/InstallCommand";
-
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -19,7 +17,7 @@ export default function Home() {
           <ol className="list-decimal list-inside space-y-6 text-base sm:text-lg font-[family-name:var(--font-geist-mono)] pl-4">
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <a
-                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/bgipfs-cli"
+                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/bgipfs"
                 className="hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -40,7 +38,7 @@ export default function Home() {
             </li>
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
               <a
-                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/nextjs"
+                href="https://github.com/azf20/buidlguidl-ipfs/tree/main/packages/website"
                 className="hover:underline"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -59,9 +57,6 @@ export default function Home() {
               </a>
             </li>
           </ol>
-
-          {/* Installation Command */}
-          <InstallCommand />
 
           {/* Action Buttons */}
           <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">
