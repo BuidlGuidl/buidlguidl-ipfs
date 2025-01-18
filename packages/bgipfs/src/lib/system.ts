@@ -95,7 +95,6 @@ export async function installIpfsClusterCtl(): Promise<void> {
 
 export async function checkDocker(): Promise<void> {
   const {stderr, stdout} = await execa('docker', ['ps'])
-  console.log(stdout, stderr)
   const output = stdout + stderr
   if (output.includes('permission denied')) {
     throw new Error(

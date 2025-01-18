@@ -8,7 +8,7 @@ import {z} from 'zod'
 import {BaseCommand} from '../../base-command.js'
 import {EnvManager} from '../../lib/env-manager.js'
 import {envSchema} from '../../lib/env-schema.js'
-import {checkRunningContainers} from '../../lib/system.js'
+import {checkDocker, checkRunningContainers} from '../../lib/system.js'
 import {TemplateManager} from '../../lib/templates.js'
 
 export default class Init extends BaseCommand {
@@ -32,6 +32,7 @@ export default class Init extends BaseCommand {
     const templates = new TemplateManager()
 
     // Check for running containers
+    await checkDocker()
     const running = await checkRunningContainers()
     if (running.length > 0) {
       this.logError('Please stop all running containers first:\n' + running.join('\n'))
