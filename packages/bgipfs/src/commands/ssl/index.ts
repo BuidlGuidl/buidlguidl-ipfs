@@ -1,9 +1,12 @@
+import {input} from '@inquirer/prompts'
 import {Flags} from '@oclif/core'
 import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
+import {z} from 'zod'
 
 import {BaseCommand} from '../../base-command.js'
 import {EnvManager} from '../../lib/env-manager.js'
+import {envSchema} from '../../lib/env-schema.js'
 
 export default class Ssl extends BaseCommand {
   static description = "Generate SSL certificates using Let's Encrypt"
@@ -19,51 +22,103 @@ export default class Ssl extends BaseCommand {
     const {flags} = await this.parse(Ssl)
 
     try {
-      // Check DNS mode requirements
-      this.logInfo('Checking DNS mode requirements...')
-      const requiredFiles = ['docker-compose.dns.yml', 'nginx.dns.conf']
-      for (const file of requiredFiles) {
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await fs.access(file)
-        } catch {
-          this.logError(`Missing required file: ${file}`)
-          return
-        }
-      }
-
       // Read environment variables
       const env = new EnvManager()
       const config = await env.readEnv()
 
-      if (!config.GATEWAY_DOMAIN || !config.UPLOAD_DOMAIN) {
-        this.logError('GATEWAY_DOMAIN and UPLOAD_DOMAIN must be set in .env')
-        return
+      // Prompt for missing env variables
+      const updates = []
+
+      if (!config.ADMIN_EMAIL) {
+        const email = await input({
+          message: 'Enter admin email for SSL notifications',
+          validate: (value) => this.validateInput(envSchema.shape.ADMIN_EMAIL, value),
+        })
+        updates.push({key: 'ADMIN_EMAIL', value: email})
+        config.ADMIN_EMAIL = email
       }
 
-      // Build certbot command
+      if (!config.GATEWAY_DOMAIN) {
+        const domain = await input({
+          message: 'Enter gateway domain (e.g. gateway.example.com)',
+          validate: (value) => this.validateInput(envSchema.shape.GATEWAY_DOMAIN, value),
+        })
+        updates.push({key: 'GATEWAY_DOMAIN', value: domain})
+        config.GATEWAY_DOMAIN = domain
+      }
+
+      if (!config.UPLOAD_DOMAIN) {
+        const domain = await input({
+          message: 'Enter upload domain (e.g. upload.example.com)',
+          validate: (value) => this.validateInput(envSchema.shape.UPLOAD_DOMAIN, value),
+        })
+        updates.push({key: 'UPLOAD_DOMAIN', value: domain})
+        config.UPLOAD_DOMAIN = domain
+      }
+
+      // Update env if needed
+      if (updates.length > 0) {
+        await env.updateEnv(updates)
+      }
+
       const domains = [config.GATEWAY_DOMAIN, config.UPLOAD_DOMAIN]
-      const certbotArgs: string[] = [
+
+      // Create certbot nginx config
+      await this.createCertbotConf(domains.join(' '))
+
+      // Start temporary nginx for ACME challenge
+      this.logInfo('Starting temporary nginx server for domain verification...')
+      const nginxArgs = [
         'run',
+        '-d',
         '--rm',
+        '--name',
+        'certbot-nginx',
+        '-p',
+        '80:80',
         '-v',
-        `${process.cwd()}/data/certbot/conf:/etc/letsencrypt`,
+        `${process.cwd()}/certbot.conf:/etc/nginx/conf.d/default.conf:ro`,
         '-v',
         `${process.cwd()}/data/certbot/www:/var/www/certbot`,
-        'certbot/certbot',
-        'certonly',
-        '--webroot',
-        '--webroot-path=/var/www/certbot',
-        `--email=${config.ADMIN_EMAIL || ''}`,
-        '--agree-tos',
-        '--no-eff-email',
-        ...(flags.staging ? ['--staging'] : []),
-        ...domains.flatMap((domain): string[] => ['-d', domain]),
+        'nginx:alpine',
       ]
 
-      // Run certbot
-      this.logInfo(`Generating ${flags.staging ? 'staging ' : ''}certificates...`)
-      await execa('docker', certbotArgs, {stdio: 'inherit'})
+      await execa('docker', nginxArgs)
+      this.logSuccess('Temporary nginx server started')
+
+      try {
+        // Run certbot
+        this.logInfo(`Generating ${flags.staging ? 'staging ' : ''}certificates...`)
+        const certbotArgs: string[] = [
+          'run',
+          '--rm',
+          '-v',
+          `${process.cwd()}/data/certbot/conf:/etc/letsencrypt`,
+          '-v',
+          `${process.cwd()}/data/certbot/www:/var/www/certbot`,
+          'certbot/certbot',
+          'certonly',
+          '--webroot',
+          '--webroot-path=/var/www/certbot',
+          '--email',
+          config.ADMIN_EMAIL,
+          '--agree-tos',
+          '--no-eff-email',
+          '--non-interactive',
+          ...(flags.staging ? ['--staging'] : []),
+          ...domains.flatMap((domain): string[] => ['-d', domain]),
+        ]
+
+        await execa('docker', certbotArgs, {stdio: 'inherit'})
+      } finally {
+        // Stop temporary nginx
+        this.logInfo('Stopping temporary nginx server...')
+        await execa('docker', ['stop', 'certbot-nginx']).catch(() => {
+          // Ignore stop errors
+        })
+        // Clean up certbot.conf
+        await fs.unlink('certbot.conf').catch(() => {})
+      }
 
       this.logSuccess('SSL certificates generated successfully')
       this.logInfo('You can now start the cluster in DNS mode with:')
@@ -71,5 +126,21 @@ export default class Ssl extends BaseCommand {
     } catch (error) {
       this.logError(`Failed to generate certificates: ${(error as Error).message}`)
     }
+  }
+
+  private async createCertbotConf(domain: string): Promise<void> {
+    const conf = `server {
+    listen 80;
+    server_name ${domain};
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+}`
+    await fs.writeFile('certbot.conf', conf)
+  }
+
+  private validateInput(schema: z.ZodType, value: string): string | true {
+    const result = schema.safeParse(value)
+    return result.success ? true : result.error.errors[0].message
   }
 }

@@ -102,10 +102,8 @@ export default class Init extends BaseCommand {
     } finally {
       // Cleanup
       try {
-        console.log('Stopping initialization containers...')
         await execa('docker', ['compose', '-f', 'init.docker-compose.yml', 'down'])
 
-        console.log('Removing docker-compose.override.yml')
         await fs.unlink('docker-compose.override.yml').catch(() => {})
       } catch {
         // Ignore cleanup errors
