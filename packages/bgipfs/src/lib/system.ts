@@ -94,12 +94,16 @@ export async function installIpfsClusterCtl(): Promise<void> {
 }
 
 export async function checkDocker(): Promise<void> {
-  const {stderr, stdout} = await execa('docker', ['ps'])
-  const output = stdout + stderr
-  if (output.includes('permission denied')) {
-    throw new Error(
-      'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
-    )
+  try {
+    await execa('docker', ['ps'])
+  } catch (error: unknown) {
+    if ((error as Error).message?.includes('permission denied') || (error as string).includes('permission denied')) {
+      throw new Error(
+        'Docker permission denied. Please run "newgrp docker" or close and reopen your terminal to apply group changes.',
+      )
+    }
+
+    throw error
   }
 }
 
