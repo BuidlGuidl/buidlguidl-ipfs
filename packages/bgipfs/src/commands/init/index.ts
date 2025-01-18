@@ -22,6 +22,10 @@ export default class Init extends BaseCommand {
     }),
   }
 
+  static hooks = {
+    postrun: ['init-cleanup'],
+  }
+
   async run(): Promise<void> {
     const {flags} = await this.parse(Init)
     const env = new EnvManager()
@@ -83,7 +87,6 @@ export default class Init extends BaseCommand {
               }),
         },
         {key: 'PEERADDRESSES', value: peerAddresses},
-        {key: 'DOCKER_COMPOSE_VERSION', value: '3.8'},
         {key: 'AUTH_USER', value: authUser},
         {key: 'AUTH_PASSWORD', value: authPassword},
       ])
@@ -96,6 +99,17 @@ export default class Init extends BaseCommand {
       this.logSuccess('Configuration initialized successfully')
     } catch (error) {
       this.logError(`Initialization failed: ${(error as Error).message}`)
+    } finally {
+      // Cleanup
+      try {
+        console.log('Stopping initialization containers...')
+        await execa('docker', ['compose', '-f', 'init.docker-compose.yml', 'down'])
+
+        console.log('Removing docker-compose.override.yml')
+        await fs.unlink('docker-compose.override.yml').catch(() => {})
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }
 
@@ -136,14 +150,16 @@ export default class Init extends BaseCommand {
       await execa('docker', ['compose', '-f', 'init.docker-compose.yml', 'up', '-d'])
 
       // Wait for initialization
+      // eslint-disable-next-line no-promise-executor-return
       await new Promise((resolve) => setTimeout(resolve, 5000))
 
       // Copy identity and service files
       if (!hasIdentity) {
         await fs.copyFile('data/ipfs-cluster/identity.json', 'identity.json')
-        const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
-        this.logInfo(`Peer ID: ${identityJson.id}`)
       }
+
+      const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
+      this.logInfo(`Peer ID: ${identityJson.id}`)
 
       await fs.copyFile('data/ipfs-cluster/service.json', 'service.json')
 

@@ -67,9 +67,7 @@
         "description": "Install dependencies and components"
       }
     },
-    "hooks": {
-      "init-cleanup": "./dist/hooks/init-cleanup.js"
-    }
+    "hooks": {}
   },
   "repository": "azf20/buidlguidl-ipfs",
   "scripts": {
