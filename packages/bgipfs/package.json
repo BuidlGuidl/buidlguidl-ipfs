@@ -1,7 +1,7 @@
 {
   "name": "bgipfs",
   "description": "BuidlGuidl IPFS CLI",
-  "version": "0.0.0",
+  "version": "0.1.0-alpha.0",
   "author": "azf20",
   "bin": {
     "bgipfs": "./bin/run.js"
