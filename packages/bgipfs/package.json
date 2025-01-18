@@ -1,7 +1,7 @@
 {
   "name": "bgipfs",
   "description": "BuidlGuidl IPFS CLI",
-  "version": "0.1.0-alpha.0",
+  "version": "0.0.0",
   "author": "azf20",
   "bin": {
     "bgipfs": "./bin/run.js"
@@ -45,7 +45,10 @@
   ],
   "homepage": "https://github.com/azf20/buidlguidl-ipfs",
   "keywords": [
-    "oclif"
+    "oclif",
+    "ipfs",
+    "cluster",
+    "cli"
   ],
   "license": "MIT",
   "main": "dist/index.js",
@@ -55,18 +58,9 @@
     "dirname": "bgipfs",
     "commands": "./dist/commands",
     "plugins": [
-      "@oclif/plugin-help",
-      "@oclif/plugin-plugins"
+      "@oclif/plugin-help"
     ],
     "topicSeparator": " ",
-    "topics": {
-      "hello": {
-        "description": "Say hello to the world and others"
-      },
-      "install": {
-        "description": "Install dependencies and components"
-      }
-    },
     "hooks": {}
   },
   "repository": "azf20/buidlguidl-ipfs",

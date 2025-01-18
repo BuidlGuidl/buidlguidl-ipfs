@@ -1,397 +1,104 @@
-bgipfs
-=================
+# bgipfs: BuidlGuidl IPFS CLI
 
-BuidlGuidl IPFS CLI
+**Note:** This library is currently in development and may undergo significant changes.
 
+This is a CLI for running an IPFS cluster
 
-[![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/bgipfs.svg)](https://npmjs.org/package/bgipfs)
-[![Downloads/week](https://img.shields.io/npm/dw/bgipfs.svg)](https://npmjs.org/package/bgipfs)
+## Installation
 
+Dependencies:
 
-<!-- toc -->
-* [Usage](#usage)
-* [Commands](#commands)
-<!-- tocstop -->
-# Usage
-<!-- usage -->
-```sh-session
-$ npm install -g bgipfs
-$ bgipfs COMMAND
-running command...
-$ bgipfs (--version)
-bgipfs/0.0.0 darwin-arm64 node-v20.6.1
-$ bgipfs --help [COMMAND]
-USAGE
-  $ bgipfs COMMAND
-...
-```
-<!-- usagestop -->
-# Commands
-<!-- commands -->
-* [`bgipfs hello PERSON`](#bgipfs-hello-person)
-* [`bgipfs hello world`](#bgipfs-hello-world)
-* [`bgipfs help [COMMAND]`](#bgipfs-help-command)
-* [`bgipfs plugins`](#bgipfs-plugins)
-* [`bgipfs plugins add PLUGIN`](#bgipfs-plugins-add-plugin)
-* [`bgipfs plugins:inspect PLUGIN...`](#bgipfs-pluginsinspect-plugin)
-* [`bgipfs plugins install PLUGIN`](#bgipfs-plugins-install-plugin)
-* [`bgipfs plugins link PATH`](#bgipfs-plugins-link-path)
-* [`bgipfs plugins remove [PLUGIN]`](#bgipfs-plugins-remove-plugin)
-* [`bgipfs plugins reset`](#bgipfs-plugins-reset)
-* [`bgipfs plugins uninstall [PLUGIN]`](#bgipfs-plugins-uninstall-plugin)
-* [`bgipfs plugins unlink [PLUGIN]`](#bgipfs-plugins-unlink-plugin)
-* [`bgipfs plugins update`](#bgipfs-plugins-update)
+- Node.js (22+)
+- Docker & Docker Compose
 
-## `bgipfs hello PERSON`
-
-Say hello
-
-```
-USAGE
-  $ bgipfs hello PERSON -f <value>
-
-ARGUMENTS
-  PERSON  Person to say hello to
-
-FLAGS
-  -f, --from=<value>  (required) Who is saying hello
-
-DESCRIPTION
-  Say hello
-
-EXAMPLES
-  $ bgipfs hello friend --from oclif
-  hello friend from oclif! (./src/commands/hello/index.ts)
+```bash
+npm install -g bgipfs
 ```
 
-_See code: [src/commands/hello/index.ts](https://github.com/azf20/buidlguidl-ipfs/blob/v0.0.0/src/commands/hello/index.ts)_
-
-## `bgipfs hello world`
-
-Say hello world
-
-```
-USAGE
-  $ bgipfs hello world
-
-DESCRIPTION
-  Say hello world
-
-EXAMPLES
-  $ bgipfs hello world
-  hello world! (./src/commands/hello/world.ts)
+## Usage
+```bash
+$ bgipfs install # checks / installs required dependencies
+$ bgipfs init # sets up the configuration required for IPFS Cluster
+$ bgipfs start # starts IPFS cluster
+$ bgipfs stop # stops IPFS cluster
+$ bgipfs reset # removes all IPFS & IPFS Cluster data [DANGEROUS]
 ```
 
-_See code: [src/commands/hello/world.ts](https://github.com/azf20/buidlguidl-ipfs/blob/v0.0.0/src/commands/hello/world.ts)_
-
-## `bgipfs help [COMMAND]`
-
-Display help for bgipfs.
-
-```
-USAGE
-  $ bgipfs help [COMMAND...] [-n]
-
-ARGUMENTS
-  COMMAND...  Command to show help for.
-
-FLAGS
-  -n, --nested-commands  Include all nested commands in the output.
-
-DESCRIPTION
-  Display help for bgipfs.
-```
-
-_See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.2.21/src/commands/help.ts)_
-
-## `bgipfs plugins`
-
-List installed plugins.
-
-```
-USAGE
-  $ bgipfs plugins [--json] [--core]
-
-FLAGS
-  --core  Show core plugins.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  List installed plugins.
-
-EXAMPLES
-  $ bgipfs plugins
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/index.ts)_
-
-## `bgipfs plugins add PLUGIN`
-
-Installs a plugin into bgipfs.
-
-```
-USAGE
-  $ bgipfs plugins add PLUGIN... [--json] [-f] [-h] [-s | -v]
-
-ARGUMENTS
-  PLUGIN...  Plugin to install.
-
-FLAGS
-  -f, --force    Force npm to fetch remote resources even if a local copy exists on disk.
-  -h, --help     Show CLI help.
-  -s, --silent   Silences npm output.
-  -v, --verbose  Show verbose npm output.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Installs a plugin into bgipfs.
-
-  Uses npm to install plugins.
-
-  Installation of a user-installed plugin will override a core plugin.
-
-  Use the BGIPFS_NPM_LOG_LEVEL environment variable to set the npm loglevel.
-  Use the BGIPFS_NPM_REGISTRY environment variable to set the npm registry.
-
-ALIASES
-  $ bgipfs plugins add
-
-EXAMPLES
-  Install a plugin from npm registry.
-
-    $ bgipfs plugins add myplugin
-
-  Install a plugin from a github url.
-
-    $ bgipfs plugins add https://github.com/someuser/someplugin
-
-  Install a plugin from a github slug.
-
-    $ bgipfs plugins add someuser/someplugin
-```
-
-## `bgipfs plugins:inspect PLUGIN...`
-
-Displays installation properties of a plugin.
-
-```
-USAGE
-  $ bgipfs plugins inspect PLUGIN...
-
-ARGUMENTS
-  PLUGIN...  [default: .] Plugin to inspect.
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Displays installation properties of a plugin.
-
-EXAMPLES
-  $ bgipfs plugins inspect myplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/inspect.ts)_
-
-## `bgipfs plugins install PLUGIN`
-
-Installs a plugin into bgipfs.
-
-```
-USAGE
-  $ bgipfs plugins install PLUGIN... [--json] [-f] [-h] [-s | -v]
-
-ARGUMENTS
-  PLUGIN...  Plugin to install.
-
-FLAGS
-  -f, --force    Force npm to fetch remote resources even if a local copy exists on disk.
-  -h, --help     Show CLI help.
-  -s, --silent   Silences npm output.
-  -v, --verbose  Show verbose npm output.
-
-GLOBAL FLAGS
-  --json  Format output as json.
-
-DESCRIPTION
-  Installs a plugin into bgipfs.
-
-  Uses npm to install plugins.
-
-  Installation of a user-installed plugin will override a core plugin.
-
-  Use the BGIPFS_NPM_LOG_LEVEL environment variable to set the npm loglevel.
-  Use the BGIPFS_NPM_REGISTRY environment variable to set the npm registry.
-
-ALIASES
-  $ bgipfs plugins add
-
-EXAMPLES
-  Install a plugin from npm registry.
-
-    $ bgipfs plugins install myplugin
-
-  Install a plugin from a github url.
-
-    $ bgipfs plugins install https://github.com/someuser/someplugin
-
-  Install a plugin from a github slug.
-
-    $ bgipfs plugins install someuser/someplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/install.ts)_
-
-## `bgipfs plugins link PATH`
-
-Links a plugin into the CLI for development.
-
-```
-USAGE
-  $ bgipfs plugins link PATH [-h] [--install] [-v]
-
-ARGUMENTS
-  PATH  [default: .] path to plugin
-
-FLAGS
-  -h, --help          Show CLI help.
-  -v, --verbose
-      --[no-]install  Install dependencies after linking the plugin.
-
-DESCRIPTION
-  Links a plugin into the CLI for development.
-
-  Installation of a linked plugin will override a user-installed or core plugin.
-
-  e.g. If you have a user-installed or core plugin that has a 'hello' command, installing a linked plugin with a 'hello'
-  command will override the user-installed or core plugin implementation. This is useful for development work.
-
-
-EXAMPLES
-  $ bgipfs plugins link myplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/link.ts)_
-
-## `bgipfs plugins remove [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ bgipfs plugins remove [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ bgipfs plugins unlink
-  $ bgipfs plugins remove
-
-EXAMPLES
-  $ bgipfs plugins remove myplugin
-```
-
-## `bgipfs plugins reset`
-
-Remove all user-installed and linked plugins.
-
-```
-USAGE
-  $ bgipfs plugins reset [--hard] [--reinstall]
-
-FLAGS
-  --hard       Delete node_modules and package manager related files in addition to uninstalling plugins.
-  --reinstall  Reinstall all plugins after uninstalling.
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/reset.ts)_
-
-## `bgipfs plugins uninstall [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ bgipfs plugins uninstall [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ bgipfs plugins unlink
-  $ bgipfs plugins remove
-
-EXAMPLES
-  $ bgipfs plugins uninstall myplugin
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/uninstall.ts)_
-
-## `bgipfs plugins unlink [PLUGIN]`
-
-Removes a plugin from the CLI.
-
-```
-USAGE
-  $ bgipfs plugins unlink [PLUGIN...] [-h] [-v]
-
-ARGUMENTS
-  PLUGIN...  plugin to uninstall
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Removes a plugin from the CLI.
-
-ALIASES
-  $ bgipfs plugins unlink
-  $ bgipfs plugins remove
-
-EXAMPLES
-  $ bgipfs plugins unlink myplugin
-```
-
-## `bgipfs plugins update`
-
-Update installed plugins.
-
-```
-USAGE
-  $ bgipfs plugins update [-h] [-v]
-
-FLAGS
-  -h, --help     Show CLI help.
-  -v, --verbose
-
-DESCRIPTION
-  Update installed plugins.
-```
-
-_See code: [@oclif/plugin-plugins](https://github.com/oclif/plugin-plugins/blob/v5.4.25/src/commands/plugins/update.ts)_
-<!-- commandsstop -->
+## Commands
+
+```bash
+COMMANDS
+  auth     Manage authentication credentials
+  help     Display help for bgipfs.
+  init     Initialize IPFS configuration
+  install  Install all required dependencies
+  logs     Show container logs
+  plugins  List installed plugins.
+  reset    Reset IPFS cluster and remove all data
+  ssl      Generate SSL certificates using Let's Encrypt
+  start    Start IPFS cluster
+  stop     Stop IPFS cluster
+  version  Show version information
+  ```
+
+  ### Files of note
+
+  During the `init` command, an interactive prompt will help you populate the `.env` file and `identity.json` file, and other template files will be downloaded to the root directory.
+
+  .env
+  - `PEERNAME` - the name of the peer in the IPFS Cluster
+  - `SECRET` - the secret for the IPFS Cluster
+  - `PEERADDRESSES` - the addresses of the peers in the IPFS Cluster (for bootstrapping, blank if you're the first)
+  - `AUTH_USERNAME` - the username for the IPFS Cluster
+  - `AUTH_PASSWORD` - the password for the IPFS Cluster
+  - `GATEWAY_DOMAIN` - if using DNS, the domain for the gateway (e.g. `ipfs.bgipfs.com`)
+  - `UPLOAD_DOMAIN` - if using DNS, the domain for the upload endpoint (e.g. `upload.bgipfs.com`)
+
+  `identity.json`
+  - `id` - the public peer ID
+  - `private_key` - the private key for the peer [DO NOT SHARE PUBLICLY]
+
+  #### Docker Compose Files
+- `init.docker-compose.yml` - Used during initialization to set up IPFS Cluster configuration
+- `docker-compose.yml` - Base configuration for IP-based mode, includes IPFS, IPFS Cluster, and Nginx services
+- `docker-compose.dns.yml` - DNS mode overrides, adds SSL/TLS support and domain-based routing
+
+#### Nginx Configurations
+- `nginx.ip.conf` - Simple Nginx configuration for IP-based mode
+  - Provides basic authentication for the upload endpoint (port 5555)
+  - No SSL/TLS support
+- `nginx.dns.conf` - Advanced Nginx configuration for DNS-based mode
+  - Handles SSL/TLS termination
+  - Provides HTTPS gateway and upload endpoints
+  - Includes automatic HTTP to HTTPS redirection
+- `certbot.conf` - Temporary Nginx configuration used during Let's Encrypt certificate acquisition
+
+#### IPFS Cluster Configuration
+- `service.json` - Default IPFS Cluster configuration
+  - Defines cluster behavior, API endpoints, and performance settings
+  - Configures CRDT consensus settings
+  - Sets up monitoring and metrics collection
+
+Changes to these files in the root directory will be reflected in the running cluster (after a restart). A note on priority: environment variables passed into the docker compose file will override the values `service.json`.
+
+### Modes
+
+The cluster can be run in two modes:
+
+- `ip` - IP-based mode
+- `dns` - DNS-based mode, if you want to use a domain or subdomain instead of an IP address for your gateway (for node discovery, as well as the gateway / upload endpoint)
+
+Note that if you are using DNS mode, you will need to have a valid SSL certificate for your domain. This can be generated using the `ssl` command. You will also need to ensure that your DNS provider isn't providing a proxy service for your domain / subdomains.
+
+### Ports
+
+The following ports need to be opened depending on your setup:
+
+| Port | Protocol | IP-based Setup | DNS-based Setup | Purpose |
+|------|----------|----------------|-----------------|----------|
+| 4001 | TCP | Required | Required | IPFS swarm |
+| 9096 | TCP | Required | Required | Cluster swarm |
+| 8080 | TCP | Required | Not needed | IPFS gateway |
+| 5555 | TCP | Required | Not needed | Public Add endpoint |
+| 80 | TCP | Not needed | Required | HTTP |
+| 443 | TCP | Not needed | Required | HTTPS |

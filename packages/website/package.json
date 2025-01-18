@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "pnpm --filter ipfs-uploader build",
+    "prebuild": "pnpm --filter ipfs-uploader build && node scripts/copy-peer-setup.mjs",
     "dev": "next dev",
     "build": "next build",
-    "prebuild": "node scripts/copy-peer-setup.mjs",
     "start": "next start",
     "lint": "next lint"
   },

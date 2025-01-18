@@ -9,7 +9,7 @@ import {EnvManager} from '../../lib/env-manager.js'
 import {envSchema} from '../../lib/env-schema.js'
 
 export default class Ssl extends BaseCommand {
-  static description = "Generate SSL certificates using Let's Encrypt"
+  static description = "Generate SSL certificates using Let's Encrypt, required for DNS mode"
 
   static flags = {
     staging: Flags.boolean({
