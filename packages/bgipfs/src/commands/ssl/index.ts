@@ -115,6 +115,7 @@ export default class Ssl extends BaseCommand {
             domain,
           ]
 
+          // eslint-disable-next-line no-await-in-loop
           await execa('docker', certbotArgs, {stdio: 'inherit'})
         }
       } finally {

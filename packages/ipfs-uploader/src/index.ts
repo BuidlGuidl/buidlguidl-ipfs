@@ -2,7 +2,7 @@ import { CID } from "multiformats/cid";
 import { create, KuboRPCClient, globSource } from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
 
-export interface IpfsPinnerConfig {
+export interface IpfsUploaderConfig {
   url?: string;
   headers?: Record<string, string>;
 }
@@ -20,11 +20,11 @@ export interface GlobSourceFile {
   content: string | Uint8Array | Buffer;
 }
 
-export class IpfsPinner {
+export class IpfsUploader {
   private rpcClient: KuboRPCClient;
-  private config: IpfsPinnerConfig;
+  private config: IpfsUploaderConfig;
 
-  constructor(config?: IpfsPinnerConfig) {
+  constructor(config?: IpfsUploaderConfig) {
     this.config = {
       url: config?.url ?? "http://127.0.0.1:9095",
       headers: config?.headers ?? {},
@@ -215,4 +215,4 @@ export class IpfsPinner {
   };
 }
 
-export default IpfsPinner;
+export default IpfsUploader;

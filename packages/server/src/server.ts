@@ -3,7 +3,7 @@ import cors from "cors";
 import { logger } from "./logger.js";
 import config from "./config.js";
 import multer from "multer";
-import IpfsPinner from "@buidlguidl/ipfs-uploader";
+import IpfsUploader from "ipfs-uploader";
 import { errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -28,7 +28,7 @@ if (config.auth.username && config.auth.password) {
   headers.Authorization = `Basic ${auth}`;
 }
 
-const pinner = new IpfsPinner({
+const pinner = new IpfsUploader({
   url: config.ipfs.url,
   headers,
 });

@@ -20,7 +20,7 @@
 # production
 /build
 
-/public/bgipfs-cli
+/public/cli
 
 # misc
 .DS_Store

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "prebuild": "node scripts/copy-peer-setup.js",
+    "prebuild": "node scripts/copy-peer-setup.mjs",
     "start": "next start",
     "lint": "next lint"
   },
@@ -22,10 +22,10 @@
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.5",
     "zod": "^3.22.4",
-    "@buidlguidl/ipfs-uploader": "workspace:*"
+    "ipfs-uploader": "workspace:*"
   },
   "devDependencies": {
-    "@buidlguidl/bgipfs-cli": "workspace:*",
+    "bgipfs": "workspace:*",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",

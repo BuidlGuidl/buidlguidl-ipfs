@@ -1,6 +1,6 @@
 import { create, globSource } from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
-export class IpfsPinner {
+export class IpfsUploader {
     constructor(config) {
         this.add = {
             file: async (input) => {
@@ -154,4 +154,4 @@ export class IpfsPinner {
         });
     }
 }
-export default IpfsPinner;
+export default IpfsUploader;
