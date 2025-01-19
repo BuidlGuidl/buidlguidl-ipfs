@@ -11,7 +11,7 @@ import {checkDocker, checkRunningContainers} from '../../lib/system.js'
 import {TemplateManager} from '../../lib/templates.js'
 
 export default class Init extends BaseCommand {
-  static description = 'Initialize IPFS configuration'
+  static description = 'Set up the necessary configuration for IPFS Cluster'
 
   static flags = {}
 
@@ -40,8 +40,7 @@ export default class Init extends BaseCommand {
         await templates.copyAllTemplates()
       }
 
-      // Initialize environment
-      this.logInfo('Initializing environment...')
+      this.logInfo('Setting up environment...')
 
       // Try to read existing env, preserving any valid values
       const currentEnv = await fs
@@ -133,13 +132,13 @@ export default class Init extends BaseCommand {
 
       await this.initializeCluster()
 
-      this.logSuccess('Configuration initialized successfully!')
+      this.logSuccess('Configuration completed successfully!')
       this.logInfo('Your configuration is in .env')
       this.logInfo('Your cluster identity is in identity.json')
       this.logInfo('Your cluster service configuration is in service.json')
       this.logInfo('You can now start the cluster with `bgipfs start`')
     } catch (error) {
-      this.logError(`Initialization failed: ${(error as Error).message}`)
+      this.logError(`Configuration failed: ${(error as Error).message}`)
     } finally {
       // Cleanup
       try {

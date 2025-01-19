@@ -18,7 +18,7 @@ npm install -g bgipfs
 ## Usage
 ```bash
 $ bgipfs install # checks / installs required dependencies
-$ bgipfs init # sets up the configuration required for IPFS Cluster
+$ bgipfs config # sets up the configuration required for IPFS Cluster
 $ bgipfs start # starts IPFS cluster
 $ bgipfs stop # stops IPFS cluster
 $ bgipfs reset # removes all IPFS & IPFS Cluster data [DANGEROUS]
@@ -30,7 +30,7 @@ $ bgipfs reset # removes all IPFS & IPFS Cluster data [DANGEROUS]
 COMMANDS
   auth     Manage authentication credentials
   help     Display help for bgipfs.
-  init     Initialize IPFS configuration
+  config   Set up or update the necessary configuration
   install  Install all required dependencies
   logs     Show container logs
   plugins  List installed plugins.
@@ -43,7 +43,7 @@ COMMANDS
 
   ### Files of note
 
-  During the `init` command, an interactive prompt will help you populate the `.env` file and `identity.json` file, and other template files will be downloaded to the root directory.
+  During the `config` command, an interactive prompt will help you populate the `.env` file and `identity.json` file, and other template files will be downloaded to the root directory.
 
   .env
   - `PEERNAME` - the name of the peer in the IPFS Cluster
