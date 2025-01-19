@@ -33,7 +33,12 @@ export default class Init extends BaseCommand {
 
     try {
       this.logInfo('Installing required configuration files...')
-      await templates.copyAllTemplates()
+      const redownload = await this.confirm(
+        'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (You will be prompted to overwrite any local changes)',
+      )
+      if (redownload) {
+        await templates.copyAllTemplates()
+      }
 
       // Initialize environment
       this.logInfo('Initializing environment...')
