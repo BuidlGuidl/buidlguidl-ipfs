@@ -4,11 +4,11 @@ import {randomBytes} from 'node:crypto'
 import fs from 'node:fs/promises'
 import {z} from 'zod'
 
-import {BaseCommand} from '../../base-command.js'
-import {EnvManager} from '../../lib/env-manager.js'
-import {baseSchema} from '../../lib/env-schema.js'
-import {checkDocker, checkRunningContainers} from '../../lib/system.js'
-import {TemplateManager} from '../../lib/templates.js'
+import {BaseCommand} from '../../../base-command.js'
+import {EnvManager} from '../../../lib/env-manager.js'
+import {baseSchema} from '../../../lib/env-schema.js'
+import {checkDocker, checkRunningContainers} from '../../../lib/system.js'
+import {TemplateManager} from '../../../lib/templates.js'
 
 export default class Init extends BaseCommand {
   static description = 'Set up the necessary configuration for IPFS Cluster'

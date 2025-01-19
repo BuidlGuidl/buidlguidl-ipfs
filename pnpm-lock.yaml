@@ -35,6 +35,9 @@ importers:
       execa:
         specifier: ^8.0.1
         version: 8.0.1
+      ipfs-uploader:
+        specifier: workspace:*
+        version: link:../ipfs-uploader
       zod:
         specifier: ^3.22.4
         version: 3.24.1

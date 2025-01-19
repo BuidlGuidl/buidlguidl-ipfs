@@ -4,9 +4,9 @@ import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
 import {z} from 'zod'
 
-import {BaseCommand} from '../../base-command.js'
-import {EnvManager} from '../../lib/env-manager.js'
-import {DnsConfig, PartialDnsConfig, dnsSchema} from '../../lib/env-schema.js'
+import {BaseCommand} from '../../../base-command.js'
+import {EnvManager} from '../../../lib/env-manager.js'
+import {DnsConfig, PartialDnsConfig, dnsSchema} from '../../../lib/env-schema.js'
 
 export default class Ssl extends BaseCommand {
   static description = "Generate SSL certificates using Let's Encrypt, required for DNS mode"

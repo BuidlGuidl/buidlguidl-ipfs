@@ -2,10 +2,10 @@ import {Flags} from '@oclif/core'
 import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
 
-import {BaseCommand} from '../../base-command.js'
-import {EnvManager} from '../../lib/env-manager.js'
-import {baseSchema, dnsSchema} from '../../lib/env-schema.js'
-import {checkRunningContainers} from '../../lib/system.js'
+import {BaseCommand} from '../../../base-command.js'
+import {EnvManager} from '../../../lib/env-manager.js'
+import {baseSchema, dnsSchema} from '../../../lib/env-schema.js'
+import {checkRunningContainers} from '../../../lib/system.js'
 
 export default class Start extends BaseCommand {
   static description = 'Start IPFS cluster'

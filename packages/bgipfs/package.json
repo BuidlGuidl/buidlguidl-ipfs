@@ -15,7 +15,8 @@
     "dotenv": "^16.4.1",
     "zod": "^3.22.4",
     "execa": "^8.0.1",
-    "@inquirer/prompts": "^3.3.0"
+    "@inquirer/prompts": "^3.3.0",
+    "ipfs-uploader": "workspace:*"
   },
   "devDependencies": {
     "@oclif/prettier-config": "^0.2.1",
@@ -61,7 +62,15 @@
       "@oclif/plugin-help"
     ],
     "topicSeparator": " ",
-    "hooks": {}
+    "hooks": {},
+    "topics": {
+      "cluster": {
+        "description": "Commands for setting up and managing IPFS cluster operations"
+      },
+      "upload": {
+        "description": "Commands for uploading files to IPFS"
+      }
+    }
   },
   "repository": "azf20/buidlguidl-ipfs",
   "scripts": {
