@@ -56,7 +56,8 @@ export default class Start extends BaseCommand {
       // Check for running containers
       const running = await checkRunningContainers()
       if (running.length > 0) {
-        this.logError('Please stop all running containers first:\n' + running.join('\n'))
+        this.logInfo('The following containers are running:\n' + running.join('\n'))
+        this.logError('You must stop the cluster with `bgipfs stop` before starting it again')
         return
       }
 

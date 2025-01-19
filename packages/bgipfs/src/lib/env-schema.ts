@@ -8,8 +8,8 @@ const domainPattern = /^(?:[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?\.)+[A-Za-z
 // Base schema with core IPFS cluster fields
 export const baseSchema = z
   .object({
-    AUTH_PASSWORD: z.string().min(1),
-    AUTH_USER: z.string().min(1),
+    AUTH_PASSWORD: z.string().min(8, 'Password must be at least 8 characters long'),
+    AUTH_USER: z.string().min(3, 'Username must be at least 3 characters long'),
     PEERADDRESSES: z.string().refine((val) => {
       if (!val) return true // Empty is valid for first node
       return val
@@ -18,7 +18,7 @@ export const baseSchema = z
         .every((addr) => peerAddressPattern.test(addr))
     }, 'Invalid peer address format. Expected: /dns4/{ip-or-domain}/tcp/9096/ipfs/{peerid}'),
 
-    PEERNAME: z.string().min(1),
+    PEERNAME: z.string().min(3, 'Peer name must be at least 3 characters long'),
     SECRET: z.string().regex(secretPattern, 'Must be a 64-character hex string'),
   })
   .passthrough()
