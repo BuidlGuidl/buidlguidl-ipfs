@@ -8,15 +8,16 @@
   },
   "bugs": "https://github.com/azf20/buidlguidl-ipfs/issues",
   "dependencies": {
+    "@inquirer/prompts": "^3.3.0",
     "@oclif/core": "^4",
     "@oclif/plugin-help": "^6",
     "@oclif/plugin-plugins": "^5",
     "chalk": "^5.3.0",
     "dotenv": "^16.4.1",
-    "zod": "^3.22.4",
     "execa": "^8.0.1",
-    "@inquirer/prompts": "^3.3.0",
-    "ipfs-uploader": "workspace:*"
+    "ipfs-uploader": "workspace:*",
+    "kubo-rpc-client": "^5.0.2",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@oclif/prettier-config": "^0.2.1",
@@ -80,7 +81,8 @@
     "posttest": "pnpm run lint",
     "prepack": "oclif manifest && oclif readme",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
-    "version": "oclif readme && git add README.md"
+    "version": "oclif readme && git add README.md",
+    "prebuild": "pnpm --filter ipfs-uploader build"
   },
   "types": "dist/index.d.ts"
 }
