@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv'
 import {promises as fs} from 'node:fs'
+import {z} from 'zod'
 
 import {type EnvConfig, envSchema} from './env-schema.js'
 
@@ -19,6 +20,16 @@ export class EnvManager {
     const content = await fs.readFile(this.filePath, 'utf8')
     if (!content.endsWith('\n')) {
       await fs.appendFile(this.filePath, '\n')
+    }
+  }
+
+  createEmptyEnv(): z.infer<typeof envSchema> {
+    return {
+      AUTH_PASSWORD: '',
+      AUTH_USER: '',
+      PEERADDRESSES: '',
+      PEERNAME: '',
+      SECRET: '',
     }
   }
 
@@ -63,6 +74,31 @@ export class EnvManager {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return {} as EnvConfig
+      }
+
+      throw error
+    }
+  }
+
+  async readRawEnv(): Promise<Partial<EnvConfig>> {
+    try {
+      await this.ensureEnvFile()
+      const content = await fs.readFile(this.filePath, 'utf8')
+      const parsed = dotenv.parse(content)
+
+      // Validate each field individually and only keep valid ones
+      const validEntries = Object.entries(envSchema.shape)
+        .map(([key, schema]) => {
+          const value = parsed[key]
+          const result = schema.safeParse(value)
+          return result.success ? [key, value] : null
+        })
+        .filter((entry): entry is [string, string] => entry !== null)
+
+      return Object.fromEntries(validEntries) as Partial<EnvConfig>
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {}
       }
 
       throw error

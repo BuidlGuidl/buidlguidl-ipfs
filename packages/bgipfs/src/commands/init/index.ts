@@ -32,23 +32,45 @@ export default class Init extends BaseCommand {
     }
 
     try {
-      // Ask about redownloading configuration files
-      const shouldRedownload = await this.confirm(
-        'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (This will overwrite any local changes)',
-      )
+      // Only ask about redownloading if docker-compose.yml exists
+      const composeExists = await fs
+        .access('docker-compose.yml')
+        .then(() => true)
+        .catch(() => false)
 
-      // Copy template files if user agrees
-      if (shouldRedownload) {
+      let shouldRedownload = false
+      if (composeExists) {
+        shouldRedownload = await this.confirm(
+          'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (This will overwrite any local changes)',
+        )
+      }
+
+      // Copy template files if user agrees or if files don't exist
+      if (shouldRedownload || !composeExists) {
         this.logInfo('Installing configuration files...')
         await templates.copyAllTemplates(true)
       }
 
       // Initialize environment
       this.logInfo('Initializing environment...')
-      await env.ensureEnvFile()
 
-      // Get current peername from env if it exists
-      const currentEnv = await env.readEnv()
+      // Try to read existing env, preserving any valid values
+      const currentEnv = await fs
+        .access('.env')
+        .then(async () => {
+          try {
+            return await env.readEnv()
+          } catch (error) {
+            // Only show warning if there are actual validation errors
+            if (error instanceof Error && error.message.includes('Invalid environment configuration')) {
+              this.logWarning('Found invalid values in .env file, will preserve valid entries')
+            }
+
+            return env.readRawEnv()
+          }
+        })
+        .catch(() => env.createEmptyEnv())
+
       const currentPeername = currentEnv.PEERNAME
 
       // Get peer name
@@ -65,7 +87,7 @@ export default class Init extends BaseCommand {
       switch (`${isFirstNode ? 'first' : 'subsequent'}-${hasExistingSecret ? 'existing' : 'new'}`) {
         case 'first-existing': {
           const keepSecret = await this.confirm(`Do you want to keep using the existing secret?\n${currentEnv.SECRET}`)
-          secret = keepSecret ? currentEnv.SECRET : this.generateSecret()
+          secret = keepSecret ? currentEnv.SECRET! : this.generateSecret()
           break
         }
 
@@ -146,6 +168,15 @@ export default class Init extends BaseCommand {
     }
   }
 
+  private async copyFileIfNotEmpty(source: string, dest: string, description: string): Promise<void> {
+    const stats = await fs.stat(source)
+    if (stats.size === 0) {
+      throw new Error(`Generated ${description} is empty - cluster initialization failed`)
+    }
+
+    await fs.copyFile(source, dest)
+  }
+
   private async createAuthFile(username: string, password: string): Promise<void> {
     try {
       // Create htpasswd file using openssl (same as auth.sh)
@@ -218,18 +249,18 @@ export default class Init extends BaseCommand {
 
       // Copy identity and service files if they don't exist
       if (!hasIdentity) {
-        await fs.copyFile('data/ipfs-cluster/identity.json', 'identity.json')
+        await this.copyFileIfNotEmpty('data/ipfs-cluster/identity.json', 'identity.json', 'identity.json')
       }
 
       const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
       this.logInfo(`Peer ID: ${identityJson.id}`)
 
-      await fs.copyFile('data/ipfs-cluster/service.json', 'service.json')
+      await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json', 'service.json')
 
       this.logSuccess('IPFS cluster initialized')
     } catch (error) {
       // Show container logs on error
-      this.logError('Initialization failed, showing container logs:')
+      this.logWarning('Initialization failed, showing container logs:')
       this.log('=== Cluster Container Logs ===')
       try {
         const {stdout} = await execa('docker', ['compose', '-f', 'init.docker-compose.yml', 'logs', 'cluster'])
