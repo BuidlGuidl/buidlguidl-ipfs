@@ -6,7 +6,7 @@ import {z} from 'zod'
 
 import {BaseCommand} from '../../base-command.js'
 import {EnvManager} from '../../lib/env-manager.js'
-import {envSchema} from '../../lib/env-schema.js'
+import {baseSchema} from '../../lib/env-schema.js'
 import {checkDocker, checkRunningContainers} from '../../lib/system.js'
 import {TemplateManager} from '../../lib/templates.js'
 
@@ -59,23 +59,26 @@ export default class Init extends BaseCommand {
         .access('.env')
         .then(async () => {
           try {
-            return await env.readEnv()
+            return await env.readEnv({partial: true})
           } catch (error) {
-            // Only show warning if there are actual validation errors
             if (error instanceof Error && error.message.includes('Invalid environment configuration')) {
-              this.logWarning('Found invalid values in .env file, will preserve valid entries')
+              this.logWarning('Found invalid values in .env file, will preserve raw entries')
             }
 
-            return env.readRawEnv()
+            return await env.readRawEnv()
           }
         })
-        .catch(() => env.createEmptyEnv())
-
-      const currentPeername = currentEnv.PEERNAME
+        .catch(() => ({
+          AUTH_PASSWORD: '',
+          AUTH_USER: 'admin',
+          PEERADDRESSES: '',
+          PEERNAME: '',
+          SECRET: '',
+        }))
 
       // Get peer name
       const peername = await input({
-        default: currentPeername || 'cluster0',
+        default: currentEnv.PEERNAME || 'cluster0',
         message: 'Enter peer name',
       })
 
@@ -100,7 +103,7 @@ export default class Init extends BaseCommand {
           secret = await input({
             default: currentEnv.SECRET,
             message: "Enter the cluster's secret",
-            validate: (value) => this.validateInput(envSchema.shape.SECRET, value),
+            validate: (value) => this.validateInput(baseSchema.shape.SECRET, value),
           })
           break
         }
@@ -108,7 +111,7 @@ export default class Init extends BaseCommand {
         case 'subsequent-new': {
           secret = await input({
             message: "Enter the cluster's secret",
-            validate: (value) => this.validateInput(envSchema.shape.SECRET, value),
+            validate: (value) => this.validateInput(baseSchema.shape.SECRET, value),
           })
           break
         }
@@ -124,7 +127,7 @@ export default class Init extends BaseCommand {
         : await input({
             default: currentEnv.PEERADDRESSES || '',
             message: 'Enter peer addresses (comma-separated)',
-            validate: (value) => this.validateInput(envSchema.shape.PEERADDRESSES, value),
+            validate: (value) => this.validateInput(baseSchema.shape.PEERADDRESSES, value),
           })
 
       // Get auth credentials
@@ -136,7 +139,7 @@ export default class Init extends BaseCommand {
       const authPassword = await input({
         default: currentEnv.AUTH_PASSWORD || this.generateSecret(),
         message: 'Enter authentication password',
-        validate: (value) => this.validateInput(envSchema.shape.AUTH_PASSWORD, value),
+        validate: (value) => this.validateInput(baseSchema.shape.AUTH_PASSWORD, value),
       })
 
       await env.updateEnv([
