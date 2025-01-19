@@ -71,7 +71,6 @@ COMMANDS
   - Handles SSL/TLS termination
   - Provides HTTPS gateway and upload endpoints
   - Includes automatic HTTP to HTTPS redirection
-- `certbot.conf` - Temporary Nginx configuration used during Let's Encrypt certificate acquisition
 
 #### IPFS Cluster Configuration
 - `service.json` - Default IPFS Cluster configuration
