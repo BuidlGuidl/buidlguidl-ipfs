@@ -32,24 +32,8 @@ export default class Init extends BaseCommand {
     }
 
     try {
-      // Only ask about redownloading if docker-compose.yml exists
-      const composeExists = await fs
-        .access('docker-compose.yml')
-        .then(() => true)
-        .catch(() => false)
-
-      let shouldRedownload = false
-      if (composeExists) {
-        shouldRedownload = await this.confirm(
-          'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (This will overwrite any local changes)',
-        )
-      }
-
-      // Copy template files if user agrees or if files don't exist
-      if (shouldRedownload || !composeExists) {
-        this.logInfo('Installing configuration files...')
-        await templates.copyAllTemplates(true)
-      }
+      this.logInfo('Installing required configuration files...')
+      await templates.copyAllTemplates()
 
       // Initialize environment
       this.logInfo('Initializing environment...')
@@ -65,6 +49,7 @@ export default class Init extends BaseCommand {
               this.logWarning('Found invalid values in .env file, will preserve raw entries')
             }
 
+            // eslint-disable-next-line no-return-await
             return await env.readRawEnv()
           }
         })
@@ -78,57 +63,34 @@ export default class Init extends BaseCommand {
 
       // Get peer name
       const peername = await input({
-        default: currentEnv.PEERNAME || 'cluster0',
+        default: currentEnv.PEERNAME || 'peer-0',
         message: 'Enter peer name',
       })
 
-      // Ask if first node
-      const isFirstNode = await this.confirm('Is this the first node in the cluster?')
-      const hasExistingSecret = Boolean(currentEnv.SECRET)
+      let secret = await input({
+        default: currentEnv.SECRET,
+        message: "Enter the cluster's secret (leave blank to generate a new one)",
+        validate: (value) => {
+          if (value === '') {
+            return true
+          }
 
-      let secret: string
-      switch (`${isFirstNode ? 'first' : 'subsequent'}-${hasExistingSecret ? 'existing' : 'new'}`) {
-        case 'first-existing': {
-          const keepSecret = await this.confirm(`Do you want to keep using the existing secret?\n${currentEnv.SECRET}`)
-          secret = keepSecret ? currentEnv.SECRET! : this.generateSecret()
-          break
-        }
+          return this.validateInput(baseSchema.shape.SECRET, value)
+        },
+      })
 
-        case 'first-new': {
-          secret = this.generateSecret()
-          break
-        }
-
-        case 'subsequent-existing': {
-          secret = await input({
-            default: currentEnv.SECRET,
-            message: "Enter the cluster's secret",
-            validate: (value) => this.validateInput(baseSchema.shape.SECRET, value),
-          })
-          break
-        }
-
-        case 'subsequent-new': {
-          secret = await input({
-            message: "Enter the cluster's secret",
-            validate: (value) => this.validateInput(baseSchema.shape.SECRET, value),
-          })
-          break
-        }
-
-        default: {
-          throw new Error('Unexpected case for secret generation')
-        }
+      if (!secret) {
+        secret = this.generateSecret()
+        this.logSuccess('Generated secret: ' + secret)
       }
 
       // Get peer addresses with validation
-      const peerAddresses = isFirstNode
-        ? ''
-        : await input({
-            default: currentEnv.PEERADDRESSES || '',
-            message: 'Enter peer addresses (comma-separated)',
-            validate: (value) => this.validateInput(baseSchema.shape.PEERADDRESSES, value),
-          })
+      const peerAddresses = await input({
+        default: currentEnv.PEERADDRESSES || '',
+        message:
+          'Enter peer addresses\nComma-separated, format: /dns4/{ip-or-domain}/tcp/9096/ipfs/{peerid}\nLeave blank if this is the first node in the cluster.',
+        validate: (value) => this.validateInput(baseSchema.shape.PEERADDRESSES, value),
+      })
 
       // Get auth credentials
       const authUser = await input({
@@ -136,11 +98,22 @@ export default class Init extends BaseCommand {
         message: 'Enter authentication username',
       })
 
-      const authPassword = await input({
-        default: currentEnv.AUTH_PASSWORD || this.generateSecret(),
-        message: 'Enter authentication password',
-        validate: (value) => this.validateInput(baseSchema.shape.AUTH_PASSWORD, value),
+      let authPassword = await input({
+        default: currentEnv.AUTH_PASSWORD,
+        message: 'Enter authentication password (leave blank to generate a new one)',
+        validate: (value) => {
+          if (value === '') {
+            return true
+          }
+
+          return this.validateInput(baseSchema.shape.AUTH_PASSWORD, value)
+        },
       })
+
+      if (!authPassword) {
+        authPassword = await this.generatePassword()
+        this.logSuccess('Generated password: ' + authPassword)
+      }
 
       await env.updateEnv([
         {key: 'PEERNAME', value: peername},
@@ -155,7 +128,11 @@ export default class Init extends BaseCommand {
 
       await this.initializeCluster()
 
-      this.logSuccess('Configuration initialized successfully')
+      this.logSuccess('Configuration initialized successfully!')
+      this.logInfo('Your configuration is in .env')
+      this.logInfo('Your cluster identity is in identity.json')
+      this.logInfo('Your cluster service configuration is in service.json')
+      this.logInfo('You can now start the cluster with `bgipfs start`')
     } catch (error) {
       this.logError(`Initialization failed: ${(error as Error).message}`)
     } finally {
@@ -171,13 +148,14 @@ export default class Init extends BaseCommand {
     }
   }
 
-  private async copyFileIfNotEmpty(source: string, dest: string, description: string): Promise<void> {
+  private async copyFileIfNotEmpty(source: string, dest: string): Promise<boolean> {
     const stats = await fs.stat(source)
     if (stats.size === 0) {
-      throw new Error(`Generated ${description} is empty - cluster initialization failed`)
+      return false
     }
 
     await fs.copyFile(source, dest)
+    return true
   }
 
   private async createAuthFile(username: string, password: string): Promise<void> {
@@ -191,32 +169,53 @@ export default class Init extends BaseCommand {
     }
   }
 
+  private async generatePassword(): Promise<string> {
+    try {
+      const {stdout} = await execa('openssl', ['rand', '-base64', '32'])
+      return stdout.trim()
+    } catch {
+      // Fall back to Node.js crypto if openssl fails
+      return this.generateSecret()
+    }
+  }
+
   private generateSecret(): string {
     return randomBytes(32).toString('hex')
   }
 
   private async initializeCluster(): Promise<void> {
-    const hasIdentity = await fs
+    this.logInfo('Initializing IPFS cluster...')
+    this.logInfo('Removing data/ipfs-cluster/service.json file if it exists...')
+    await fs.unlink('data/ipfs-cluster/service.json')
+
+    let hasIdentity = await fs
       .access('identity.json')
       .then(() => true)
       .catch(() => false)
 
-    // Check if service.json exists and has content
-    try {
-      const serviceStats = await fs.stat('data/ipfs-cluster/service.json')
-      if (serviceStats.size === 0) {
-        this.logInfo('Removing empty service.json file...')
-        await fs.unlink('data/ipfs-cluster/service.json')
+    if (!hasIdentity) {
+      const hasDataIdentity = await fs
+        .access('data/ipfs-cluster/identity.json')
+        .then(() => true)
+        .catch(() => false)
+
+      if (hasDataIdentity) {
+        const useDataIdentity = await this.confirm('data/ipfs-cluster/identity.json already exists, use it?')
+        if (useDataIdentity) {
+          const copied = await this.copyFileIfNotEmpty('data/ipfs-cluster/identity.json', 'identity.json')
+          if (copied) {
+            hasIdentity = true
+          } else {
+            this.logInfo('data/ipfs-cluster/identity.json was empty, skipping copy and deleting it')
+            await fs.unlink('data/ipfs-cluster/identity.json')
+          }
+        }
       }
-    } catch {
-      // File doesn't exist or can't be accessed, which is fine
     }
 
-    // Start init containers
-    this.logInfo('Initializing IPFS cluster...')
     try {
       if (hasIdentity) {
-        this.logInfo('identity.json already exists.')
+        this.logInfo('Starting IPFS cluster docker containers with existing identity file...')
 
         // Create override file for existing identity
         await fs.writeFile(
@@ -243,6 +242,7 @@ export default class Init extends BaseCommand {
         await fs.unlink('docker-compose.override.yml')
       } else {
         // Start containers without identity file
+        this.logInfo('Starting IPFS cluster docker containers without identity file...')
         await execa('docker', ['compose', '-f', 'init.docker-compose.yml', 'up', '-d', '--quiet-pull'])
       }
 
@@ -252,13 +252,21 @@ export default class Init extends BaseCommand {
 
       // Copy identity and service files if they don't exist
       if (!hasIdentity) {
-        await this.copyFileIfNotEmpty('data/ipfs-cluster/identity.json', 'identity.json', 'identity.json')
+        const identityCopied = await this.copyFileIfNotEmpty('data/ipfs-cluster/identity.json', 'identity.json')
+        if (!identityCopied) {
+          this.logError('Failed to copy identity.json, cluster initialization failed')
+          return
+        }
       }
 
       const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
       this.logInfo(`Peer ID: ${identityJson.id}`)
 
-      await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json', 'service.json')
+      const serviceCopied = await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json')
+      if (!serviceCopied) {
+        this.logError('Failed to copy service.json, cluster initialization failed')
+        return
+      }
 
       this.logSuccess('IPFS cluster initialized')
     } catch (error) {

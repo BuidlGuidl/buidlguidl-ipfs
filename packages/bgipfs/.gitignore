@@ -22,3 +22,4 @@ package-lock.json
 /init.service.json
 /docker-compose.override.yml
 /service.json
+/config-backup
