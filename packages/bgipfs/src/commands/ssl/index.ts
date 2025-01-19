@@ -6,7 +6,7 @@ import {z} from 'zod'
 
 import {BaseCommand} from '../../base-command.js'
 import {EnvManager} from '../../lib/env-manager.js'
-import {envSchema} from '../../lib/env-schema.js'
+import {DnsConfig, PartialDnsConfig, dnsSchema} from '../../lib/env-schema.js'
 
 export default class Ssl extends BaseCommand {
   static description = "Generate SSL certificates using Let's Encrypt, required for DNS mode"
@@ -23,19 +23,23 @@ export default class Ssl extends BaseCommand {
 
     try {
       const env = new EnvManager()
-      const config = await env.readEnv()
+      const config = (await env.readEnv({
+        partial: true,
+        schema: dnsSchema,
+      })) as PartialDnsConfig
       const updates = []
 
+      let adminEmail = config.ADMIN_EMAIL ?? ''
+
       // Only prompt for email if not set and user wants notifications
-      if (!config.ADMIN_EMAIL) {
+      if (!adminEmail) {
         const useEmail = await this.confirm('Would you like to receive certificate expiry notifications?')
         if (useEmail) {
-          const email = await input({
+          adminEmail = await input({
             message: 'Enter admin email for SSL notifications',
-            validate: (value) => this.validateInput(envSchema.shape.ADMIN_EMAIL, value),
+            validate: (value) => this.validateInput(dnsSchema.shape.ADMIN_EMAIL, value),
           })
-          updates.push({key: 'ADMIN_EMAIL', value: email})
-          config.ADMIN_EMAIL = email
+          updates.push({key: 'ADMIN_EMAIL' as keyof DnsConfig, value: adminEmail})
         }
       }
 
@@ -46,7 +50,7 @@ export default class Ssl extends BaseCommand {
         if (!config.GATEWAY_DOMAIN) {
           const domain = await input({
             message: 'Enter gateway domain (e.g. gateway.example.com)',
-            validate: (value) => this.validateInput(envSchema.shape.GATEWAY_DOMAIN, value),
+            validate: (value) => this.validateInput(dnsSchema.shape.GATEWAY_DOMAIN, value),
           })
           updates.push({key: 'GATEWAY_DOMAIN', value: domain})
           config.GATEWAY_DOMAIN = domain
@@ -55,7 +59,7 @@ export default class Ssl extends BaseCommand {
         if (!config.UPLOAD_DOMAIN) {
           const domain = await input({
             message: 'Enter upload domain (e.g. upload.example.com)',
-            validate: (value) => this.validateInput(envSchema.shape.UPLOAD_DOMAIN, value),
+            validate: (value) => this.validateInput(dnsSchema.shape.UPLOAD_DOMAIN, value),
           })
           updates.push({key: 'UPLOAD_DOMAIN', value: domain})
           config.UPLOAD_DOMAIN = domain

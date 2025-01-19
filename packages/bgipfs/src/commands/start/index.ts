@@ -4,6 +4,7 @@ import {promises as fs} from 'node:fs'
 
 import {BaseCommand} from '../../base-command.js'
 import {EnvManager} from '../../lib/env-manager.js'
+import {baseSchema, dnsSchema} from '../../lib/env-schema.js'
 import {checkRunningContainers} from '../../lib/system.js'
 
 export default class Start extends BaseCommand {
@@ -135,7 +136,9 @@ export default class Start extends BaseCommand {
         this.logInfo('You can now access:')
         if (flags.dns) {
           const env = new EnvManager()
-          const config = await env.readEnv()
+          const config = await env.readEnv({
+            schema: flags.dns ? dnsSchema : baseSchema,
+          })
           this.log(`- IPFS Gateway: https://${config.GATEWAY_DOMAIN}`)
           this.log(`- Upload Endpoint: https://${config.UPLOAD_DOMAIN}`)
         } else {
