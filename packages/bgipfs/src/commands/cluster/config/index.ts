@@ -190,7 +190,9 @@ export default class Init extends BaseCommand {
   private async initializeCluster(): Promise<void> {
     this.logInfo('Initializing IPFS cluster...')
     this.logInfo('Removing data/ipfs-cluster/service.json file if it exists...')
-    await fs.unlink('data/ipfs-cluster/service.json')
+    await fs.unlink('data/ipfs-cluster/service.json').catch(() => {
+      // File doesn't exist, that's fine
+    })
 
     let hasIdentity = await fs
       .access('identity.json')
