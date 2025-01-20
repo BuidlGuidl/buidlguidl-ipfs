@@ -1,7 +1,9 @@
-import {Args, Command, Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import {IpfsNodeOptions} from 'ipfs-uploader'
 import {access, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
+
+import {BaseCommand} from '../../../base-command.js'
 
 const DEFAULT_CONFIG: IpfsNodeOptions = {
   headers: {},
@@ -16,7 +18,7 @@ interface ConfigFlags {
   url?: string
 }
 
-export default class ConfigCommand extends Command {
+export default class ConfigCommand extends BaseCommand {
   static args = {
     action: Args.string({
       description: 'Action to perform (init|get|set)',
@@ -82,7 +84,7 @@ export default class ConfigCommand extends Command {
 
   private async getConfig(configPath?: string): Promise<void> {
     const config = await this.readConfig(configPath)
-    this.log(JSON.stringify(config, null, 2))
+    this.logInfo(JSON.stringify(config, null, 2))
   }
 
   private async initConfig(configPath?: string): Promise<void> {
@@ -91,10 +93,10 @@ export default class ConfigCommand extends Command {
 
     try {
       await access(configFilePath)
-      this.error('Configuration file already exists')
+      this.logError('Configuration file already exists')
     } catch {
       await this.writeConfig(DEFAULT_CONFIG, configPath)
-      this.log('Configuration file initialized successfully')
+      this.logSuccess('Configuration file initialized successfully')
     }
   }
 
@@ -106,7 +108,8 @@ export default class ConfigCommand extends Command {
       const configContent = await readFile(configFilePath, 'utf8')
       return JSON.parse(configContent)
     } catch {
-      this.error('Configuration file not found. Run init command first.')
+      this.logError('Configuration file not found. Run init command first.')
+      throw new Error('Configuration file not found. Run init command first.')
     }
   }
 
@@ -138,7 +141,7 @@ export default class ConfigCommand extends Command {
     }
 
     await this.writeConfig(updatedConfig, flags.path)
-    this.log('Configuration updated successfully')
+    this.logSuccess('Configuration updated successfully')
   }
 
   private async writeConfig(config: IpfsNodeOptions, configPath?: string): Promise<void> {

@@ -1,12 +1,12 @@
-import {Command} from '@oclif/core'
 import {confirm} from '@inquirer/prompts'
+import {Command} from '@oclif/core'
 import chalk from 'chalk'
 
 export abstract class BaseCommand extends Command {
   protected async confirm(message: string): Promise<boolean> {
     return confirm({
-      message: chalk.yellow(message),
       default: false,
+      message: chalk.yellow(message),
     })
   }
 

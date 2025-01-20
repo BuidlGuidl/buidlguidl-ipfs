@@ -1,14 +1,16 @@
-import {Args, Command, Flags} from '@oclif/core'
+import {Args, Flags} from '@oclif/core'
 import all from 'it-all'
 import { Options, create } from 'kubo-rpc-client'
 import * as fs from 'node:fs/promises'
+
+import {BaseCommand} from '../../base-command.js'
 
 interface IpfsConfig {
   destination: Options
   origin: Options
 }
 
-export default class Sync extends Command {
+export default class Sync extends BaseCommand {
 
   static args = {
     mode: Args.string({
@@ -47,7 +49,7 @@ export default class Sync extends Command {
     
     let pinCount = 0
     for await (const { cid, type } of originIpfs.pin.ls()) {
-      console.log({cid, type})
+      this.logInfo(`${cid.toString()} ${type}`)
       if(flags.savePins) {
         await fs.appendFile(pinsFile, `${cid.toString()}\t${type}\t${new Date().toISOString()}\n`)
       }
@@ -68,10 +70,10 @@ export default class Sync extends Command {
           await destinationIpfs.pin.add(cid)
       }
 
-      console.log(`${cid.toString()} repinned`)
+      this.logSuccess(`${cid.toString()} repinned`)
     }
 
-    this.log(`${pinCount} pinned CIDs`)
+    this.logSuccess(`${pinCount} pinned CIDs`)
 
   }
 

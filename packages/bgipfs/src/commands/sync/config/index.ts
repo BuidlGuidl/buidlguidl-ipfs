@@ -1,13 +1,14 @@
-import { Command } from '@oclif/core'
 import { Options } from 'kubo-rpc-client'
 import * as fs from 'node:fs/promises'
+
+import { BaseCommand } from '../../../base-command.js'
 
 interface IpfsConfig {
   destination: Options
   origin: Options
 }
 
-export default class SyncConfig extends Command {
+export default class SyncConfig extends BaseCommand {
   static description = 'Initialize IPFS sync configuration'
 
   static examples = [
@@ -33,10 +34,10 @@ export default class SyncConfig extends Command {
         JSON.stringify(defaultConfig, null, 2),
         'utf8'
       )
-      this.log('Created ipfs-sync.config.json with default configuration')
-      this.log('Please edit the file with your IPFS node details')
+      this.logSuccess('Created ipfs-sync.config.json with default configuration')
+      this.logInfo('Please edit the file with your IPFS node details')
     } catch (error) {
-      this.error('Failed to create config file: ' + (error as Error).message)
+      this.logError('Failed to create config file: ' + (error as Error).message)
     }
   }
 } 
