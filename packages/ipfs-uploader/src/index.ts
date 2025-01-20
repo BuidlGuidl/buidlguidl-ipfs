@@ -1,36 +1,46 @@
 import { Options as KuboOptions } from "kubo-rpc-client";
 import { NodeUploader } from "./NodeUploader.js";
 import { PinataUploader } from "./PinataUploader.js";
+import { S3Uploader } from "./S3Uploader.js";
 import { MultiUploader } from "./MultiUploader.js";
 import {
   BaseUploader,
-  UploadResult,
-  MultiNodeUploadResult,
   NodeConfig,
   PinataConfig,
   UploaderConfig,
+  S3Config,
 } from "./types.js";
 
 export { KuboOptions };
 export * from "./types.js";
 export { NodeUploader } from "./NodeUploader.js";
 export { PinataUploader } from "./PinataUploader.js";
+export { S3Uploader } from "./S3Uploader.js";
 export { MultiUploader } from "./MultiUploader.js";
 
 export function createUploader(
   config: UploaderConfig | UploaderConfig[]
-): BaseUploader<UploadResult> | BaseUploader<MultiNodeUploadResult> {
+): BaseUploader {
+  const getOptions = (c: UploaderConfig) => ("options" in c ? c.options : c);
+
   if (Array.isArray(config)) {
-    const uploaders = config.map((c) =>
-      "jwt" in (c as any).options || "jwt" in c
-        ? new PinataUploader(c as PinataConfig)
-        : new NodeUploader(c as NodeConfig)
-    );
+    const uploaders = config.map((c) => {
+      const options = getOptions(c);
+      if ("jwt" in options) {
+        return new PinataUploader(c as PinataConfig);
+      } else if ("bucket" in options) {
+        return new S3Uploader(c as S3Config);
+      }
+      return new NodeUploader(c as NodeConfig);
+    });
     return new MultiUploader(uploaders);
   }
 
-  if ("jwt" in (config as any).options || "jwt" in config) {
+  const options = getOptions(config);
+  if ("jwt" in options) {
     return new PinataUploader(config as PinataConfig);
+  } else if ("bucket" in options) {
+    return new S3Uploader(config as S3Config);
   }
   return new NodeUploader(config as NodeConfig);
 }

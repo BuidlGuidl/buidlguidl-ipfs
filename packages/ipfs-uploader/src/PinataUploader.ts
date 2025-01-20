@@ -5,8 +5,9 @@ import {
   PinataUploaderConfig,
   PinataConfig,
 } from "./types.js";
+import { createErrorResult } from "./utils.js";
 
-export class PinataUploader implements BaseUploader<UploadResult> {
+export class PinataUploader implements BaseUploader {
   private config: PinataUploaderConfig;
 
   constructor(config: PinataConfig) {
@@ -26,108 +27,135 @@ export class PinataUploader implements BaseUploader<UploadResult> {
 
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
-      const formData = new FormData();
-      if (input instanceof File) {
-        formData.append("file", input);
-      } else {
-        throw new Error(
-          "File path strings are not supported in PinataUploader - please provide a File object"
-        );
-      }
-
-      const response = await fetch(
-        "https://api.pinata.cloud/pinning/pinFileToIPFS",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.config.options.jwt}`,
-          },
-          body: formData,
+      try {
+        const formData = new FormData();
+        if (input instanceof File) {
+          formData.append("file", input);
+        } else if (typeof window === "undefined") {
+          const { readFile } = await import("fs/promises");
+          const buffer = await readFile(input);
+          const filename = input.split("/").pop() || "file";
+          const file = new File([buffer], filename);
+          formData.append("file", file);
+        } else {
+          throw new Error(
+            "File path strings are only supported in Node.js environments"
+          );
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(`Failed to upload to Pinata: ${response.statusText}`);
+        const response = await fetch(
+          "https://api.pinata.cloud/pinning/pinFileToIPFS",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.config.options.jwt}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload to Pinata: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return { success: true, cid: result.IpfsHash };
+      } catch (error) {
+        return createErrorResult<UploadResult>(error);
       }
-
-      const result = await response.json();
-      return { cid: result.IpfsHash };
     },
 
     json: async (content: any): Promise<UploadResult> => {
-      const response = await fetch(
-        "https://api.pinata.cloud/pinning/pinJSONToIPFS",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.config.options.jwt}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(content),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to upload JSON to Pinata: ${response.statusText}`
+      try {
+        const response = await fetch(
+          "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.config.options.jwt}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(content),
+          }
         );
-      }
 
-      const result = await response.json();
-      return { cid: result.IpfsHash };
+        if (!response.ok) {
+          throw new Error(
+            `Failed to upload JSON to Pinata: ${response.statusText}`
+          );
+        }
+
+        const result = await response.json();
+        return { success: true, cid: result.IpfsHash };
+      } catch (error) {
+        return createErrorResult<UploadResult>(error);
+      }
     },
 
     // Methods that aren't supported natively by Pinata
     text: async (content: string): Promise<UploadResult> => {
-      // We can implement this using file upload
-      const file = new File([content], "text.txt", { type: "text/plain" });
-      return this.add.file(file);
+      try {
+        const file = new File([content], "text.txt", { type: "text/plain" });
+        return this.add.file(file);
+      } catch (error) {
+        return createErrorResult<UploadResult>(error);
+      }
     },
 
     directory: async (): Promise<UploadResult> => {
-      throw new Error("Directory uploads are not supported in PinataUploader");
+      return createErrorResult<UploadResult>(
+        "Directory uploads are not supported in PinataUploader"
+      );
     },
 
     files: async (files: File[]): Promise<FileArrayResult> => {
-      if (files.length === 0) {
-        throw new Error("No files provided");
-      }
-
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("file", file);
-      });
-
-      const response = await fetch(
-        "https://api.pinata.cloud/pinning/pinFileToIPFS",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.config.options.jwt}`,
-          },
-          body: formData,
+      try {
+        if (files.length === 0) {
+          throw new Error("No files provided");
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to upload files to Pinata: ${response.statusText}`
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append("file", file);
+        });
+
+        const response = await fetch(
+          "https://api.pinata.cloud/pinning/pinFileToIPFS",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${this.config.options.jwt}`,
+            },
+            body: formData,
+          }
         );
-      }
 
-      const result = await response.json();
-      return {
-        cid: result.IpfsHash,
-        files: files.map((f) => ({ name: f.name, cid: result.IpfsHash })),
-      };
+        if (!response.ok) {
+          throw new Error(
+            `Failed to upload files to Pinata: ${response.statusText}`
+          );
+        }
+
+        const result = await response.json();
+        return {
+          success: true,
+          cid: result.IpfsHash,
+          files: files.map((f) => ({ name: f.name, cid: result.IpfsHash })),
+        };
+      } catch (error) {
+        return createErrorResult<FileArrayResult>(error, true);
+      }
     },
 
     globFiles: async (): Promise<FileArrayResult> => {
-      throw new Error("GlobFiles are not supported in PinataUploader");
+      return createErrorResult<FileArrayResult>(
+        "GlobFiles are not supported in PinataUploader",
+        true
+      );
     },
 
     url: async (url: string): Promise<UploadResult> => {
-      throw new Error(
+      return createErrorResult<UploadResult>(
         "URL uploads are not supported in PinataUploader - please download the file first"
       );
     },

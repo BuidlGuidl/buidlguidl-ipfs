@@ -10,8 +10,9 @@ import {
   NodeConfig,
 } from "./types.js";
 import { BaseUploader } from "./types.js";
+import { createErrorResult } from "./utils.js";
 
-export class NodeUploader implements BaseUploader<UploadResult> {
+export class NodeUploader implements BaseUploader {
   private rpcClient: KuboRPCClient;
   private config: NodeUploaderConfig;
 
@@ -53,46 +54,28 @@ export class NodeUploader implements BaseUploader<UploadResult> {
         const add = await this.rpcClient.add(content, {
           cidVersion: 1,
         });
-        return { cid: add.cid.toString() };
+        return { success: true, cid: add.cid.toString() };
       } catch (error) {
-        throw new Error(
-          `Failed to add file to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<UploadResult>(error);
       }
     },
 
     text: async (content: string): Promise<UploadResult> => {
       try {
-        const add = await this.rpcClient.add(content, {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
+        const add = await this.rpcClient.add(content, { cidVersion: 1 });
+        return { success: true, cid: add.cid.toString() };
       } catch (error) {
-        throw new Error(
-          `Failed to add text content to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<UploadResult>(error);
       }
     },
 
     json: async (content: any): Promise<UploadResult> => {
       try {
-        let buf: Uint8Array;
-        try {
-          buf = jsonCodec.encode(content);
-        } catch (error) {
-          throw new Error(
-            `Failed to encode JSON content: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-
-        const add = await this.rpcClient.add(buf, {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
+        let buf = jsonCodec.encode(content);
+        const add = await this.rpcClient.add(buf, { cidVersion: 1 });
+        return { success: true, cid: add.cid.toString() };
       } catch (error) {
-        throw new Error(
-          `Failed to add JSON content to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<UploadResult>(error);
       }
     },
 
@@ -121,14 +104,12 @@ export class NodeUploader implements BaseUploader<UploadResult> {
         if (!rootCid) {
           throw new Error("No files found in directory or directory is empty");
         }
-        return { cid: rootCid.toString() };
+        return { success: true, cid: rootCid.toString() };
       } catch (error) {
         if (error instanceof Error && error.message.includes("ENOENT")) {
           throw new Error(`Directory not found: ${path}`);
         }
-        throw new Error(
-          `Failed to add directory to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<UploadResult>(error);
       }
     },
 
@@ -157,6 +138,7 @@ export class NodeUploader implements BaseUploader<UploadResult> {
         }
 
         return {
+          success: true,
           cid: root.toString(),
           files: fileResults.map((f) => ({
             name: f.name,
@@ -164,9 +146,7 @@ export class NodeUploader implements BaseUploader<UploadResult> {
           })),
         };
       } catch (error) {
-        throw new Error(
-          `Failed to add files to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<FileArrayResult>(error, true);
       }
     },
 
@@ -192,6 +172,7 @@ export class NodeUploader implements BaseUploader<UploadResult> {
         }
 
         return {
+          success: true,
           cid: root.toString(),
           files: fileResults.map((f) => ({
             name: f.name,
@@ -199,15 +180,12 @@ export class NodeUploader implements BaseUploader<UploadResult> {
           })),
         };
       } catch (error) {
-        throw new Error(
-          `Failed to add glob files to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<FileArrayResult>(error);
       }
     },
 
     url: async (url: string): Promise<UploadResult> => {
       try {
-        // Validate URL
         try {
           new URL(url);
         } catch (error) {
@@ -217,11 +195,9 @@ export class NodeUploader implements BaseUploader<UploadResult> {
         const add = await this.rpcClient.add(urlSource(url), {
           cidVersion: 1,
         });
-        return { cid: add.cid.toString() };
+        return { success: true, cid: add.cid.toString() };
       } catch (error) {
-        throw new Error(
-          `Failed to add URL to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
+        return createErrorResult<UploadResult>(error);
       }
     },
   };

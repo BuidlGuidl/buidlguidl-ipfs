@@ -1,23 +1,25 @@
 import {Args, Flags} from '@oclif/core'
 import {createUploader} from 'ipfs-uploader'
+import {stat} from 'node:fs/promises'
 import {join} from 'node:path'
 
-import {BaseCommand} from '../../../base-command.js'
-import {readConfig} from '../../../lib/upload/config.js'
+import {BaseCommand} from '../../base-command.js'
+import {readConfig} from '../../lib/upload/config.js'
 
-export default class FileCommand extends BaseCommand {
+export default class UploadCommand extends BaseCommand {
   static args = {
-    file: Args.string({
-      description: 'Path to file',
+    path: Args.string({
+      description: 'Path to file or directory',
       required: true,
     }),
   }
 
-  static description = 'Upload a file to IPFS'
+  static description = 'Upload a file or directory to IPFS'
 
   static examples = [
-    '$ bgipfs upload file path/to/file.txt',
-    '$ bgipfs upload file --config ./custom/path/config.json path/to/file.txt',
+    '$ bgipfs upload path/to/file.txt',
+    '$ bgipfs upload path/to/directory',
+    '$ bgipfs upload --config ./custom/path/config.json path/to/file.txt',
   ]
 
   static flags = {
@@ -29,16 +31,18 @@ export default class FileCommand extends BaseCommand {
   }
 
   async run(): Promise<void> {
-    const {args, flags} = await this.parse(FileCommand)
+    const {args, flags} = await this.parse(UploadCommand)
 
     try {
+      const stats = await stat(args.path)
       const configPath = flags.config ? join(flags.config) : undefined
       const config = await readConfig(configPath)
       const uploader = createUploader(config)
-      const result = await uploader.add.file(args.file)
+
+      const result = stats.isDirectory() ? await uploader.add.directory(args.path) : await uploader.add.file(args.path)
 
       if (result.success) {
-        this.logSuccess(`File uploaded successfully. CID: ${result.cid}`)
+        this.logSuccess(`Upload successful. CID: ${result.cid}`)
         if (result.errorCount) {
           console.log(result)
           this.logError(`${result.errorCount} / ${result.totalNodes} nodes failed`)

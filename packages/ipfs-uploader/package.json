@@ -17,6 +17,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@helia/mfs": "^4.0.2",
+    "@helia/unixfs": "^1.0.0",
+    "@ipld/car": "^5.4.0",
+    "blockstore-core": "^5.0.2",
+    "datastore-core": "^10.0.2",
     "kubo-rpc-client": "^5.0.2",
     "multiformats": "^13.3.1"
   },
