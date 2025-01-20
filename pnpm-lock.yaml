@@ -99,6 +99,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.0.0
         version: 3.726.0
+      '@helia/car':
+        specifier: ^4.0.2
+        version: 4.0.2
       '@helia/mfs':
         specifier: ^4.0.2
         version: 4.0.2(encoding@0.1.13)
@@ -114,6 +117,12 @@ importers:
       datastore-core:
         specifier: ^10.0.2
         version: 10.0.2
+      helia:
+        specifier: ^5.1.1
+        version: 5.1.1(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))
+      it-all:
+        specifier: ^3.0.6
+        version: 3.0.6
       kubo-rpc-client:
         specifier: ^5.0.2
         version: 5.0.2(undici@7.2.1)
@@ -1405,6 +1414,9 @@ packages:
 
   '@helia/block-brokers@4.0.2':
     resolution: {integrity: sha512-TGn/VFvZTnAZ12J2/l+XShqde+Dz10dVvgllIQlKnSxIcO+U7iGxDusrCvYL5KTn6yy/ghSUsQ2cBMEBCbjgvA==}
+
+  '@helia/car@4.0.2':
+    resolution: {integrity: sha512-D/Gzj+Y9I+cXQZCwl49zZOiH+FpsMXXZXe/TRucjKwVyc07zRSGQ0BDRQVeQJRy3z6Ye9WiEY8afxguYuwS8Xg==}
 
   '@helia/delegated-routing-v1-http-api-client@4.2.1':
     resolution: {integrity: sha512-Gc149HTv/ufhNfcrQnEN3j9cqLSY+2AXMiIzNjQM1yF+wniN05yYzSYLxCtDlPfyi2TzODgdK/Kql3mRJLnGUg==}
@@ -8784,6 +8796,20 @@ snapshots:
       multiformats: 13.3.1
       progress-events: 1.0.1
 
+  '@helia/car@4.0.2':
+    dependencies:
+      '@helia/interface': 5.2.0
+      '@ipld/car': 5.4.0
+      '@libp2p/interface': 2.4.0
+      '@libp2p/utils': 6.3.1
+      interface-blockstore: 5.3.1
+      it-drain: 3.0.7
+      it-map: 3.1.1
+      multiformats: 13.3.1
+      p-defer: 4.0.1
+      p-queue: 8.0.1
+      progress-events: 1.0.1
+
   '@helia/delegated-routing-v1-http-api-client@4.2.1':
     dependencies:
       '@libp2p/interface': 2.4.0
@@ -9769,6 +9795,36 @@ snapshots:
       - react-native
       - supports-color
 
+  '@libp2p/webrtc@5.0.23(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))':
+    dependencies:
+      '@chainsafe/libp2p-noise': 16.0.0
+      '@libp2p/interface': 2.4.0
+      '@libp2p/interface-internal': 2.2.2
+      '@libp2p/peer-id': 5.0.10
+      '@libp2p/utils': 6.3.1
+      '@multiformats/multiaddr': 12.3.4
+      '@multiformats/multiaddr-matcher': 1.6.0
+      detect-browser: 5.3.0
+      it-length-prefixed: 9.1.0
+      it-protobuf-stream: 1.1.5
+      it-pushable: 3.2.3
+      it-stream-types: 2.0.2
+      multiformats: 13.3.1
+      node-datachannel: 0.11.0
+      p-defer: 4.0.1
+      p-event: 6.0.1
+      p-timeout: 6.1.4
+      progress-events: 1.0.1
+      protons-runtime: 5.5.0
+      race-signal: 1.1.0
+      react-native-webrtc: 124.0.5(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))
+      uint8-varint: 2.0.4
+      uint8arraylist: 2.4.8
+      uint8arrays: 5.1.0
+    transitivePeerDependencies:
+      - react-native
+      - supports-color
+
   '@libp2p/websockets@9.1.2':
     dependencies:
       '@libp2p/interface': 2.4.0
@@ -10229,6 +10285,13 @@ snapshots:
       react-native: 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@19.0.4)(encoding@0.1.13)(react@19.0.0)
     optionalDependencies:
       '@types/react': 19.0.4
+
+  '@react-native/virtualized-lists@0.76.6(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      invariant: 2.2.4
+      nullthrows: 1.1.1
+      react: 19.0.0
+      react-native: 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0)
 
   '@rollup/rollup-android-arm-eabi@4.30.1':
     optional: true
@@ -12874,6 +12937,47 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  helia@5.1.1(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0)):
+    dependencies:
+      '@chainsafe/libp2p-noise': 16.0.0
+      '@chainsafe/libp2p-yamux': 7.0.1
+      '@helia/block-brokers': 4.0.2
+      '@helia/delegated-routing-v1-http-api-client': 4.2.1
+      '@helia/interface': 5.1.0
+      '@helia/routers': 2.2.0
+      '@helia/utils': 1.1.0
+      '@libp2p/autonat': 2.0.16
+      '@libp2p/bootstrap': 11.0.17
+      '@libp2p/circuit-relay-v2': 3.1.7
+      '@libp2p/crypto': 5.0.9
+      '@libp2p/dcutr': 2.0.15
+      '@libp2p/identify': 3.0.15
+      '@libp2p/interface': 2.4.0
+      '@libp2p/kad-dht': 14.2.0
+      '@libp2p/keychain': 5.0.12
+      '@libp2p/logger': 5.1.6
+      '@libp2p/mdns': 11.0.17
+      '@libp2p/mplex': 11.0.17
+      '@libp2p/ping': 2.0.15
+      '@libp2p/tcp': 10.0.15
+      '@libp2p/tls': 2.0.13
+      '@libp2p/upnp-nat': 2.0.12
+      '@libp2p/webrtc': 5.0.23(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))
+      '@libp2p/websockets': 9.1.2
+      '@multiformats/dns': 1.0.6
+      blockstore-core: 5.0.2
+      datastore-core: 10.0.2
+      interface-blockstore: 5.3.1
+      interface-datastore: 8.3.1
+      ipns: 10.0.0
+      libp2p: 2.5.0
+      multiformats: 13.3.1
+    transitivePeerDependencies:
+      - bufferutil
+      - react-native
+      - supports-color
+      - utf-8-validate
+
   hermes-estree@0.23.1: {}
 
   hermes-estree@0.24.0: {}
@@ -14635,6 +14739,15 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  react-native-webrtc@124.0.5(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0)):
+    dependencies:
+      base64-js: 1.5.1
+      debug: 4.3.4
+      event-target-shim: 6.0.2
+      react-native: 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0)
+    transitivePeerDependencies:
+      - supports-color
+
   react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(@types/react@19.0.4)(encoding@0.1.13)(react@19.0.0):
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
@@ -14678,6 +14791,56 @@ snapshots:
       yargs: 17.7.2
     optionalDependencies:
       '@types/react': 19.0.4
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@babel/preset-env'
+      - '@react-native-community/cli-server-api'
+      - bufferutil
+      - encoding
+      - supports-color
+      - utf-8-validate
+
+  react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0):
+    dependencies:
+      '@jest/create-cache-key-function': 29.7.0
+      '@react-native/assets-registry': 0.76.6
+      '@react-native/codegen': 0.76.6(@babel/preset-env@7.26.0(@babel/core@7.26.0))
+      '@react-native/community-cli-plugin': 0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)
+      '@react-native/gradle-plugin': 0.76.6
+      '@react-native/js-polyfills': 0.76.6
+      '@react-native/normalize-colors': 0.76.6
+      '@react-native/virtualized-lists': 0.76.6(react-native@0.76.6(@babel/core@7.26.0)(@babel/preset-env@7.26.0(@babel/core@7.26.0))(encoding@0.1.13)(react@19.0.0))(react@19.0.0)
+      abort-controller: 3.0.0
+      anser: 1.4.10
+      ansi-regex: 5.0.1
+      babel-jest: 29.7.0(@babel/core@7.26.0)
+      babel-plugin-syntax-hermes-parser: 0.23.1
+      base64-js: 1.5.1
+      chalk: 4.1.2
+      commander: 12.1.0
+      event-target-shim: 5.0.1
+      flow-enums-runtime: 0.0.6
+      glob: 7.2.3
+      invariant: 2.2.4
+      jest-environment-node: 29.7.0
+      jsc-android: 250231.0.0
+      memoize-one: 5.2.1
+      metro-runtime: 0.81.0
+      metro-source-map: 0.81.0
+      mkdirp: 0.5.6
+      nullthrows: 1.1.1
+      pretty-format: 29.7.0
+      promise: 8.3.0
+      react: 19.0.0
+      react-devtools-core: 5.3.2
+      react-refresh: 0.14.2
+      regenerator-runtime: 0.13.11
+      scheduler: 0.24.0-canary-efb381bbf-20230505
+      semver: 7.6.3
+      stacktrace-parser: 0.1.10
+      whatwg-fetch: 3.6.20
+      ws: 6.2.3
+      yargs: 17.7.2
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/preset-env'

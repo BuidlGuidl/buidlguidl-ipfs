@@ -28,7 +28,7 @@ export interface UploadResult extends BaseUploadResult {
   /** Whether all nodes in a multi-node upload succeeded */
   allNodesSucceeded?: boolean;
   /** Individual results from each node in a multi-node upload */
-  results?: Map<string, NodeUploadResult>;
+  results?: Array<[string, NodeUploadResult]>;
 }
 
 /** Result from a file array upload operation */
@@ -43,9 +43,18 @@ export interface NodeUploadResult extends BaseUploadResult {
   files?: { name: string; cid: string }[];
 }
 
-export interface GlobSourceFile {
+export interface DirectoryFile {
   path: string;
-  content: string | Uint8Array | Buffer;
+  content: Buffer | Uint8Array;
+}
+
+export interface DirectoryInput {
+  /** Path to directory (required for path-based upload) */
+  path?: string;
+  /** Pattern to match files in directory (only used with path) */
+  pattern?: string;
+  /** Array of files to upload (alternative to path-based upload) */
+  files?: DirectoryFile[];
 }
 
 export interface BaseUploader {
@@ -54,11 +63,8 @@ export interface BaseUploader {
     file: (input: File | string) => Promise<UploadResult>;
     text: (content: string) => Promise<UploadResult>;
     json: (content: any) => Promise<UploadResult>;
-    directory: (path: string, pattern?: string) => Promise<UploadResult>;
+    directory: (input: DirectoryInput) => Promise<UploadResult>;
     files: (files: File[]) => Promise<UploadResult | FileArrayResult>;
-    globFiles: (
-      files: GlobSourceFile[]
-    ) => Promise<UploadResult | FileArrayResult>;
     url: (url: string) => Promise<UploadResult>;
   };
 }

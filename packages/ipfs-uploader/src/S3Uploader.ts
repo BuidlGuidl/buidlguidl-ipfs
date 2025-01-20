@@ -4,10 +4,9 @@ import {
   HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { CarWriter } from "@ipld/car";
-import { MemoryBlockstore } from "blockstore-core";
-import { MemoryDatastore } from "datastore-core";
-import { unixfs } from "@helia/unixfs";
 import { mfs } from "@helia/mfs";
+import { car } from "@helia/car";
+import { createHelia } from "helia";
 import {
   BaseUploader,
   UploadResult,
@@ -15,8 +14,11 @@ import {
   S3UploaderConfig,
   S3Config,
   S3Options,
+  DirectoryInput,
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
+import { globSource } from "kubo-rpc-client";
+import all from "it-all";
 
 export class S3Uploader implements BaseUploader {
   private client: S3Client;
@@ -78,7 +80,8 @@ export class S3Uploader implements BaseUploader {
   }
 
   private async uploadDirectory(
-    files: { path: string; content: Buffer | Uint8Array }[]
+    files: { path: string; content: Buffer | Uint8Array }[],
+    rootName?: string
   ): Promise<UploadResult> {
     // Sort files by path depth (deeper paths first)
     files.sort((a, b) => {
@@ -87,69 +90,69 @@ export class S3Uploader implements BaseUploader {
       );
     });
 
-    // Setup temporary stores
-    const blockstore = new MemoryBlockstore();
-    const datastore = new MemoryDatastore();
+    const helia = await createHelia({ start: false });
 
-    // Create UnixFS instance
-    const fs = unixfs({ blockstore });
-    const heliaFs = mfs({ blockstore, datastore });
+    const heliaFs = mfs(helia);
 
     // Add all files to UnixFS
     for (const file of files) {
-      const normalizedPath = file.path.startsWith("/")
-        ? file.path
-        : `/${file.path}`;
-
-      // Create parent directories if needed
-      const parentDirs = normalizedPath.split("/").slice(0, -1);
+      // Create directory path if needed
+      const pathParts = file.path.split("/").slice(1, -1);
       let currentPath = "";
-      for (const dir of parentDirs) {
-        if (dir) {
-          currentPath += "/" + dir;
-          try {
-            await heliaFs.mkdir(currentPath);
-          } catch (error) {
-            // Directory might already exist, continue
-          }
+      for (const part of pathParts) {
+        currentPath += "/" + part;
+        try {
+          await heliaFs.mkdir(currentPath);
+        } catch (error) {
+          // directory exists
         }
       }
 
       // Add file content
-      const cid = await fs.addBytes(file.content);
-      await heliaFs.cp(cid.toString(), normalizedPath);
+      const filename = "/" + (file.path.split("/").pop() || "");
+      await heliaFs.writeBytes(file.content, filename);
+      if (filename !== file.path) {
+        await heliaFs.cp(filename, file.path);
+        await heliaFs.rm(filename);
+      }
     }
 
-    // Get root CID
+    // Get root CID and create CAR file
     const rootStat = await heliaFs.stat("/");
 
-    // Create CAR file
-    const { writer, out } = CarWriter.create([rootStat.cid]);
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of out) {
-      chunks.push(chunk);
-    }
-    const carFile = new Blob(chunks);
+    // Export as CAR file
+    const c = car(helia);
+    const { writer, out } = await CarWriter.create([rootStat.cid]);
 
-    // Upload CAR file
-    const key = `dir-${Date.now()}.car`;
+    // Collect CAR chunks in memory
+    const chunks: Uint8Array[] = [];
+    const collectChunks = async () => {
+      for await (const chunk of out) {
+        chunks.push(chunk);
+      }
+    };
+
+    // Start collecting chunks and export simultaneously
+    const [_] = await Promise.all([
+      collectChunks(),
+      c.export(rootStat.cid, writer),
+    ]);
+
+    // Concatenate chunks into single buffer
+    const carContent = Buffer.concat(chunks);
+
+    // Upload CAR file with proper metadata
+    const key = rootName || rootStat.cid.toString();
     const command = new PutObjectCommand({
       Bucket: this.config.options.bucket,
       Key: key,
-      Body: carFile,
+      Body: carContent,
       Metadata: {
-        import: "car", // Signal to provider this is a CAR file
+        import: "car",
       },
     });
 
-    const putResponse = await this.client.send(command);
-    if (
-      !putResponse.$metadata.httpStatusCode ||
-      putResponse.$metadata.httpStatusCode !== 200
-    ) {
-      throw new Error("Failed to upload to S3");
-    }
-
+    await this.client.send(command);
     const cid = await this.getCidFromMetadata(key);
 
     return { success: true, cid };
@@ -293,34 +296,55 @@ export class S3Uploader implements BaseUploader {
       }
     },
 
-    directory: async (path: string): Promise<UploadResult> => {
+    directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
-        if (typeof window !== "undefined") {
+        let entries: { path: string; content: Buffer | Uint8Array }[] = [];
+
+        if (input.files?.length) {
+          entries = input.files;
+        } else if (input.path) {
+          if (typeof window !== "undefined") {
+            throw new Error(
+              "Directory path uploads are only supported in Node.js environments"
+            );
+          }
+          for await (const file of globSource(
+            input.path,
+            input.pattern ?? "**/*"
+          )) {
+            if (file.content) {
+              const chunks = await all(file.content);
+              entries.push({
+                path: `${file.path}`,
+                content: Buffer.concat(chunks),
+              });
+            }
+          }
+        } else if (input.files) {
+          throw new Error("Files array is empty");
+        } else {
           throw new Error(
-            "Directory uploads are only supported in Node.js environments"
+            "Either files array or directory path must be provided for directory upload"
           );
         }
 
-        const { readFile } = await import("fs/promises");
-        const { readdir } = await import("fs/promises");
-        const { join } = await import("path");
+        if (entries.length === 0) {
+          throw new Error(
+            input.path
+              ? `No files found in directory: ${input.path}`
+              : "No files were processed"
+          );
+        }
 
-        const files = await readdir(path, {
-          recursive: true,
-          withFileTypes: true,
-        });
-        const entries = await Promise.all(
-          files
-            .filter((file) => file.isFile())
-            .map(async (file) => ({
-              path: file.path,
-              content: await readFile(join(path, file.path)),
-            }))
-        );
-
-        return this.uploadDirectory(entries);
+        return this.uploadDirectory(entries, input.path);
       } catch (error) {
-        console.log("error!", error);
+        if (
+          error instanceof Error &&
+          input.path &&
+          error.message.includes("ENOENT")
+        ) {
+          throw new Error(`Directory not found: ${input.path}`);
+        }
         return createErrorResult<UploadResult>(error);
       }
     },
@@ -343,13 +367,6 @@ export class S3Uploader implements BaseUploader {
       } catch (error) {
         return createErrorResult<FileArrayResult>(error, true);
       }
-    },
-
-    globFiles: async (): Promise<FileArrayResult> => {
-      return createErrorResult<FileArrayResult>(
-        "GlobFiles are not supported in S3Uploader",
-        true
-      );
     },
   };
 }

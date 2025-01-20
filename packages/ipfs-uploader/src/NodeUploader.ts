@@ -5,9 +5,10 @@ import {
   KuboOptions,
   UploadResult,
   FileArrayResult,
-  GlobSourceFile,
+  DirectoryFile,
   NodeUploaderConfig,
   NodeConfig,
+  DirectoryInput,
 } from "./types.js";
 import { BaseUploader } from "./types.js";
 import { createErrorResult } from "./utils.js";
@@ -79,35 +80,49 @@ export class NodeUploader implements BaseUploader {
       }
     },
 
-    directory: async (
-      path: string,
-      pattern: string = "**/*"
-    ): Promise<UploadResult> => {
+    directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
-        if (typeof window !== "undefined") {
+        let source;
+        if (input.files?.length) {
+          source = input.files;
+        } else if (input.path) {
+          if (typeof window !== "undefined") {
+            throw new Error(
+              "Directory path uploads are only supported in Node.js environments"
+            );
+          }
+          source = globSource(input.path, input.pattern ?? "**/*");
+        } else if (input.files) {
+          throw new Error("Files array is empty");
+        } else {
           throw new Error(
-            "Directory uploads are only supported in Node.js environments"
+            "Either files array or directory path must be provided for directory upload"
           );
         }
 
         let rootCid: CID | undefined;
-        for await (const file of this.rpcClient.addAll(
-          globSource(path, pattern),
-          {
-            wrapWithDirectory: true,
-            cidVersion: 1,
-          }
-        )) {
+        for await (const file of this.rpcClient.addAll(source, {
+          wrapWithDirectory: true,
+          cidVersion: 1,
+        })) {
           rootCid = file.cid;
         }
 
         if (!rootCid) {
-          throw new Error("No files found in directory or directory is empty");
+          throw new Error(
+            input.path
+              ? `No files found in directory: ${input.path}`
+              : "No files were processed"
+          );
         }
         return { success: true, cid: rootCid.toString() };
       } catch (error) {
-        if (error instanceof Error && error.message.includes("ENOENT")) {
-          throw new Error(`Directory not found: ${path}`);
+        if (
+          error instanceof Error &&
+          input.path &&
+          error.message.includes("ENOENT")
+        ) {
+          throw new Error(`Directory not found: ${input.path}`);
         }
         return createErrorResult<UploadResult>(error);
       }
@@ -150,7 +165,7 @@ export class NodeUploader implements BaseUploader {
       }
     },
 
-    globFiles: async (files: GlobSourceFile[]): Promise<FileArrayResult> => {
+    globFiles: async (files: DirectoryFile[]): Promise<FileArrayResult> => {
       try {
         if (files.length === 0) {
           throw new Error("No files provided");

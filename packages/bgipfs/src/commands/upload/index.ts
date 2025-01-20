@@ -39,15 +39,27 @@ export default class UploadCommand extends BaseCommand {
       const config = await readConfig(configPath)
       const uploader = createUploader(config)
 
-      const result = stats.isDirectory() ? await uploader.add.directory(args.path) : await uploader.add.file(args.path)
+      const result = stats.isDirectory()
+        ? await uploader.add.directory({path: args.path})
+        : await uploader.add.file(args.path)
+
+      if (result.results) {
+        this.logInfo('Individual node results:')
+        for (const [uploaderId, nodeResult] of result.results) {
+          if (nodeResult.success) {
+            this.logInfo(`✓ ${uploaderId}: ${nodeResult.cid}`)
+          } else {
+            this.logInfo(`✗ ${uploaderId}: ${nodeResult.error || 'Failed'}`)
+          }
+        }
+      }
 
       if (result.success) {
-        this.logSuccess(`Upload successful. CID: ${result.cid}`)
+        this.logSuccess(`File uploaded. CID: ${result.cid}`)
         if (result.errorCount) {
-          console.log(result)
           this.logError(`${result.errorCount} / ${result.totalNodes} nodes failed`)
         } else {
-          this.logInfo(`Uploaded to ${result.successCount} / ${result.totalNodes} nodes`)
+          this.logSuccess(`Uploaded to ${result.successCount} / ${result.totalNodes} nodes`)
         }
       } else {
         console.log(result)

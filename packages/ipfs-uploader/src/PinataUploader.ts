@@ -4,6 +4,7 @@ import {
   FileArrayResult,
   PinataUploaderConfig,
   PinataConfig,
+  DirectoryInput,
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
 
@@ -102,7 +103,7 @@ export class PinataUploader implements BaseUploader {
       }
     },
 
-    directory: async (): Promise<UploadResult> => {
+    directory: async (input: DirectoryInput): Promise<UploadResult> => {
       return createErrorResult<UploadResult>(
         "Directory uploads are not supported in PinataUploader"
       );
@@ -145,13 +146,6 @@ export class PinataUploader implements BaseUploader {
       } catch (error) {
         return createErrorResult<FileArrayResult>(error, true);
       }
-    },
-
-    globFiles: async (): Promise<FileArrayResult> => {
-      return createErrorResult<FileArrayResult>(
-        "GlobFiles are not supported in PinataUploader",
-        true
-      );
     },
 
     url: async (url: string): Promise<UploadResult> => {
