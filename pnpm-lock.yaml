@@ -38,6 +38,12 @@ importers:
       ipfs-uploader:
         specifier: workspace:*
         version: link:../ipfs-uploader
+      it-all:
+        specifier: ^3.0.6
+        version: 3.0.6
+      kubo-rpc-client:
+        specifier: ^5.0.2
+        version: 5.0.2(undici@7.2.1)
       zod:
         specifier: ^3.22.4
         version: 3.24.1

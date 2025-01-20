@@ -24,3 +24,4 @@ package-lock.json
 /service.json
 /config-backup
 /ipfs-upload.config.json
+/ipfs-sync.config.json

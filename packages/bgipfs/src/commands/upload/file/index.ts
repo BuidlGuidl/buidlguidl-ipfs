@@ -33,7 +33,6 @@ export default class FileCommand extends Command {
     try {
       const configPath = flags.config ? join(flags.config) : undefined
       const config = await readConfig(configPath)
-
       const uploader = new IpfsUploader(config)
       const result = await uploader.add.file(args.file)
       this.log(`File uploaded successfully. CID: ${result.cid}`)

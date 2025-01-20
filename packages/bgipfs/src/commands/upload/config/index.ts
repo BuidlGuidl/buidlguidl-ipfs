@@ -1,9 +1,9 @@
 import {Args, Command, Flags} from '@oclif/core'
-import {IpfsUploaderConfig} from 'ipfs-uploader'
+import {IpfsNodeOptions} from 'ipfs-uploader'
 import {access, readFile, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
-const DEFAULT_CONFIG: IpfsUploaderConfig = {
+const DEFAULT_CONFIG: IpfsNodeOptions = {
   headers: {},
   url: 'http://127.0.0.1:9095',
 }
@@ -98,7 +98,7 @@ export default class ConfigCommand extends Command {
     }
   }
 
-  private async readConfig(configPath?: string): Promise<IpfsUploaderConfig> {
+  private async readConfig(configPath?: string): Promise<IpfsNodeOptions> {
     const targetPath = configPath || process.cwd()
     const configFilePath = join(targetPath, CONFIG_FILENAME)
 
@@ -112,7 +112,7 @@ export default class ConfigCommand extends Command {
 
   private async setConfig(flags: ConfigFlags): Promise<void> {
     const config = await this.readConfig(flags.path)
-    const updates: Partial<IpfsUploaderConfig> = {}
+    const updates: Partial<IpfsNodeOptions> = {}
 
     if (flags.url) {
       updates.url = flags.url
@@ -141,7 +141,7 @@ export default class ConfigCommand extends Command {
     this.log('Configuration updated successfully')
   }
 
-  private async writeConfig(config: IpfsUploaderConfig, configPath?: string): Promise<void> {
+  private async writeConfig(config: IpfsNodeOptions, configPath?: string): Promise<void> {
     const targetPath = configPath || process.cwd()
     const configFilePath = join(targetPath, CONFIG_FILENAME)
     await writeFile(configFilePath, JSON.stringify(config, null, 2))

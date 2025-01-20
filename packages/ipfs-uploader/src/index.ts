@@ -1,11 +1,14 @@
 import { CID } from "multiformats/cid";
-import { create, KuboRPCClient, globSource, urlSource } from "kubo-rpc-client";
+import {
+  create,
+  KuboRPCClient,
+  globSource,
+  urlSource,
+  Options as IpfsNodeOptions,
+} from "kubo-rpc-client";
 import * as jsonCodec from "multiformats/codecs/json";
 
-export interface IpfsUploaderConfig {
-  url?: string;
-  headers?: Record<string, string>;
-}
+export { IpfsNodeOptions };
 
 export interface UploadResult {
   cid: string;
@@ -22,17 +25,13 @@ export interface GlobSourceFile {
 
 export class IpfsUploader {
   private rpcClient: KuboRPCClient;
-  private config: IpfsUploaderConfig;
+  private options: IpfsNodeOptions;
 
-  constructor(config?: IpfsUploaderConfig) {
-    this.config = {
-      url: config?.url ?? "http://127.0.0.1:9095",
-      headers: config?.headers ?? {},
+  constructor(options?: IpfsNodeOptions) {
+    this.options = options ?? {
+      url: "http://127.0.0.1:4001",
     };
-    this.rpcClient = create({
-      url: this.config.url,
-      headers: this.config.headers,
-    });
+    this.rpcClient = create(this.options);
   }
 
   add = {
