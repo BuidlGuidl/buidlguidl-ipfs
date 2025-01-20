@@ -4,14 +4,14 @@ import {randomBytes} from 'node:crypto'
 import fs from 'node:fs/promises'
 import {z} from 'zod'
 
-import {BaseCommand} from '../../base-command.js'
-import {EnvManager} from '../../lib/env-manager.js'
-import {baseSchema} from '../../lib/env-schema.js'
-import {checkDocker, checkRunningContainers} from '../../lib/system.js'
-import {TemplateManager} from '../../lib/templates.js'
+import {BaseCommand} from '../../../base-command.js'
+import {EnvManager} from '../../../lib/env-manager.js'
+import {baseSchema} from '../../../lib/env-schema.js'
+import {checkDocker, checkRunningContainers} from '../../../lib/system.js'
+import {TemplateManager} from '../../../lib/templates.js'
 
 export default class Init extends BaseCommand {
-  static description = 'Initialize IPFS configuration'
+  static description = 'Set up the necessary configuration for IPFS Cluster'
 
   static flags = {}
 
@@ -33,10 +33,14 @@ export default class Init extends BaseCommand {
 
     try {
       this.logInfo('Installing required configuration files...')
-      await templates.copyAllTemplates()
+      const redownload = await this.confirm(
+        'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (You will be prompted to overwrite any local changes)',
+      )
+      if (redownload) {
+        await templates.copyAllTemplates()
+      }
 
-      // Initialize environment
-      this.logInfo('Initializing environment...')
+      this.logInfo('Setting up environment...')
 
       // Try to read existing env, preserving any valid values
       const currentEnv = await fs
@@ -128,13 +132,13 @@ export default class Init extends BaseCommand {
 
       await this.initializeCluster()
 
-      this.logSuccess('Configuration initialized successfully!')
+      this.logSuccess('Configuration completed successfully!')
       this.logInfo('Your configuration is in .env')
       this.logInfo('Your cluster identity is in identity.json')
       this.logInfo('Your cluster service configuration is in service.json')
       this.logInfo('You can now start the cluster with `bgipfs start`')
     } catch (error) {
-      this.logError(`Initialization failed: ${(error as Error).message}`)
+      this.logError(`Configuration failed: ${(error as Error).message}`)
     } finally {
       // Cleanup
       try {
@@ -186,7 +190,9 @@ export default class Init extends BaseCommand {
   private async initializeCluster(): Promise<void> {
     this.logInfo('Initializing IPFS cluster...')
     this.logInfo('Removing data/ipfs-cluster/service.json file if it exists...')
-    await fs.unlink('data/ipfs-cluster/service.json')
+    await fs.unlink('data/ipfs-cluster/service.json').catch(() => {
+      // File doesn't exist, that's fine
+    })
 
     let hasIdentity = await fs
       .access('identity.json')

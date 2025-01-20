@@ -15,7 +15,7 @@ All API endpoints are under `/api/upload/` and accept POST requests.
 Upload a single file using FormData with a 'file' field.
 
 ### `/api/upload/files`
-Upload multiple files using FormData with 'files' field.
+Upload multiple files using FormData with multiple files and a 'dirName' field.
 
 ### `/api/upload/text`
 Upload plain text content by sending the text directly in the request body.

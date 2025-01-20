@@ -4,8 +4,8 @@ import {execa} from 'execa'
 import {randomBytes} from 'node:crypto'
 import {promises as fs} from 'node:fs'
 
-import {BaseCommand} from '../../base-command.js'
-import {EnvManager} from '../../lib/env-manager.js'
+import {BaseCommand} from '../../../base-command.js'
+import {EnvManager} from '../../../lib/env-manager.js'
 
 export default class Auth extends BaseCommand {
   static args = {

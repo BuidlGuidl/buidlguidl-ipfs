@@ -1,7 +1,7 @@
 import {Flags} from '@oclif/core'
 import {execa} from 'execa'
 
-import {BaseCommand} from '../../base-command.js'
+import {BaseCommand} from '../../../base-command.js'
 
 export default class Stop extends BaseCommand {
   static description = 'Stop IPFS cluster'

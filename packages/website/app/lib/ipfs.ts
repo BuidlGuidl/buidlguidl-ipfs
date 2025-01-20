@@ -1,4 +1,4 @@
-import IpfsUploader from "ipfs-uploader";
+import { createUploader } from "ipfs-uploader";
 
 if (!process.env.IPFS_API_URL) {
   throw new Error("IPFS_API_URL environment variable is not set");
@@ -12,7 +12,7 @@ const auth = Buffer.from(
   `${process.env.IPFS_AUTH_USERNAME}:${process.env.IPFS_AUTH_PASSWORD}`
 ).toString("base64");
 
-export const pinner = new IpfsUploader({
+export const pinner = createUploader({
   url: process.env.IPFS_API_URL,
   headers: {
     Authorization: `Basic ${auth}`,

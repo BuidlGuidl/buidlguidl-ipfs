@@ -1,7 +1,7 @@
 import {Args, Flags} from '@oclif/core'
 import {execa} from 'execa'
 
-import {BaseCommand} from '../../base-command.js'
+import {BaseCommand} from '../../../base-command.js'
 
 export default class Logs extends BaseCommand {
   static args = {

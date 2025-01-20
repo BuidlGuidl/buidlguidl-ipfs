@@ -2,102 +2,93 @@
 
 **Note:** This library is currently in development and may undergo significant changes.
 
-This is a CLI for running an IPFS cluster
+CLI for working with IPFS, with support for running IPFS clusters, uploading files to IPFS, and pin synchronization across nodes.
 
 ## Installation
 
 Dependencies:
-
 - Node.js (22+)
-- Docker & Docker Compose
+- Docker & Docker Compose (for cluster commands)
 
 ```bash
 npm install -g bgipfs
 ```
 
-## Usage
-```bash
-$ bgipfs install # checks / installs required dependencies
-$ bgipfs init # sets up the configuration required for IPFS Cluster
-$ bgipfs start # starts IPFS cluster
-$ bgipfs stop # stops IPFS cluster
-$ bgipfs reset # removes all IPFS & IPFS Cluster data [DANGEROUS]
-```
-
 ## Commands
 
 ```bash
+TOPICS
+  cluster  Commands for setting up and managing IPFS cluster operations
+  sync     Sync pins from an origin IPFS node to a destination IPFS node
+  upload   Commands for uploading files to IPFS
+
 COMMANDS
-  auth     Manage authentication credentials
   help     Display help for bgipfs.
-  init     Initialize IPFS configuration
+  sync     Sync pins from an origin IPFS node to a destination IPFS node
+  upload   Upload a file or directory to IPFS
+  version  Show version information
+```
+
+## Cluster Commands
+```bash
+bgipfs cluster
+  auth     Manage authentication credentials
+  config   Set up or update the necessary configuration
   install  Install all required dependencies
   logs     Show container logs
-  plugins  List installed plugins.
   reset    Reset IPFS cluster and remove all data
   ssl      Generate SSL certificates using Let's Encrypt
   start    Start IPFS cluster
   stop     Stop IPFS cluster
-  version  Show version information
-  ```
+```
 
-  ### Files of note
+### Configuration
 
-  During the `init` command, an interactive prompt will help you populate the `.env` file and `identity.json` file, and other template files will be downloaded to the root directory.
+During cluster setup, the `cluster config` command will help you populate:
 
-  .env
-  - `PEERNAME` - the name of the peer in the IPFS Cluster
-  - `SECRET` - the secret for the IPFS Cluster
-  - `PEERADDRESSES` - the addresses of the peers in the IPFS Cluster (for bootstrapping, blank if you're the first)
-  - `AUTH_USERNAME` - the username for the IPFS Cluster
-  - `AUTH_PASSWORD` - the password for the IPFS Cluster
-  - `GATEWAY_DOMAIN` - if using DNS, the domain for the gateway (e.g. `ipfs.bgipfs.com`)
-  - `UPLOAD_DOMAIN` - if using DNS, the domain for the upload endpoint (e.g. `upload.bgipfs.com`)
+#### Environment Variables (.env)
+- `PEERNAME` - Peer name in the IPFS Cluster
+- `SECRET` - Cluster secret
+- `PEERADDRESSES` - Bootstrap peer addresses
+- `AUTH_USERNAME` - Basic auth username
+- `AUTH_PASSWORD` - Basic auth password
+- `GATEWAY_DOMAIN` - Gateway domain (DNS mode)
+- `UPLOAD_DOMAIN` - Upload endpoint domain (DNS mode)
 
-  `identity.json`
-  - `id` - the public peer ID
-  - `private_key` - the private key for the peer [DO NOT SHARE PUBLICLY]
+#### Identity File (identity.json)
+- `id` - Public peer ID
+- `private_key` - Private key [DO NOT SHARE]
 
-  #### Docker Compose Files
-- `init.docker-compose.yml` - Used during initialization to set up IPFS Cluster configuration
-- `docker-compose.yml` - Base configuration for IP-based mode, includes IPFS, IPFS Cluster, and Nginx services
-- `docker-compose.dns.yml` - DNS mode overrides, adds SSL/TLS support and domain-based routing
+### Cluster Modes
 
-#### Nginx Configurations
-- `nginx.ip.conf` - Simple Nginx configuration for IP-based mode
-  - Provides basic authentication for the upload endpoint (port 5555)
-  - No SSL/TLS support
-- `nginx.dns.conf` - Advanced Nginx configuration for DNS-based mode
-  - Handles SSL/TLS termination
-  - Provides HTTPS gateway and upload endpoints
-  - Includes automatic HTTP to HTTPS redirection
+The cluster can run in two modes:
+- `ip` - Basic IP-based mode
+- `dns` - Domain-based mode with SSL support
 
-#### IPFS Cluster Configuration
-- `service.json` - Default IPFS Cluster configuration
-  - Defines cluster behavior, API endpoints, and performance settings
-  - Configures CRDT consensus settings
-  - Sets up monitoring and metrics collection
+### Required Ports
 
-Changes to these files in the root directory will be reflected in the running cluster (after a restart). A note on priority: environment variables passed into the docker compose file will override the values `service.json`.
+| Port | Protocol | IP Mode | DNS Mode | Purpose |
+|------|----------|---------|----------|----------|
+| 4001 | TCP | Yes | Yes | IPFS swarm |
+| 9096 | TCP | Yes | Yes | Cluster swarm |
+| 8080 | TCP | Yes | No | IPFS gateway |
+| 5555 | TCP | Yes | No | Upload endpoint |
+| 80 | TCP | No | Yes | HTTP |
+| 443 | TCP | No | Yes | HTTPS |
 
-### Modes
+## Upload Commands
+Powered by [ipfs-uploader](../ipfs-uploader/)
+```bash
+bgipfs upload config init  # Initialize upload configuration
+bgipfs upload config get   # Get upload configuration
+bgipfs upload [PATH]      # Upload a file or directory to IPFS
+```
 
-The cluster can be run in two modes:
+## Sync Commands
+This is for manually syncing pin lists between nodes. The specified nodes can be Kubo endpoints, or the IPFS proxy endpoint of an IPFS Cluster node. This is powered by [js-kubo-rpc-client](https://github.com/ipfs/js-kubo-rpc-client)
 
-- `ip` - IP-based mode
-- `dns` - DNS-based mode, if you want to use a domain or subdomain instead of an IP address for your gateway (for node discovery, as well as the gateway / upload endpoint)
-
-Note that if you are using DNS mode, you will need to have a valid SSL certificate for your domain. This can be generated using the `ssl` command. You will also need to ensure that your DNS provider isn't providing a proxy service for your domain / subdomains.
-
-### Ports
-
-The following ports need to be opened depending on your setup:
-
-| Port | Protocol | IP-based Setup | DNS-based Setup | Purpose |
-|------|----------|----------------|-----------------|----------|
-| 4001 | TCP | Required | Required | IPFS swarm |
-| 9096 | TCP | Required | Required | Cluster swarm |
-| 8080 | TCP | Required | Not needed | IPFS gateway |
-| 5555 | TCP | Required | Not needed | Public Add endpoint |
-| 80 | TCP | Not needed | Required | HTTP |
-| 443 | TCP | Not needed | Required | HTTPS |
+```bash
+bgipfs sync config init  # Initialize sync configuration
+bgipfs sync config get   # Get sync configuration
+bgipfs sync [ls|add|pin] # Sync pins between IPFS nodes - ls just lists, pin lists and pins, add fetches, adds and pins
+```

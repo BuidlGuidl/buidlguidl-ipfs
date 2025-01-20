@@ -23,3 +23,5 @@ package-lock.json
 /docker-compose.override.yml
 /service.json
 /config-backup
+/ipfs-upload.config.json
+/ipfs-sync.config.json

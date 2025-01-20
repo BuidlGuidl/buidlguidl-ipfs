@@ -1,8 +1,8 @@
 import {Flags} from '@oclif/core'
 import {execa} from 'execa'
 
-import {BaseCommand} from '../../base-command.js'
-import {commandExists, installDockerUbuntu, installIpfsClusterCtl, isUbuntu} from '../../lib/system.js'
+import {BaseCommand} from '../../../base-command.js'
+import {commandExists, installDockerUbuntu, installIpfsClusterCtl, isUbuntu} from '../../../lib/system.js'
 
 export default class Install extends BaseCommand {
   static description = 'Install all required dependencies'
