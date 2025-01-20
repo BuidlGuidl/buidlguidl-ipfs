@@ -298,18 +298,19 @@ export class S3Uploader implements BaseUploader {
 
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
+        const dirName = input.dirPath.split("/").pop();
         let entries: { path: string; content: Buffer | Uint8Array }[] = [];
 
         if (input.files?.length) {
           entries = input.files;
-        } else if (input.path) {
+        } else if (input.dirPath) {
           if (typeof window !== "undefined") {
             throw new Error(
               "Directory path uploads are only supported in Node.js environments"
             );
           }
           for await (const file of globSource(
-            input.path,
+            input.dirPath,
             input.pattern ?? "**/*"
           )) {
             if (file.content) {
@@ -330,42 +331,22 @@ export class S3Uploader implements BaseUploader {
 
         if (entries.length === 0) {
           throw new Error(
-            input.path
-              ? `No files found in directory: ${input.path}`
+            input.dirPath
+              ? `No files found in directory: ${input.dirPath}`
               : "No files were processed"
           );
         }
 
-        return this.uploadDirectory(entries, input.path);
+        return this.uploadDirectory(entries, dirName);
       } catch (error) {
         if (
           error instanceof Error &&
-          input.path &&
+          input.dirPath &&
           error.message.includes("ENOENT")
         ) {
-          throw new Error(`Directory not found: ${input.path}`);
+          throw new Error(`Directory not found: ${input.dirPath}`);
         }
         return createErrorResult<UploadResult>(error);
-      }
-    },
-
-    files: async (files: File[]): Promise<FileArrayResult> => {
-      try {
-        const entries = await Promise.all(
-          files.map(async (file) => ({
-            path: file.name,
-            content: new Uint8Array(await file.arrayBuffer()),
-          }))
-        );
-
-        const result = await this.uploadDirectory(entries);
-        return {
-          success: true,
-          cid: result.cid,
-          files: files.map((f) => ({ name: f.name, cid: result.cid })),
-        };
-      } catch (error) {
-        return createErrorResult<FileArrayResult>(error, true);
       }
     },
   };

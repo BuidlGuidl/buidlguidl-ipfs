@@ -40,7 +40,7 @@ export default class UploadCommand extends BaseCommand {
       const uploader = createUploader(config)
 
       const result = stats.isDirectory()
-        ? await uploader.add.directory({path: args.path})
+        ? await uploader.add.directory({dirPath: args.path})
         : await uploader.add.file(args.path)
 
       if (result.results) {

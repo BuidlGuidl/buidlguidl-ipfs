@@ -49,11 +49,11 @@ export interface DirectoryFile {
 }
 
 export interface DirectoryInput {
-  /** Path to directory (required for path-based upload) */
-  path?: string;
-  /** Pattern to match files in directory (only used with path) */
+  /** Path to directory (required for directory-based upload) */
+  dirPath: string;
+  /** Pattern to match files in directory */
   pattern?: string;
-  /** Array of files to upload (alternative to path-based upload) */
+  /** Array of files to upload (alternative to directory-based upload) */
   files?: DirectoryFile[];
 }
 
@@ -64,7 +64,6 @@ export interface BaseUploader {
     text: (content: string) => Promise<UploadResult>;
     json: (content: any) => Promise<UploadResult>;
     directory: (input: DirectoryInput) => Promise<UploadResult>;
-    files: (files: File[]) => Promise<UploadResult | FileArrayResult>;
     url: (url: string) => Promise<UploadResult>;
   };
 }

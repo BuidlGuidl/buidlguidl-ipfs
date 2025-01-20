@@ -7,6 +7,8 @@ import {
   DirectoryInput,
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
+import { globSource } from "kubo-rpc-client";
+import FormData from "form-data";
 
 export class PinataUploader implements BaseUploader {
   private config: PinataUploaderConfig;
@@ -44,14 +46,17 @@ export class PinataUploader implements BaseUploader {
           );
         }
 
+        const formBuffer = formData.getBuffer();
+        const formHeaders = formData.getHeaders();
         const response = await fetch(
           "https://api.pinata.cloud/pinning/pinFileToIPFS",
           {
             method: "POST",
             headers: {
               Authorization: `Bearer ${this.config.options.jwt}`,
+              ...formHeaders,
             },
-            body: formData,
+            body: formBuffer,
           }
         );
 
@@ -104,21 +109,50 @@ export class PinataUploader implements BaseUploader {
     },
 
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
-      return createErrorResult<UploadResult>(
-        "Directory uploads are not supported in PinataUploader"
-      );
-    },
-
-    files: async (files: File[]): Promise<FileArrayResult> => {
       try {
-        if (files.length === 0) {
-          throw new Error("No files provided");
+        const dirName = input.dirPath.split("/").pop();
+        const formData = new FormData();
+
+        let source: AsyncIterable<{ path: string; content: any }>;
+        if (input.files?.length) {
+          source = (async function* () {
+            for (const file of input.files!) {
+              yield file;
+            }
+          })();
+        } else {
+          if (typeof window !== "undefined") {
+            throw new Error(
+              "Directory path uploads are only supported in Node.js environments"
+            );
+          }
+          source = globSource(input.dirPath, input.pattern ?? "**/*");
         }
 
-        const formData = new FormData();
-        files.forEach((file) => {
-          formData.append("file", file);
-        });
+        // Process files from either source
+        for await (const file of source) {
+          if (file.content) {
+            let content: Buffer;
+            if (Buffer.isBuffer(file.content)) {
+              content = file.content;
+            } else if (file.content instanceof Uint8Array) {
+              content = Buffer.from(file.content);
+            } else {
+              // Handle async iterator from globSource
+              const chunks = [];
+              for await (const chunk of file.content) {
+                chunks.push(chunk);
+              }
+              content = Buffer.concat(chunks);
+            }
+            formData.append("file", content, {
+              filepath: `${dirName}${file.path}`,
+            });
+          }
+        }
+
+        const formBuffer = formData.getBuffer();
+        const formHeaders = formData.getHeaders();
 
         const response = await fetch(
           "https://api.pinata.cloud/pinning/pinFileToIPFS",
@@ -126,25 +160,27 @@ export class PinataUploader implements BaseUploader {
             method: "POST",
             headers: {
               Authorization: `Bearer ${this.config.options.jwt}`,
+              ...formHeaders,
             },
-            body: formData,
+            body: formBuffer,
           }
         );
 
         if (!response.ok) {
-          throw new Error(
-            `Failed to upload files to Pinata: ${response.statusText}`
-          );
+          throw new Error(`Failed to upload to Pinata: ${response.statusText}`);
         }
 
         const result = await response.json();
-        return {
-          success: true,
-          cid: result.IpfsHash,
-          files: files.map((f) => ({ name: f.name, cid: result.IpfsHash })),
-        };
+        return { success: true, cid: result.IpfsHash };
       } catch (error) {
-        return createErrorResult<FileArrayResult>(error, true);
+        if (
+          error instanceof Error &&
+          input.dirPath &&
+          error.message.includes("ENOENT")
+        ) {
+          throw new Error(`Directory not found: ${input.dirPath}`);
+        }
+        return createErrorResult<UploadResult>(error);
       }
     },
 

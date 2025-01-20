@@ -62,8 +62,6 @@ export class MultiUploader implements BaseUploader {
     json: (content: any) => this.executeMultiUpload((u) => u.add.json(content)),
     directory: (input: DirectoryInput) =>
       this.executeMultiUpload((u) => u.add.directory(input)),
-    files: (files: File[]) =>
-      this.executeMultiUpload((u) => u.add.files(files)),
     url: (url: string) => this.executeMultiUpload((u) => u.add.url(url)),
   };
 }

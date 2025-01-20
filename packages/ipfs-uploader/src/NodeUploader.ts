@@ -85,13 +85,13 @@ export class NodeUploader implements BaseUploader {
         let source;
         if (input.files?.length) {
           source = input.files;
-        } else if (input.path) {
+        } else if (input.dirPath) {
           if (typeof window !== "undefined") {
             throw new Error(
               "Directory path uploads are only supported in Node.js environments"
             );
           }
-          source = globSource(input.path, input.pattern ?? "**/*");
+          source = globSource(input.dirPath, input.pattern ?? "**/*");
         } else if (input.files) {
           throw new Error("Files array is empty");
         } else {
@@ -110,8 +110,8 @@ export class NodeUploader implements BaseUploader {
 
         if (!rootCid) {
           throw new Error(
-            input.path
-              ? `No files found in directory: ${input.path}`
+            input.dirPath
+              ? `No files found in directory: ${input.dirPath}`
               : "No files were processed"
           );
         }
@@ -119,83 +119,12 @@ export class NodeUploader implements BaseUploader {
       } catch (error) {
         if (
           error instanceof Error &&
-          input.path &&
+          input.dirPath &&
           error.message.includes("ENOENT")
         ) {
-          throw new Error(`Directory not found: ${input.path}`);
+          throw new Error(`Directory not found: ${input.dirPath}`);
         }
         return createErrorResult<UploadResult>(error);
-      }
-    },
-
-    files: async (files: File[]): Promise<FileArrayResult> => {
-      try {
-        if (files.length === 0) {
-          throw new Error("No files provided");
-        }
-
-        let root: CID | undefined;
-        const fileResults: { name: string; cid: CID }[] = [];
-
-        for await (const file of this.rpcClient.addAll(
-          files.map((file) => ({ path: file.name, content: file })),
-          {
-            cidVersion: 1,
-            wrapWithDirectory: true,
-          }
-        )) {
-          fileResults.push({ name: file.path, cid: file.cid });
-          root = file.cid;
-        }
-
-        if (!root) {
-          throw new Error("Failed to process files: No root CID generated");
-        }
-
-        return {
-          success: true,
-          cid: root.toString(),
-          files: fileResults.map((f) => ({
-            name: f.name,
-            cid: f.cid.toString(),
-          })),
-        };
-      } catch (error) {
-        return createErrorResult<FileArrayResult>(error, true);
-      }
-    },
-
-    globFiles: async (files: DirectoryFile[]): Promise<FileArrayResult> => {
-      try {
-        if (files.length === 0) {
-          throw new Error("No files provided");
-        }
-
-        let root: CID | undefined;
-        const fileResults: { name: string; cid: CID }[] = [];
-
-        for await (const file of this.rpcClient.addAll(files, {
-          cidVersion: 1,
-          wrapWithDirectory: true,
-        })) {
-          fileResults.push({ name: file.path, cid: file.cid });
-          root = file.cid;
-        }
-
-        if (!root) {
-          throw new Error("Failed to process files: No root CID generated");
-        }
-
-        return {
-          success: true,
-          cid: root.toString(),
-          files: fileResults.map((f) => ({
-            name: f.name,
-            cid: f.cid.toString(),
-          })),
-        };
-      } catch (error) {
-        return createErrorResult<FileArrayResult>(error);
       }
     },
 
