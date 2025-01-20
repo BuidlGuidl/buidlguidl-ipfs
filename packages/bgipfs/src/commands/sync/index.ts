@@ -20,7 +20,7 @@ export default class Sync extends BaseCommand {
     }),
   }
 
- static override description = 'List pinned CIDs'
+ static override description = 'Sync pins from an origin IPFS node to a destination IPFS node'
 
   static override examples = [
     '<%= config.bin %> <%= command.id %>',

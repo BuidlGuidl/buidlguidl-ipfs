@@ -1,10 +1,10 @@
-import {IpfsNodeOptions} from 'ipfs-uploader'
+import {NodeUploaderConfig} from 'ipfs-uploader'
 import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
 
 export const CONFIG_FILENAME = 'ipfs-upload.config.json'
 
-export const readConfig = async (configPath?: string): Promise<IpfsNodeOptions> => {
+export async function readConfig(configPath?: string): Promise<NodeUploaderConfig> {
   try {
     const targetPath = configPath || join(process.cwd(), CONFIG_FILENAME)
     const configContent = await readFile(targetPath, 'utf8')

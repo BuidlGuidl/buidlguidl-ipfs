@@ -1,237 +1,36 @@
-import { CID } from "multiformats/cid";
+import { Options as KuboOptions } from "kubo-rpc-client";
+import { NodeUploader } from "./NodeUploader.js";
+import { PinataUploader } from "./PinataUploader.js";
+import { MultiUploader } from "./MultiUploader.js";
 import {
-  create,
-  KuboRPCClient,
-  globSource,
-  urlSource,
-  Options as IpfsNodeOptions,
-} from "kubo-rpc-client";
-import * as jsonCodec from "multiformats/codecs/json";
+  BaseUploader,
+  UploadResult,
+  MultiNodeUploadResult,
+  NodeConfig,
+  PinataConfig,
+  UploaderConfig,
+} from "./types.js";
 
-export { IpfsNodeOptions };
+export { KuboOptions };
+export * from "./types.js";
+export { NodeUploader } from "./NodeUploader.js";
+export { PinataUploader } from "./PinataUploader.js";
+export { MultiUploader } from "./MultiUploader.js";
 
-export interface UploadResult {
-  cid: string;
-}
-
-export interface FileArrayResult extends UploadResult {
-  files: { name: string; cid: string }[];
-}
-
-export interface GlobSourceFile {
-  path: string;
-  content: string | Uint8Array | Buffer;
-}
-
-export class IpfsUploader {
-  private rpcClient: KuboRPCClient;
-  private options: IpfsNodeOptions;
-
-  constructor(options?: IpfsNodeOptions) {
-    this.options = options ?? {
-      url: "http://127.0.0.1:4001",
-    };
-    this.rpcClient = create(this.options);
+export function createUploader(
+  config: UploaderConfig | UploaderConfig[]
+): BaseUploader<UploadResult> | BaseUploader<MultiNodeUploadResult> {
+  if (Array.isArray(config)) {
+    const uploaders = config.map((c) =>
+      "jwt" in (c as any).options || "jwt" in c
+        ? new PinataUploader(c as PinataConfig)
+        : new NodeUploader(c as NodeConfig)
+    );
+    return new MultiUploader(uploaders);
   }
 
-  add = {
-    file: async (input: File | string): Promise<UploadResult> => {
-      try {
-        let content: Uint8Array;
-        try {
-          if (input instanceof File) {
-            const buffer = await input.arrayBuffer();
-            content = new Uint8Array(buffer);
-          } else if (typeof window === "undefined") {
-            const { readFile } = await import("fs/promises");
-            const buffer = await readFile(input);
-            content = new Uint8Array(buffer);
-          } else {
-            throw new Error(
-              "File path strings are only supported in Node.js environments"
-            );
-          }
-        } catch (error) {
-          throw new Error(
-            `Failed to read file content: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-
-        const add = await this.rpcClient.add(content, {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
-      } catch (error) {
-        throw new Error(
-          `Failed to add file to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    text: async (content: string): Promise<UploadResult> => {
-      try {
-        const add = await this.rpcClient.add(content, {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
-      } catch (error) {
-        throw new Error(
-          `Failed to add text content to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    json: async (content: any): Promise<UploadResult> => {
-      try {
-        let buf: Uint8Array;
-        try {
-          buf = jsonCodec.encode(content);
-        } catch (error) {
-          throw new Error(
-            `Failed to encode JSON content: ${error instanceof Error ? error.message : String(error)}`
-          );
-        }
-
-        const add = await this.rpcClient.add(buf, {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
-      } catch (error) {
-        throw new Error(
-          `Failed to add JSON content to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    directory: async (
-      path: string,
-      pattern: string = "**/*"
-    ): Promise<UploadResult> => {
-      try {
-        if (typeof window !== "undefined") {
-          throw new Error(
-            "Directory uploads are only supported in Node.js environments"
-          );
-        }
-
-        let rootCid: CID | undefined;
-        for await (const file of this.rpcClient.addAll(
-          globSource(path, pattern),
-          {
-            wrapWithDirectory: true,
-            cidVersion: 1,
-          }
-        )) {
-          rootCid = file.cid;
-        }
-
-        if (!rootCid) {
-          throw new Error("No files found in directory or directory is empty");
-        }
-        return { cid: rootCid.toString() };
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("ENOENT")) {
-          throw new Error(`Directory not found: ${path}`);
-        }
-        throw new Error(
-          `Failed to add directory to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    files: async (files: File[]): Promise<FileArrayResult> => {
-      try {
-        if (files.length === 0) {
-          throw new Error("No files provided");
-        }
-
-        let root: CID | undefined;
-        const fileResults: { name: string; cid: CID }[] = [];
-
-        for await (const file of this.rpcClient.addAll(
-          files.map((file) => ({ path: file.name, content: file })),
-          {
-            cidVersion: 1,
-            wrapWithDirectory: true,
-          }
-        )) {
-          fileResults.push({ name: file.path, cid: file.cid });
-          root = file.cid;
-        }
-
-        if (!root) {
-          throw new Error("Failed to process files: No root CID generated");
-        }
-
-        return {
-          cid: root.toString(),
-          files: fileResults.map((f) => ({
-            name: f.name,
-            cid: f.cid.toString(),
-          })),
-        };
-      } catch (error) {
-        throw new Error(
-          `Failed to add files to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    globFiles: async (files: GlobSourceFile[]): Promise<FileArrayResult> => {
-      try {
-        if (files.length === 0) {
-          throw new Error("No files provided");
-        }
-
-        let root: CID | undefined;
-        const fileResults: { name: string; cid: CID }[] = [];
-
-        for await (const file of this.rpcClient.addAll(files, {
-          cidVersion: 1,
-          wrapWithDirectory: true,
-        })) {
-          fileResults.push({ name: file.path, cid: file.cid });
-          root = file.cid;
-        }
-
-        if (!root) {
-          throw new Error("Failed to process files: No root CID generated");
-        }
-
-        return {
-          cid: root.toString(),
-          files: fileResults.map((f) => ({
-            name: f.name,
-            cid: f.cid.toString(),
-          })),
-        };
-      } catch (error) {
-        throw new Error(
-          `Failed to add glob files to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-
-    url: async (url: string): Promise<UploadResult> => {
-      try {
-        // Validate URL
-        try {
-          new URL(url);
-        } catch (error) {
-          throw new Error("Invalid URL provided");
-        }
-
-        const add = await this.rpcClient.add(urlSource(url), {
-          cidVersion: 1,
-        });
-        return { cid: add.cid.toString() };
-      } catch (error) {
-        throw new Error(
-          `Failed to add URL to IPFS: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    },
-  };
+  if ("jwt" in (config as any).options || "jwt" in config) {
+    return new PinataUploader(config as PinataConfig);
+  }
+  return new NodeUploader(config as NodeConfig);
 }
-
-export default IpfsUploader;

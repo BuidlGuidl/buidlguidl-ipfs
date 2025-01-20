@@ -1,5 +1,5 @@
 import {Args, Flags} from '@oclif/core'
-import {IpfsUploader} from 'ipfs-uploader'
+import {createUploader} from 'ipfs-uploader'
 import {join} from 'node:path'
 
 import {BaseCommand} from '../../../base-command.js'
@@ -34,8 +34,9 @@ export default class FileCommand extends BaseCommand {
     try {
       const configPath = flags.config ? join(flags.config) : undefined
       const config = await readConfig(configPath)
-      const uploader = new IpfsUploader(config)
+      const uploader = createUploader(config)
       const result = await uploader.add.file(args.file)
+
       this.logSuccess(`File uploaded successfully. CID: ${result.cid}`)
     } catch (error) {
       this.logError(`Upload failed: ${error instanceof Error ? error.message : String(error)}`)
