@@ -8,16 +8,7 @@
     "AppendAnnounce": [],
     "Gateway": "/ip4/0.0.0.0/tcp/8080",
     "NoAnnounce": [],
-    "Swarm": [
-      "/ip4/0.0.0.0/tcp/4001",
-      "/ip6/::/tcp/4001",
-      "/ip4/0.0.0.0/udp/4001/webrtc-direct",
-      "/ip4/0.0.0.0/udp/4001/quic-v1",
-      "/ip4/0.0.0.0/udp/4001/quic-v1/webtransport",
-      "/ip6/::/udp/4001/webrtc-direct",
-      "/ip6/::/udp/4001/quic-v1",
-      "/ip6/::/udp/4001/quic-v1/webtransport"
-    ]
+    "Swarm": ["/ip4/0.0.0.0/tcp/4001", "/ip6/::/tcp/4001", "/ip4/0.0.0.0/udp/4001/quic-v1", "/ip6/::/udp/4001/quic-v1"]
   },
   "AutoNAT": {},
   "AutoTLS": {},
@@ -88,11 +79,6 @@
     "NoFetch": false,
     "PublicGateways": {
       "gateway.bgipfs.com": {
-        "UseSubdomains": true,
-        "Paths": ["/ipfs", "/ipns"],
-        "NoDNSLink": false
-      },
-      "*.ipfs.gateway.bgipfs.com": {
         "UseSubdomains": true,
         "Paths": ["/ipfs", "/ipns"],
         "NoDNSLink": false
