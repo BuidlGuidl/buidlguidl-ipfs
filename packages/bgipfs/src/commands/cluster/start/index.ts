@@ -4,7 +4,7 @@ import {promises as fs} from 'node:fs'
 
 import {BaseCommand} from '../../../base-command.js'
 import {EnvManager} from '../../../lib/env-manager.js'
-import {baseSchema, dnsSchema} from '../../../lib/env-schema.js'
+import {DnsConfig, dnsSchema} from '../../../lib/env-schema.js'
 import {checkRunningContainers} from '../../../lib/system.js'
 
 export default class Start extends BaseCommand {
@@ -125,7 +125,13 @@ export default class Start extends BaseCommand {
         this.logSuccess('IPFS cluster started successfully')
         this.logInfo('You can now access:')
 
-        const config = flags.mode === 'ip' ? undefined : await new EnvManager().readEnv({schema: dnsSchema})
+        const config =
+          flags.mode === 'ip'
+            ? undefined
+            : ((await new EnvManager().readEnv({
+                partial: false,
+                schema: dnsSchema,
+              })) as DnsConfig)
 
         const urls = this.getEndpointUrls(flags.mode, config)
         this.log(`- IPFS Gateway: ${urls.gateway}`)
