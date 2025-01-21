@@ -11,6 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await pinner.add.file(file);
+    if (!result.success) throw new Error(`Upload failed: ${result.error}`);  
     return NextResponse.json(result);
   } catch (error) {
     console.error('Upload failed:', error);
