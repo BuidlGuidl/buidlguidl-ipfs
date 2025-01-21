@@ -29,8 +29,10 @@ export default class Start extends BaseCommand {
 
       // Build compose file list
       const composeFiles = ['docker-compose.yml']
-      if (flags.mode !== 'ip') {
+      if (flags.mode === 'dns') {
         composeFiles.push('docker-compose.dns.yml')
+      } else if (flags.mode === 'proxy') {
+        composeFiles.push('docker-compose.proxy.yml')
       }
 
       // Check required files
