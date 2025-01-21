@@ -6,7 +6,7 @@ import {
 import { CarWriter } from "@ipld/car";
 import { mfs } from "@helia/mfs";
 import { car } from "@helia/car";
-import { createHelia } from "helia";
+import { createHeliaHTTP } from "@helia/http";
 import {
   BaseUploader,
   UploadResult,
@@ -89,7 +89,7 @@ export class S3Uploader implements BaseUploader {
       );
     });
 
-    const helia = await createHelia({ start: false });
+    const helia = await createHeliaHTTP();
 
     const heliaFs = mfs(helia);
 
