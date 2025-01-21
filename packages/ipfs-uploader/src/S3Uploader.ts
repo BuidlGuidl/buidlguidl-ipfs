@@ -263,17 +263,18 @@ export class S3Uploader implements BaseUploader {
           );
         }
 
-        // Get content type and blob
-        const contentType =
-          response.headers.get("content-type") || "application/octet-stream";
+        // Convert blob to buffer for S3
         const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
         // Upload to S3
         const command = new PutObjectCommand({
           Bucket: this.config.options.bucket,
           Key: key,
-          Body: blob,
-          ContentType: contentType,
+          Body: buffer,
+          ContentType:
+            response.headers.get("content-type") || "application/octet-stream",
         });
 
         const putResponse = await this.client.send(command);
@@ -285,7 +286,6 @@ export class S3Uploader implements BaseUploader {
         }
 
         const cid = await this.getCidFromMetadata(key);
-
         return { success: true, cid };
       } catch (error) {
         if (error instanceof Error && error.message.includes("Invalid URL")) {

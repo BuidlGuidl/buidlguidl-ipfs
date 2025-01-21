@@ -81,7 +81,22 @@ Powered by [ipfs-uploader](../ipfs-uploader/)
 ```bash
 bgipfs upload config init  # Initialize upload configuration
 bgipfs upload config get   # Get upload configuration
-bgipfs upload [PATH]      # Upload a file or directory to IPFS
+bgipfs upload [PATH]      # Upload a file, directory, or URL to IPFS
+```
+
+### Examples
+```bash
+# Upload a file
+bgipfs upload path/to/file.txt
+
+# Upload a directory
+bgipfs upload path/to/directory
+
+# Upload from URL
+bgipfs upload https://example.com/image.jpg
+
+# Upload with custom config
+bgipfs upload --config ./custom/path/config.json path/to/file.txt
 ```
 
 ## Sync Commands
