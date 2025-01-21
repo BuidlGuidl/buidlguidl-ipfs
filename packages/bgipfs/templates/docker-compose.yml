@@ -1,4 +1,3 @@
-# Base configuration - IP-based mode
 services:
   ipfs:
     container_name: ipfs
@@ -12,10 +11,16 @@ services:
       - ./ipfs.config.json:/data/ipfs/config:ro
     environment:
       - IPFS_GATEWAY_PUBLICGATEWAYS_USESUBDOMAINS=true
+    labels:
+      - "traefik.enable=true"
+      # IPFS routes
+      - "traefik.http.routers.ipfs.rule=PathPrefix(`/ipfs/`) || PathPrefix(`/ipns/`)"
+      - "traefik.http.routers.ipfs.entrypoints=web"
+      - "traefik.http.services.ipfs.loadbalancer.server.port=5001"
 
   cluster:
     container_name: cluster
-    image: ipfs/ipfs-cluster:latest
+    image: ipfs/ipfs-cluster:${IPFS_CLUSTER_VERSION:-latest}
     depends_on:
       - ipfs
     environment:
@@ -36,13 +41,28 @@ services:
       - ./data/ipfs-cluster:/data/ipfs-cluster
       - ./service.json:/data/ipfs-cluster/service.json
       - ./identity.json:/data/ipfs-cluster/identity.json
+    labels:
+      - "traefik.enable=true"
+      # IPFS Cluster routes
+      - "traefik.http.routers.cluster.rule=PathPrefix(`/api/v0/`)"
+      - "traefik.http.routers.cluster.entrypoints=web"
+      - "traefik.http.routers.cluster.middlewares=auth"
+      - "traefik.http.services.cluster.loadbalancer.server.port=9095"
+      - "traefik.http.middlewares.auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
-  nginx:
-    image: nginx:alpine
-    depends_on:
-      - cluster
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:5555"
+      - "--log.level=INFO"
     ports:
       - "5555:5555"
+      - "8081:8080"
     volumes:
-      - ./nginx.ip.conf:/etc/nginx/nginx.conf:ro
-      - ./htpasswd:/etc/nginx/.htpasswd:ro 
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./htpasswd:/etc/traefik/.htpasswd:ro 

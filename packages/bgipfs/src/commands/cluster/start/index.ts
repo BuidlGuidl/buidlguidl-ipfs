@@ -46,7 +46,7 @@ export default class Start extends BaseCommand {
         'service.json',
         'identity.json',
         'htpasswd',
-        flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
+        // flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
       ]
 
       // Check SSL certificates only if using DNS mode
@@ -97,7 +97,7 @@ export default class Start extends BaseCommand {
       await new Promise((resolve) => setTimeout(resolve, 10_000))
 
       // Check services in parallel
-      const services = ['nginx', 'ipfs', 'cluster']
+      const services = ['traefik', 'ipfs', 'cluster']
       this.logInfo('Checking service health...')
       const results = await Promise.all(
         services.map(async (service) => {
