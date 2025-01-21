@@ -4,16 +4,20 @@ import {promises as fs} from 'node:fs'
 
 import {BaseCommand} from '../../../base-command.js'
 import {EnvManager} from '../../../lib/env-manager.js'
-import {baseSchema, dnsSchema} from '../../../lib/env-schema.js'
+import {DnsConfig, dnsSchema} from '../../../lib/env-schema.js'
 import {checkRunningContainers} from '../../../lib/system.js'
 
 export default class Start extends BaseCommand {
   static description = 'Start IPFS cluster'
 
+  static examples = ['bgipfs start', 'bgipfs start --mode dns', 'bgipfs start --mode proxy']
+
   static flags = {
-    dns: Flags.boolean({
-      default: false,
-      description: 'Start in DNS mode with SSL',
+    mode: Flags.string({
+      char: 'm',
+      default: 'ip',
+      description: 'Cluster mode: ip (default), dns (with SSL), or proxy (behind Cloudflare)',
+      options: ['ip', 'dns', 'proxy'],
     }),
   }
 
@@ -21,27 +25,38 @@ export default class Start extends BaseCommand {
     const {flags} = await this.parse(Start)
 
     try {
-      this.logInfo(`Starting IPFS cluster in ${flags.dns ? 'DNS' : 'IP'} mode...`)
+      this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
-      // Build compose file list first
+      // Build compose file list
       const composeFiles = ['docker-compose.yml']
-
-      if (flags.dns) {
+      if (flags.mode !== 'ip') {
         composeFiles.push('docker-compose.dns.yml')
       }
 
-      // Check all required files
-      this.logInfo('Checking required files...')
+      // Check required files
       const requiredFiles = [
         ...composeFiles,
         '.env',
         'service.json',
         'identity.json',
         'htpasswd',
-        flags.dns ? 'nginx.dns.conf' : 'nginx.ip.conf',
-        ...(flags.dns ? ['nginx.dns.conf'] : []),
+        flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
       ]
 
+      // Check SSL certificates only if using DNS mode
+      if (flags.mode === 'dns') {
+        this.logInfo('Checking SSL certificates...')
+        try {
+          await fs.access('data/certbot/conf')
+          this.logSuccess('Found SSL certificates')
+        } catch {
+          this.logError("SSL certificates not found. Please run 'bgipfs ssl' first")
+          return
+        }
+      }
+
+      // Check all required files
+      this.logInfo('Checking required files...')
       for (const file of requiredFiles) {
         try {
           // eslint-disable-next-line no-await-in-loop
@@ -59,32 +74,6 @@ export default class Start extends BaseCommand {
         this.logInfo('The following containers are running:\n' + running.join('\n'))
         this.logError('You must stop the cluster with `bgipfs stop` before starting it again')
         return
-      }
-
-      // Check DNS mode requirements
-      if (flags.dns) {
-        this.logInfo('Checking DNS mode requirements...')
-        const requiredFiles = ['docker-compose.dns.yml', 'nginx.dns.conf']
-        for (const file of requiredFiles) {
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            await fs.access(file)
-            this.logSuccess(`Found ${file}`)
-          } catch {
-            this.logError(`Missing required file for DNS mode: ${file}`)
-            return
-          }
-        }
-
-        // Check SSL certificates
-        this.logInfo('Checking SSL certificates...')
-        try {
-          await fs.access('data/certbot/conf')
-          this.logSuccess('Found SSL certificates')
-        } catch {
-          this.logError("SSL certificates not found. Please run 'bgipfs ssl' first")
-          return
-        }
       }
 
       // Build compose command
@@ -135,16 +124,24 @@ export default class Start extends BaseCommand {
       if (allRunning) {
         this.logSuccess('IPFS cluster started successfully')
         this.logInfo('You can now access:')
-        if (flags.dns) {
-          const env = new EnvManager()
-          const config = await env.readEnv({
-            schema: flags.dns ? dnsSchema : baseSchema,
-          })
-          this.log(`- IPFS Gateway: https://${config.GATEWAY_DOMAIN}`)
-          this.log(`- Upload Endpoint: https://${config.UPLOAD_DOMAIN}`)
-        } else {
-          this.log('- IPFS Gateway: http://localhost:8080')
-          this.log('- Upload Endpoint: http://localhost:5555')
+
+        const config =
+          flags.mode === 'ip'
+            ? undefined
+            : ((await new EnvManager().readEnv({
+                partial: false,
+                schema: dnsSchema,
+              })) as DnsConfig)
+
+        const urls = this.getEndpointUrls(flags.mode, config)
+        this.log(`- IPFS Gateway: ${urls.gateway}`)
+        this.log(`- Upload Endpoint: ${urls.upload}`)
+
+        if (flags.mode === 'proxy') {
+          this.logInfo('\nEnsure Cloudflare is configured with:')
+          this.log('1. DNS records pointing to your server IP')
+          this.log('2. Proxy status enabled (orange cloud)')
+          this.log('3. SSL/TLS set to Flexible or Full')
         }
       } else {
         throw new Error('Some services failed to start properly')
@@ -161,6 +158,23 @@ export default class Start extends BaseCommand {
       return status.State === 'running'
     } catch {
       return false
+    }
+  }
+
+  private getEndpointUrls(mode: string, config?: DnsConfig) {
+    const isSecure = mode !== 'ip'
+    const protocol = isSecure ? 'https://' : 'http://'
+
+    if (mode !== 'ip' && config) {
+      return {
+        gateway: `${protocol}${config.GATEWAY_DOMAIN}`,
+        upload: `${protocol}${config.UPLOAD_DOMAIN}`,
+      }
+    }
+
+    return {
+      gateway: 'http://localhost:8080',
+      upload: 'http://localhost:5555',
     }
   }
 }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pinner } from '@/app/lib/ipfs';
-import { DirectoryFile } from "ipfs-uploader";
+import { pinner } from "@/app/lib/ipfs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,15 +17,7 @@ export async function POST(request: NextRequest) {
 
     const result = await pinner.add.directory({
       dirPath: dirName,
-      files: await Promise.all(
-        files.map(
-          async (file) =>
-            ({
-              path: file.name,
-              content: Buffer.from(await file.arrayBuffer()),
-            }) as DirectoryFile
-        )
-      ),
+      files,
     });
     return NextResponse.json(result);
   } catch (error) {

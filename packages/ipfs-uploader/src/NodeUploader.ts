@@ -4,8 +4,6 @@ import * as jsonCodec from "multiformats/codecs/json";
 import {
   KuboOptions,
   UploadResult,
-  FileArrayResult,
-  DirectoryFile,
   NodeUploaderConfig,
   NodeConfig,
   DirectoryInput,
@@ -83,21 +81,28 @@ export class NodeUploader implements BaseUploader {
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
         let source;
-        if (input.files?.length) {
-          source = input.files;
-        } else if (input.dirPath) {
+        if ("files" in input) {
+          // Check for empty files array
+          if (!input.files.length) {
+            throw new Error("No files provided for upload");
+          }
+          // Convert browser Files to format expected by addAll
+          source = (async function* () {
+            for (const file of input.files) {
+              const buffer = await file.arrayBuffer();
+              yield {
+                path: file.name,
+                content: new Uint8Array(buffer),
+              };
+            }
+          })();
+        } else {
           if (typeof window !== "undefined") {
             throw new Error(
               "Directory path uploads are only supported in Node.js environments"
             );
           }
           source = globSource(input.dirPath, input.pattern ?? "**/*");
-        } else if (input.files) {
-          throw new Error("Files array is empty");
-        } else {
-          throw new Error(
-            "Either files array or directory path must be provided for directory upload"
-          );
         }
 
         let rootCid: CID | undefined;
@@ -110,7 +115,7 @@ export class NodeUploader implements BaseUploader {
 
         if (!rootCid) {
           throw new Error(
-            input.dirPath
+            "dirPath" in input
               ? `No files found in directory: ${input.dirPath}`
               : "No files were processed"
           );
@@ -119,7 +124,7 @@ export class NodeUploader implements BaseUploader {
       } catch (error) {
         if (
           error instanceof Error &&
-          input.dirPath &&
+          "dirPath" in input &&
           error.message.includes("ENOENT")
         ) {
           throw new Error(`Directory not found: ${input.dirPath}`);

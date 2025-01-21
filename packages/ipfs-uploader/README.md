@@ -9,9 +9,10 @@ Library for uploading and pinning content to IPFS. Supports multiple backends in
 - Upload and pin text content
 - Upload and pin JSON content
 - Upload and pin directories (with path or file array)
-- Upload from URLs (IPFS nodes only)
+- Upload from URLs
 - Support for both Node.js and browser environments
-- Support for multiple backends
+- Support for multiple pinners - IPFS nodes, Pinata, and S3-compatible endpoints (Filebase, 4everland, etc.)
+
 ## Installation
 
 ```bash
