@@ -27,3 +27,4 @@ package-lock.json
 /ipfs-sync.config.json
 /nginx.proxy.conf
 /docker-compose.proxy.yml
+/ipfs.config.json

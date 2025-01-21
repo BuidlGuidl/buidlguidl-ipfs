@@ -9,6 +9,9 @@ services:
       - "5001:5001"  # api
     volumes:
       - ./data/ipfs:/data/ipfs
+      - ./ipfs.config.json:/data/ipfs/config:ro
+    environment:
+      - IPFS_GATEWAY_PUBLICGATEWAYS_USESUBDOMAINS=true
 
   cluster:
     container_name: cluster
