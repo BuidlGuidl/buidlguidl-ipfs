@@ -35,11 +35,10 @@ export class PinataUploader implements BaseUploader {
         if (input instanceof File) {
           formData.append("file", input);
         } else if (typeof window === "undefined") {
-          const { readFile } = await import("fs/promises");
-          const buffer = await readFile(input);
+          const { createReadStream } = await import("fs");
+          const stream = createReadStream(input);
           const filename = input.split("/").pop() || "file";
-          const file = new File([buffer], filename);
-          formData.append("file", file);
+          formData.append("file", stream);
         } else {
           throw new Error(
             "File path strings are only supported in Node.js environments"
@@ -113,39 +112,25 @@ export class PinataUploader implements BaseUploader {
         const dirName = input.dirPath.split("/").pop();
         const formData = new FormData();
 
-        let source: AsyncIterable<{ path: string; content: any }>;
-        if (input.files?.length) {
-          source = (async function* () {
-            for (const file of input.files!) {
-              yield file;
-            }
-          })();
-        } else {
-          if (typeof window !== "undefined") {
-            throw new Error(
-              "Directory path uploads are only supported in Node.js environments"
-            );
-          }
-          source = globSource(input.dirPath, input.pattern ?? "**/*");
-        }
+        // Create a single async generator for both sources
+        const source = input.files?.length
+          ? (async function* () {
+              for (const file of input.files!) {
+                yield file;
+              }
+            })()
+          : typeof window !== "undefined"
+            ? (() => {
+                throw new Error(
+                  "Directory path uploads are only supported in Node.js environments"
+                );
+              })()
+            : globSource(input.dirPath, input.pattern ?? "**/*");
 
         // Process files from either source
         for await (const file of source) {
           if (file.content) {
-            let content: Buffer;
-            if (Buffer.isBuffer(file.content)) {
-              content = file.content;
-            } else if (file.content instanceof Uint8Array) {
-              content = Buffer.from(file.content);
-            } else {
-              // Handle async iterator from globSource
-              const chunks = [];
-              for await (const chunk of file.content) {
-                chunks.push(chunk);
-              }
-              content = Buffer.concat(chunks);
-            }
-            formData.append("file", content, {
+            formData.append("file", file.content, {
               filepath: `${dirName}${file.path}`,
             });
           }
