@@ -10,7 +10,6 @@ import { createHelia } from "helia";
 import {
   BaseUploader,
   UploadResult,
-  FileArrayResult,
   S3UploaderConfig,
   S3Config,
   S3Options,
@@ -298,17 +297,31 @@ export class S3Uploader implements BaseUploader {
 
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
-        const dirName = input.dirPath.split("/").pop();
+        // Check if using 4everland endpoint
+        if (this.config.options.endpoint.includes("4everland")) {
+          throw new Error(
+            "Directory uploads via CAR files are not supported with 4everland endpoints."
+          );
+        }
+
         let entries: { path: string; content: Buffer | Uint8Array }[] = [];
 
-        if (input.files?.length) {
-          entries = input.files;
-        } else if (input.dirPath) {
+        if ("files" in input) {
+          // Handle browser files
+          for (const file of input.files) {
+            const buffer = await file.arrayBuffer();
+            entries.push({
+              path: `${file.name}`,
+              content: new Uint8Array(buffer),
+            });
+          }
+        } else {
           if (typeof window !== "undefined") {
             throw new Error(
               "Directory path uploads are only supported in Node.js environments"
             );
           }
+          // Handle Node.js directory path
           for await (const file of globSource(
             input.dirPath,
             input.pattern ?? "**/*"
@@ -321,27 +334,24 @@ export class S3Uploader implements BaseUploader {
               });
             }
           }
-        } else if (input.files) {
-          throw new Error("Files array is empty");
-        } else {
-          throw new Error(
-            "Either files array or directory path must be provided for directory upload"
-          );
         }
 
         if (entries.length === 0) {
           throw new Error(
-            input.dirPath
+            "dirPath" in input
               ? `No files found in directory: ${input.dirPath}`
               : "No files were processed"
           );
         }
 
-        return this.uploadDirectory(entries, dirName);
+        return this.uploadDirectory(
+          entries,
+          "dirPath" in input ? input.dirPath.split("/").pop() : input.dirName
+        );
       } catch (error) {
         if (
           error instanceof Error &&
-          input.dirPath &&
+          "dirPath" in input &&
           error.message.includes("ENOENT")
         ) {
           throw new Error(`Directory not found: ${input.dirPath}`);

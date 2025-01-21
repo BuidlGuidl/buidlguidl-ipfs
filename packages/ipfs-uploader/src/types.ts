@@ -43,19 +43,22 @@ export interface NodeUploadResult extends BaseUploadResult {
   files?: { name: string; cid: string }[];
 }
 
-export interface DirectoryFile {
-  path: string;
-  content: Buffer | Uint8Array;
+export interface BrowserDirectoryInput {
+  /** Array of files to upload (for browser environments) */
+  files: File[];
+  /** Name of the directory to create */
+  dirName: string;
 }
 
-export interface DirectoryInput {
-  /** Path to directory (required for directory-based upload) */
+export interface NodeDirectoryInput {
+  /** Path to directory (for Node.js environments) */
   dirPath: string;
   /** Pattern to match files in directory */
   pattern?: string;
-  /** Array of files to upload (alternative to directory-based upload) */
-  files?: DirectoryFile[];
 }
+
+/** Input for directory uploads - either browser files or Node.js path */
+export type DirectoryInput = BrowserDirectoryInput | NodeDirectoryInput;
 
 export interface BaseUploader {
   id: string;

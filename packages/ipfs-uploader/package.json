@@ -25,6 +25,7 @@
     "blockstore-core": "^5.0.2",
     "datastore-core": "^10.0.2",
     "form-data": "^4.0.1",
+    "got": "^14.4.5",
     "helia": "^5.1.1",
     "it-all": "^3.0.6",
     "kubo-rpc-client": "^5.0.2",
