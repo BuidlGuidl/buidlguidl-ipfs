@@ -87,7 +87,12 @@
     "NoDNSLink": false,
     "NoFetch": false,
     "PublicGateways": {
-      "*": {
+      "gateway.bgipfs.com": {
+        "UseSubdomains": true,
+        "Paths": ["/ipfs", "/ipns"],
+        "NoDNSLink": false
+      },
+      "*.ipfs.gateway.bgipfs.com": {
         "UseSubdomains": true,
         "Paths": ["/ipfs", "/ipns"],
         "NoDNSLink": false
