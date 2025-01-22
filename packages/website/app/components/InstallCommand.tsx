@@ -11,7 +11,7 @@ export const InstallCommand = () => {
         <button
           onClick={() =>
             navigator.clipboard.writeText(
-              "curl -fsSL https://bgipfs.com/bgipfs-cli/install.sh | sh"
+              "curl -fsSL https://bgipfs.com/cli/install.sh | sh"
             )
           }
           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity

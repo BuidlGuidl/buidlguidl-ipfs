@@ -36,7 +36,7 @@ export class TemplateManager {
           if (identical) {
             console.log(`✓ ${file}: up to date`)
           } else {
-            console.log(`❗ ${file}: exists but has local modifications`)
+            console.log(`❗ ${file}: exists but the local file is different to the template`)
             needsAction = true
           }
         } catch {

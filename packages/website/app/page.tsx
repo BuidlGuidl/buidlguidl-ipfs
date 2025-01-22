@@ -1,3 +1,5 @@
+import { InstallCommand } from "./components/InstallCommand";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900">
@@ -22,7 +24,7 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                bgipfs: CLI for running an ipfs cluster
+                bgipfs: CLI for running an IPFS cluster and uploading to IPFS
               </a>
             </li>
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
@@ -32,8 +34,8 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                ipfs-uploader: library for easy addition of multiple content
-                types
+                ipfs-uploader: upload multiple data types to multiple IPFS
+                providers
               </a>
             </li>
             <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
@@ -57,6 +59,8 @@ export default function Home() {
               </a>
             </li>
           </ol>
+
+          <InstallCommand />
 
           {/* Action Buttons */}
           <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">

@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.2
+
+### Patch Changes
+
+- 1b96d29: Docs fixes & initial install improvements
+
 ## 0.0.1
 
 ### Patch Changes

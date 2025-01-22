@@ -26,3 +26,4 @@ node --version
 npm --version
 
 npm install -g bgipfs
+source ~/.bashrc

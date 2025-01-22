@@ -62,7 +62,7 @@ export default class Init extends BaseCommand {
       this.logInfo('Your configuration is in .env')
       this.logInfo('Your cluster identity is in identity.json')
       this.logInfo('Your cluster service configuration is in service.json')
-      this.logInfo('You can now start the cluster with `bgipfs start`')
+      this.logInfo('You can now start the cluster with `bgipfs cluster start`')
     } catch (error) {
       this.logError(`Configuration failed: ${(error as Error).message}`)
     } finally {
@@ -351,14 +351,8 @@ export default class Init extends BaseCommand {
 
   private async setupConfiguration(templates: TemplateManager, force: boolean): Promise<void> {
     this.logInfo('Installing required configuration files...')
-    const redownload =
-      force ||
-      (await this.confirm(
-        'Do you want to redownload Cluster configuration & Docker Compose? (You will be prompted to overwrite any local changes)',
-      ))
-    if (redownload) {
-      await templates.copyAllTemplates(force)
-    }
+    this.logInfo('Checking for required files, you will be prompted to overwrite any local changes')
+    await templates.copyAllTemplates(force)
 
     this.logInfo('Setting up environment...')
   }
