@@ -30,3 +30,4 @@ package-lock.json
 /ipfs.config.json
 
 /out
+tsconfig.tsbuildinfo
