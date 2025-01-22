@@ -274,7 +274,7 @@ export default class Init extends BaseCommand {
       }
 
       const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
-      this.logInfo(`Peer ID: ${identityJson.id}`)
+      this.logInfo(`Cluster Peer ID: ${identityJson.id}`)
 
       const serviceCopied = await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json')
       if (!serviceCopied) {
@@ -282,7 +282,25 @@ export default class Init extends BaseCommand {
         return
       }
 
-      this.logSuccess('IPFS cluster initialized')
+      // Copy IPFS config if it doesn't exist
+      const hasIpfsConfig = await fs
+        .access('ipfs.config.json')
+        .then(() => true)
+        .catch(() => false)
+
+      if (hasIpfsConfig) {
+        this.logWarning('Using existing ipfs.config.json, delete and re-run `bgipfs cluster config` to regenerate')
+      } else {
+        const ipfsConfigCopied = await this.copyFileIfNotEmpty('data/ipfs/config', 'ipfs.config.json')
+        if (!ipfsConfigCopied) {
+          this.logError('Failed to copy IPFS config, initialization failed')
+          return
+        }
+
+        this.logSuccess('IPFS config copied successfully')
+      }
+
+      this.logSuccess('Configuration files copied successfully')
     } catch (error) {
       // Show container logs on error
       this.logWarning('Initialization failed, showing container logs:')

@@ -23,8 +23,8 @@ package-lock.json
 /docker-compose.override.yml
 /service.json
 /config-backup
-/ipfs-upload.config.json
-/ipfs-sync.config.json
+/ipfs-upload.config*
+/ipfs-sync.config*
 /nginx.proxy.conf
 /docker-compose.proxy.yml
 /ipfs.config.json

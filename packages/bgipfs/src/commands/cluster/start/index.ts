@@ -27,6 +27,17 @@ export default class Start extends BaseCommand {
     try {
       this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
+      // Update IPFS config in proxy mode
+      if (flags.mode === 'proxy') {
+        try {
+          const env = await new EnvManager().readEnv({ schema: dnsSchema }) as DnsConfig
+          await this.updateIpfsConfig(env.GATEWAY_DOMAIN)
+        } catch (error) {
+          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
+          return
+        }
+      }
+
       // Build compose file list
       const composeFiles = ['docker-compose.yml']
       if (flags.mode === 'dns') {
@@ -46,6 +57,7 @@ export default class Start extends BaseCommand {
         'service.json',
         'identity.json',
         'htpasswd',
+        'ipfs.config.json',
         // flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
       ]
 
@@ -181,6 +193,38 @@ export default class Start extends BaseCommand {
     return {
       gateway: 'http://localhost:8080',
       upload: 'http://localhost:5555',
+    }
+  }
+
+  private async updateIpfsConfig(gatewayDomain: string): Promise<void> {
+    const configPath = 'ipfs.config.json'
+    const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
+    const publicGateways = config.Gateway.PublicGateways || {}
+
+    // Check for existing gateways
+    const gatewayDomains = Object.keys(publicGateways)
+    if (gatewayDomains.length > 0) {
+      this.logInfo('Found existing gateway configurations:')
+      for (const domain of gatewayDomains) {
+        this.logInfo(`- ${domain}`)
+      }
+    }
+
+    // Add our gateway if not present
+    if (!publicGateways[gatewayDomain]) {
+      this.logWarning('Adding proxy gateway configuration...')
+      this.logInfo(`Setting gateway domain: ${gatewayDomain}`)
+
+      config.Gateway.PublicGateways = {
+        ...publicGateways,
+        [gatewayDomain]: {
+          Paths: ['/ipfs', '/ipns'],
+          UseSubdomains: true,
+        },
+      }
+
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+      this.logSuccess('IPFS config updated')
     }
   }
 }

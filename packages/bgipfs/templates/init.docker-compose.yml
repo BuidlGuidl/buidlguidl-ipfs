@@ -1,4 +1,10 @@
 services:
+  init-ipfs:
+    image: ipfs/kubo:release
+    volumes:
+      - ./data/ipfs:/data/ipfs
+    command: ["ipfs", "init", "--profile=server"]
+
   cluster:
     container_name: cluster-init
     # PLACEHOLDER: Update with latest stable version before release

@@ -13,54 +13,35 @@ services:
       # Main gateway router
       - "traefik.http.routers.main-gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.main-gateway.entrypoints=web"
-      - "traefik.http.routers.main-gateway.middlewares=ipfs-headers"
       - "traefik.http.routers.main-gateway.service=ipfs-gateway"
       
-      # Headers (same as nginx)
-      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.Host=$${host}"
-      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Real-IP=$${remote_addr}"
-      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Forwarded-For=$${remote_addr}"
-      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Forwarded-Proto=$${scheme}"
+      # Subdomain gateway router
+      - "traefik.http.routers.subdomain-gateway.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.subdomain-gateway.entrypoints=web"
+      - "traefik.http.routers.subdomain-gateway.service=ipfs-gateway"
 
   cluster:
     labels:
       - "traefik.enable=true"
-      
-      # Upload Service
       - "traefik.http.services.upload-service.loadbalancer.server.port=9095"
-      
-      # Upload Router
       - "traefik.http.routers.upload-router.rule=Host(`${UPLOAD_DOMAIN}`) && PathPrefix(`/api/v0/`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
       - "traefik.http.routers.upload-router.entrypoints=web"
-      - "traefik.http.routers.upload-router.middlewares=upload-auth,ipfs-headers"
+      - "traefik.http.routers.upload-router.middlewares=upload-auth"
       - "traefik.http.routers.upload-router.service=upload-service"
-      
-      # Upload Auth
       - "traefik.http.middlewares.upload-auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
   traefik:
     ports:
-      - "80:80"     # HTTP (for Cloudflare proxy)
+      - "80:80"  # HTTP (for Cloudflare proxy)
     command:
-      - "--api=true"
-      - "--api.dashboard=true"
-      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--log.level=DEBUG"
       - "--accesslog=true"
-      # Detailed access logging
-      - "--accesslog.fields.headers.defaultmode=keep"
-      - "--accesslog.fields.headers.names.Host=keep"
-      - "--accesslog.fields.headers.names.X-Forwarded-For=keep"
-      - "--accesslog.fields.headers.names.X-Forwarded-Proto=keep"
-      - "--accesslog.fields.headers.names.Location=keep"
-      # Debug headers
-      - "--entrypoints.web.forwardedHeaders.insecure=true"
     environment:
       - GATEWAY_DOMAIN=${GATEWAY_DOMAIN}
       - UPLOAD_DOMAIN=${UPLOAD_DOMAIN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./htpasswd:/etc/traefik/.htpasswd:ro 
+      - ./htpasswd:/etc/traefik/.htpasswd:ro
