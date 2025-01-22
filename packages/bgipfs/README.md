@@ -75,7 +75,14 @@ When using DNS mode, you'll need to configure:
    - `*.gateway.domain.com` - Wildcard for IPFS subdomains
    - `upload.domain.com` - Points to your server IP
 
-2. Cloudflare Settings:
+2. SSL Certificate Requirements:
+   - Advanced certificate covering:
+     - `gateway.domain.com`
+     - `*.gateway.domain.com`
+     - `*.ipfs.gateway.domain.com` (for IPFS subdomain support)
+     - `upload.domain.com`
+
+3. Cloudflare Settings:
    - SSL/TLS mode: Flexible or Full
    - Enable proxy (orange cloud) for all records
    - Enable WebSockets if using the upload API
