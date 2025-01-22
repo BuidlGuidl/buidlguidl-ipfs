@@ -16,8 +16,8 @@ services:
       - "traefik.http.routers.gateway.middlewares=gateway-headers"
       - "traefik.http.routers.gateway.service=ipfs-gateway"
       
-      # Subdomain gateway
-      - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.${GATEWAY_DOMAIN}`)"
+      # Subdomain gateway - match IPFS subdomain format
+      - "traefik.http.routers.subdomain.rule=HostRegexp(`{cid:[a-z0-9]+}.ipfs.${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.subdomain.entrypoints=web"
       - "traefik.http.routers.subdomain.middlewares=subdomain-headers"
       - "traefik.http.routers.subdomain.service=ipfs-subdomain"
@@ -27,10 +27,19 @@ services:
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
-      # Headers for subdomain
+      # Headers for subdomain - preserve the full host
+      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.Host={cid}.ipfs.${GATEWAY_DOMAIN}"
       - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
       - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
       - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
+      
+      # Catch-all rule for 404s
+      - "traefik.http.routers.catch-all.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.catch-all.priority=1"  # Lower priority than other rules
+      - "traefik.http.routers.catch-all.middlewares=error-pages"
+      - "traefik.http.middlewares.error-pages.errors.status=404"
+      - "traefik.http.middlewares.error-pages.errors.service=error"
+      - "traefik.http.middlewares.error-pages.errors.query=/{status}.html"
 
   cluster:
     labels:
