@@ -79,7 +79,7 @@
     "NoFetch": false,
     "PublicGateways": {
       "gateway.bgipfs.com": {
-        "UseSubdomains": true,
+        "UseSubdomains": false,
         "Paths": ["/ipfs", "/ipns"],
         "NoDNSLink": false
       }
