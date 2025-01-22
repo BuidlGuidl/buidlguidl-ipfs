@@ -6,28 +6,21 @@ services:
       - "5001:5001"  # api
     labels:
       - "traefik.enable=true"
-      # Define services explicitly
+      
+      # IPFS Gateway Service
       - "traefik.http.services.ipfs-gateway.loadbalancer.server.port=8080"
       
-      # Main gateway
-      - "traefik.http.routers.gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
-      - "traefik.http.routers.gateway.priority=100"
-      - "traefik.http.routers.gateway.entrypoints=web"
-      - "traefik.http.routers.gateway.middlewares=gateway-headers"
-      - "traefik.http.routers.gateway.service=ipfs-gateway"
+      # IPFS Gateway Router (handles both paths and subdomains)
+      - "traefik.http.routers.ipfs-gateway.rule=Host(`${GATEWAY_DOMAIN}`) && PathPrefix(`/ipfs/`, `/ipns/`) || HostRegexp(`{subdomain:[a-z0-9-]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.ipfs-gateway.entrypoints=web"
+      - "traefik.http.routers.ipfs-gateway.middlewares=ipfs-headers"
+      - "traefik.http.routers.ipfs-gateway.service=ipfs-gateway"
       
-      # Subdomain gateway (let IPFS handle the translation)
-      - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.${GATEWAY_DOMAIN}`)"
-      - "traefik.http.routers.subdomain.priority=200"
-      - "traefik.http.routers.subdomain.entrypoints=web"
-      - "traefik.http.routers.subdomain.middlewares=gateway-headers"
-      - "traefik.http.routers.subdomain.service=ipfs-gateway"
-      
-      # Headers (same as nginx)
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.Host=$${host}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Real-IP=$${remote_addr}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-For=$${remote_addr}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-Proto=$${scheme}"
+      # IPFS Gateway Headers
+      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.Host=$${host}"
+      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Real-IP=$${remote_addr}"
+      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Forwarded-For=$${remote_addr}"
+      - "traefik.http.middlewares.ipfs-headers.headers.customrequestheaders.X-Forwarded-Proto=$${scheme}"
       
       # Catch-all rule for 404s
       - "traefik.http.routers.catch-all.rule=HostRegexp(`{host:.+}`)"
@@ -40,15 +33,18 @@ services:
   cluster:
     labels:
       - "traefik.enable=true"
-      # Define service explicitly
-      - "traefik.http.services.cluster-upload.loadbalancer.server.port=9095"
       
-      # Upload endpoint
-      - "traefik.http.routers.upload.rule=Host(`${UPLOAD_DOMAIN}`) && PathPrefix(`/api/v0/`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
-      - "traefik.http.routers.upload.entrypoints=web"
-      - "traefik.http.routers.upload.middlewares=auth,gateway-headers"
-      - "traefik.http.routers.upload.service=cluster-upload"
-      - "traefik.http.middlewares.auth.basicauth.usersfile=/etc/traefik/.htpasswd"
+      # Upload Service
+      - "traefik.http.services.upload-service.loadbalancer.server.port=9095"
+      
+      # Upload Router
+      - "traefik.http.routers.upload-router.rule=Host(`${UPLOAD_DOMAIN}`) && PathPrefix(`/api/v0/`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
+      - "traefik.http.routers.upload-router.entrypoints=web"
+      - "traefik.http.routers.upload-router.middlewares=upload-auth,ipfs-headers"
+      - "traefik.http.routers.upload-router.service=upload-service"
+      
+      # Upload Auth
+      - "traefik.http.middlewares.upload-auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
   traefik:
     ports:
