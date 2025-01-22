@@ -66,9 +66,9 @@ export default class Reset extends BaseCommand {
 
       this.logSuccess('Reset complete')
       if (flags.config) {
-        this.logInfo("You can now run 'bgipfs config' to reconfigure the cluster")
+        this.logInfo("You can now run 'bgipfs cluster config' to reconfigure the cluster")
       } else {
-        this.logInfo("You can now run 'bgipfs start' to restart the cluster")
+        this.logInfo("You can now run 'bgipfs cluster start' to restart the cluster")
       }
     } catch (error) {
       this.logError(`Reset failed: ${(error as Error).message}`)

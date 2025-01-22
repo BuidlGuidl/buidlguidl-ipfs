@@ -10,7 +10,7 @@ import {checkRunningContainers} from '../../../lib/system.js'
 export default class Start extends BaseCommand {
   static description = 'Start IPFS cluster'
 
-  static examples = ['bgipfs start', 'bgipfs start --mode dns']
+  static examples = ['bgipfs cluster start', 'bgipfs cluster start --mode dns']
 
   static flags = {
     mode: Flags.string({
