@@ -8,7 +8,6 @@ services:
       - "traefik.enable=true"
       # Define services explicitly
       - "traefik.http.services.ipfs-gateway.loadbalancer.server.port=8080"
-      - "traefik.http.services.ipfs-subdomain.loadbalancer.server.port=8080"
       
       # Main gateway
       - "traefik.http.routers.gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
@@ -16,22 +15,17 @@ services:
       - "traefik.http.routers.gateway.middlewares=gateway-headers"
       - "traefik.http.routers.gateway.service=ipfs-gateway"
       
-      # Subdomain gateway - match IPFS subdomain format
-      - "traefik.http.routers.subdomain.rule=HostRegexp(`{cid:[a-z0-9]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      # Subdomain gateway (let IPFS handle the translation)
+      - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[^.]+}.${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.subdomain.entrypoints=web"
-      - "traefik.http.routers.subdomain.middlewares=subdomain-headers"
-      - "traefik.http.routers.subdomain.service=ipfs-subdomain"
+      - "traefik.http.routers.subdomain.middlewares=gateway-headers"
+      - "traefik.http.routers.subdomain.service=ipfs-gateway"
       
-      # Headers for main gateway
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.Host=${GATEWAY_DOMAIN}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
-      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
-      # Headers for subdomain - preserve the full host
-      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.Host={cid}.ipfs.${GATEWAY_DOMAIN}"
-      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
-      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
-      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
+      # Headers (same as nginx)
+      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.Host=$${host}"
+      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Real-IP=$${remote_addr}"
+      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-For=$${remote_addr}"
+      - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-Proto=$${scheme}"
       
       # Catch-all rule for 404s
       - "traefik.http.routers.catch-all.rule=HostRegexp(`{host:.+}`)"
