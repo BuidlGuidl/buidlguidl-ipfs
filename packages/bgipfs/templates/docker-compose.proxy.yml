@@ -4,33 +4,45 @@ services:
     ports:
       - "4001:4001"  # swarm
       - "5001:5001"  # api
-      # Note: No 8080 port since gateway is handled by traefik
     labels:
       - "traefik.enable=true"
+      # Define services explicitly
+      - "traefik.http.services.ipfs-gateway.loadbalancer.server.port=8080"
+      - "traefik.http.services.ipfs-subdomain.loadbalancer.server.port=8080"
+      
       # Main gateway
       - "traefik.http.routers.gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.gateway.entrypoints=web"
       - "traefik.http.routers.gateway.middlewares=gateway-headers"
-      - "traefik.http.services.gateway.loadbalancer.server.port=8080"
+      - "traefik.http.routers.gateway.service=ipfs-gateway"
+      
       # Subdomain gateway
       - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.subdomain.entrypoints=web"
-      - "traefik.http.routers.subdomain.middlewares=gateway-headers"
-      - "traefik.http.services.subdomain.loadbalancer.server.port=8080"
-      # Headers middleware (matching nginx config)
+      - "traefik.http.routers.subdomain.middlewares=subdomain-headers"
+      - "traefik.http.routers.subdomain.service=ipfs-subdomain"
+      
+      # Headers for main gateway
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.Host=${GATEWAY_DOMAIN}"
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
       - "traefik.http.middlewares.gateway-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
+      # Headers for subdomain
+      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Real-IP=${remote_addr}"
+      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-For=${remote_addr}"
+      - "traefik.http.middlewares.subdomain-headers.headers.customrequestheaders.X-Forwarded-Proto=${scheme}"
 
   cluster:
     labels:
       - "traefik.enable=true"
-      # Upload endpoint with headers
+      # Define service explicitly
+      - "traefik.http.services.cluster-upload.loadbalancer.server.port=9095"
+      
+      # Upload endpoint
       - "traefik.http.routers.upload.rule=Host(`${UPLOAD_DOMAIN}`) && PathPrefix(`/api/v0/`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
       - "traefik.http.routers.upload.entrypoints=web"
       - "traefik.http.routers.upload.middlewares=auth,gateway-headers"
-      - "traefik.http.services.upload.loadbalancer.server.port=9095"
+      - "traefik.http.routers.upload.service=cluster-upload"
       - "traefik.http.middlewares.auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
   traefik:
@@ -43,7 +55,11 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
-      - "--log.level=INFO"
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
     environment:
       - GATEWAY_DOMAIN=${GATEWAY_DOMAIN}
-      - UPLOAD_DOMAIN=${UPLOAD_DOMAIN} 
+      - UPLOAD_DOMAIN=${UPLOAD_DOMAIN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./htpasswd:/etc/traefik/.htpasswd:ro 
