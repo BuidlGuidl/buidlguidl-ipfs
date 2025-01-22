@@ -65,16 +65,12 @@ services:
       - "--log.level=DEBUG"
       - "--accesslog=true"
       # Detailed access logging
-      - "--accesslog.fields.headers.names=Host,X-Forwarded-For,X-Forwarded-Proto,Location"
-      - "--accesslog.fields.defaultmode=keep"
-      - "--accesslog.fields.names.RequestHost=keep"
-      - "--accesslog.fields.names.RequestPath=keep"
-      - "--accesslog.fields.names.RequestMethod=keep"
-      - "--accesslog.fields.names.RequestProtocol=keep"
-      - "--accesslog.fields.names.OriginStatus=keep"
+      - "--accesslog.fields.headers.defaultmode=keep"
+      - "--accesslog.fields.headers.names.Host=keep"
+      - "--accesslog.fields.headers.names.X-Forwarded-For=keep"
+      - "--accesslog.fields.headers.names.X-Forwarded-Proto=keep"
+      - "--accesslog.fields.headers.names.Location=keep"
       # Debug headers
-      - "--entrypoints.web.transport.respondingTimeouts.readTimeout=0"
-      - "--entrypoints.web.transport.respondingTimeouts.writeTimeout=0"
       - "--entrypoints.web.forwardedHeaders.insecure=true"
     environment:
       - GATEWAY_DOMAIN=${GATEWAY_DOMAIN}
