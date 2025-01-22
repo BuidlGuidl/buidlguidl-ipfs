@@ -39,6 +39,7 @@ export default class Start extends BaseCommand {
       }
 
       // Build compose file list
+      // Build compose file list
       const composeFiles = ['docker-compose.yml']
       if (flags.mode === 'dns') {
         this.logInfo('Using DNS mode config')
