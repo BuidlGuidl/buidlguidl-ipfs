@@ -103,7 +103,6 @@ export class NodeUploader implements BaseUploader {
             );
           }
           source = globSource(input.dirPath, input.pattern ?? "**/*");
-          console.log("source", source);
         }
 
         let rootCid: CID | undefined;
@@ -112,22 +111,12 @@ export class NodeUploader implements BaseUploader {
           const options = {
             wrapWithDirectory: true,
             cidVersion: 1 as const,
-            timeout: 300000,
-            chunker: "size-262144",
-            fileImportConcurrency: 1, // Reduced concurrency
-            blockWriteConcurrency: 1, // Reduced concurrency
-            pin: false, // Disable pinning during upload
-            progress: (progress: number) => {
-              console.log("Upload progress:", progress);
-            },
+            // progress: (progress: number) => {
+            //   // console.log("Upload progress:", progress);
+            // },
           };
 
           for await (const file of this.rpcClient.addAll(source, options)) {
-            console.log("File added:", {
-              path: file.path,
-              cid: file.cid.toString(),
-              size: file.size,
-            });
             rootCid = file.cid;
           }
         } catch (error) {
@@ -146,10 +135,6 @@ export class NodeUploader implements BaseUploader {
               : "No files were processed"
           );
         }
-        console.log(
-          "Upload completed successfully, returning CID:",
-          rootCid.toString()
-        );
         return { success: true, cid: rootCid.toString() };
       } catch (error) {
         if (
