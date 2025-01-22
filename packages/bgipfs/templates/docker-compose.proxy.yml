@@ -11,12 +11,14 @@ services:
       
       # Main gateway
       - "traefik.http.routers.gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.gateway.priority=100"
       - "traefik.http.routers.gateway.entrypoints=web"
       - "traefik.http.routers.gateway.middlewares=gateway-headers"
       - "traefik.http.routers.gateway.service=ipfs-gateway"
       
       # Subdomain gateway (let IPFS handle the translation)
-      - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[^.]+}.${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.subdomain.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.subdomain.priority=200"
       - "traefik.http.routers.subdomain.entrypoints=web"
       - "traefik.http.routers.subdomain.middlewares=gateway-headers"
       - "traefik.http.routers.subdomain.service=ipfs-gateway"
