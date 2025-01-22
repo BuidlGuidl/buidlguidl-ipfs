@@ -11,7 +11,7 @@ services:
       - "traefik.http.services.ipfs-gateway.loadbalancer.server.port=8080"
       
       # IPFS Gateway Router (handles both paths and subdomains)
-      - "traefik.http.routers.ipfs-gateway.rule=Host(`${GATEWAY_DOMAIN}`) && PathPrefix(`/ipfs/`, `/ipns/`) || HostRegexp(`{subdomain:[a-z0-9-]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      - "traefik.http.routers.ipfs-gateway.rule=Host(`${GATEWAY_DOMAIN}`) || HostRegexp(`{subdomain:[a-z0-9-]+}.ipfs.${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.ipfs-gateway.entrypoints=web"
       - "traefik.http.routers.ipfs-gateway.middlewares=ipfs-headers"
       - "traefik.http.routers.ipfs-gateway.service=ipfs-gateway"
