@@ -50,18 +50,6 @@ export default class Start extends BaseCommand {
       // Check required files
       const requiredFiles = [...composeFiles, '.env', 'service.json', 'identity.json', 'htpasswd', 'ipfs.config.json']
 
-      // Check SSL certificates only if using DNS mode
-      if (flags.mode === 'dns') {
-        this.logInfo('Checking SSL certificates...')
-        try {
-          await fs.access('data/certbot/conf')
-          this.logSuccess('Found SSL certificates')
-        } catch {
-          this.logError("SSL certificates not found. Please run 'bgipfs ssl' first")
-          return
-        }
-      }
-
       // Check all required files
       this.logInfo('Checking required files...')
       for (const file of requiredFiles) {
