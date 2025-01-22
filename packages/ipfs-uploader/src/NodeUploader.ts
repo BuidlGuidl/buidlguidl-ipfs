@@ -106,11 +106,26 @@ export class NodeUploader implements BaseUploader {
         }
 
         let rootCid: CID | undefined;
-        for await (const file of this.rpcClient.addAll(source, {
-          wrapWithDirectory: true,
-          cidVersion: 1,
-        })) {
-          rootCid = file.cid;
+        try {
+          // Try with different IPFS client options
+          const options = {
+            wrapWithDirectory: true,
+            cidVersion: 1 as const,
+            // progress: (progress: number) => {
+            //   // console.log("Upload progress:", progress);
+            // },
+          };
+
+          for await (const file of this.rpcClient.addAll(source, options)) {
+            rootCid = file.cid;
+          }
+        } catch (error) {
+          console.error("IPFS add error:", {
+            error,
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+          throw error;
         }
 
         if (!rootCid) {

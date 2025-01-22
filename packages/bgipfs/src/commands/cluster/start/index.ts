@@ -10,14 +10,14 @@ import {checkRunningContainers} from '../../../lib/system.js'
 export default class Start extends BaseCommand {
   static description = 'Start IPFS cluster'
 
-  static examples = ['bgipfs start', 'bgipfs start --mode dns', 'bgipfs start --mode proxy']
+  static examples = ['bgipfs start', 'bgipfs start --mode dns']
 
   static flags = {
     mode: Flags.string({
       char: 'm',
       default: 'ip',
-      description: 'Cluster mode: ip (default), dns (with SSL), or proxy (behind Cloudflare)',
-      options: ['ip', 'dns', 'proxy'],
+      description: 'Cluster mode: ip (default) or dns (with Cloudflare proxy)',
+      options: ['ip', 'dns'],
     }),
   }
 
@@ -27,33 +27,28 @@ export default class Start extends BaseCommand {
     try {
       this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
-      // Build compose file list
-      const composeFiles = ['docker-compose.yml']
-      if (flags.mode !== 'ip') {
-        composeFiles.push('docker-compose.dns.yml')
-      }
-
-      // Check required files
-      const requiredFiles = [
-        ...composeFiles,
-        '.env',
-        'service.json',
-        'identity.json',
-        'htpasswd',
-        flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
-      ]
-
-      // Check SSL certificates only if using DNS mode
+      // Update IPFS config in DNS mode
       if (flags.mode === 'dns') {
-        this.logInfo('Checking SSL certificates...')
         try {
-          await fs.access('data/certbot/conf')
-          this.logSuccess('Found SSL certificates')
-        } catch {
-          this.logError("SSL certificates not found. Please run 'bgipfs ssl' first")
+          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
+          await this.updateIpfsConfig(env.GATEWAY_DOMAIN)
+        } catch (error) {
+          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
           return
         }
       }
+
+      // Build compose file list
+      const composeFiles = ['docker-compose.yml']
+      if (flags.mode === 'dns') {
+        this.logInfo('Using DNS mode config')
+        composeFiles.push('docker-compose.dns.yml')
+      }
+
+      this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
+
+      // Check required files
+      const requiredFiles = [...composeFiles, '.env', 'service.json', 'identity.json', 'htpasswd', 'ipfs.config.json']
 
       // Check all required files
       this.logInfo('Checking required files...')
@@ -91,7 +86,7 @@ export default class Start extends BaseCommand {
       await new Promise((resolve) => setTimeout(resolve, 10_000))
 
       // Check services in parallel
-      const services = ['nginx', 'ipfs', 'cluster']
+      const services = ['traefik', 'ipfs', 'cluster']
       this.logInfo('Checking service health...')
       const results = await Promise.all(
         services.map(async (service) => {
@@ -137,7 +132,7 @@ export default class Start extends BaseCommand {
         this.log(`- IPFS Gateway: ${urls.gateway}`)
         this.log(`- Upload Endpoint: ${urls.upload}`)
 
-        if (flags.mode === 'proxy') {
+        if (flags.mode === 'dns') {
           this.logInfo('\nEnsure Cloudflare is configured with:')
           this.log('1. DNS records pointing to your server IP')
           this.log('2. Proxy status enabled (orange cloud)')
@@ -175,6 +170,38 @@ export default class Start extends BaseCommand {
     return {
       gateway: 'http://localhost:8080',
       upload: 'http://localhost:5555',
+    }
+  }
+
+  private async updateIpfsConfig(gatewayDomain: string): Promise<void> {
+    const configPath = 'ipfs.config.json'
+    const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
+    const publicGateways = config.Gateway.PublicGateways || {}
+
+    // Check for existing gateways
+    const gatewayDomains = Object.keys(publicGateways)
+    if (gatewayDomains.length > 0) {
+      this.logInfo('Found existing gateway configurations:')
+      for (const domain of gatewayDomains) {
+        this.logInfo(`- ${domain}`)
+      }
+    }
+
+    // Add our gateway if not present
+    if (!publicGateways[gatewayDomain]) {
+      this.logWarning('Adding DNS gateway configuration...')
+      this.logInfo(`Setting gateway domain: ${gatewayDomain}`)
+
+      config.Gateway.PublicGateways = {
+        ...publicGateways,
+        [gatewayDomain]: {
+          Paths: ['/ipfs', '/ipns'],
+          UseSubdomains: true,
+        },
+      }
+
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+      this.logSuccess('IPFS config updated')
     }
   }
 }

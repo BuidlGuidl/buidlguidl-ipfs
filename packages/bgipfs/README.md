@@ -37,7 +37,6 @@ bgipfs cluster
   install  Install all required dependencies
   logs     Show container logs
   reset    Reset IPFS cluster and remove all data
-  ssl      Generate SSL certificates using Let's Encrypt
   start    Start IPFS cluster
   stop     Stop IPFS cluster
 ```
@@ -52,18 +51,41 @@ During cluster setup, the `cluster config` command will help you populate:
 - `PEERADDRESSES` - Bootstrap peer addresses
 - `AUTH_USERNAME` - Basic auth username
 - `AUTH_PASSWORD` - Basic auth password
-- `GATEWAY_DOMAIN` - Gateway domain (DNS mode)
-- `UPLOAD_DOMAIN` - Upload endpoint domain (DNS mode)
+- `GATEWAY_DOMAIN` - Gateway domain (dns mode)
+- `UPLOAD_DOMAIN` - Upload endpoint domain (dns mode)
 
-#### Identity File (identity.json)
-- `id` - Public peer ID
-- `private_key` - Private key [DO NOT SHARE]
+#### Configuration Files
+- `identity.json` - Cluster peer identity [DO NOT SHARE]
+- `service.json` - Cluster service configuration
+- `ipfs.config.json` - IPFS node configuration
+- `htpasswd` - Basic auth credentials
 
 ### Cluster Modes
 
 The cluster can run in two modes:
-- `ip` - Basic IP-based mode
-- `dns` - Domain-based mode with SSL support
+- `ip` - Basic IP-based mode (default)
+- `dns` - Domain-based mode with Cloudflare proxy
+
+### DNS Mode Setup
+
+When using DNS mode, you'll need to configure:
+
+1. DNS Records in Cloudflare:
+   - `gateway.domain.com` - Points to your server IP
+   - `*.gateway.domain.com` - Wildcard for IPFS subdomains
+   - `upload.domain.com` - Points to your server IP
+
+2. SSL Certificate Requirements:
+   - Advanced certificate covering:
+     - `gateway.domain.com`
+     - `*.gateway.domain.com`
+     - `*.ipfs.gateway.domain.com` (for IPFS subdomain support)
+     - `upload.domain.com`
+
+3. Cloudflare Settings:
+   - SSL/TLS mode: Flexible or Full
+   - Enable proxy (orange cloud) for all records
+   - Enable WebSockets if using the upload API
 
 ### Required Ports
 
@@ -73,8 +95,7 @@ The cluster can run in two modes:
 | 9096 | TCP | Yes | Yes | Cluster swarm |
 | 8080 | TCP | Yes | No | IPFS gateway |
 | 5555 | TCP | Yes | No | Upload endpoint |
-| 80 | TCP | No | Yes | HTTP |
-| 443 | TCP | No | Yes | HTTPS |
+| 80 | TCP | No | Yes | HTTP proxy |
 
 ## Upload Commands
 Powered by [ipfs-uploader](../ipfs-uploader/)

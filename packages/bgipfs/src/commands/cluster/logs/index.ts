@@ -6,8 +6,8 @@ import {BaseCommand} from '../../../base-command.js'
 export default class Logs extends BaseCommand {
   static args = {
     service: Args.string({
-      description: 'Service to show logs for (ipfs, cluster, nginx)',
-      options: ['ipfs', 'cluster', 'nginx'],
+      description: 'Service to show logs for (ipfs, cluster, traefik)',
+      options: ['ipfs', 'cluster', 'traefik'],
       required: false,
     }),
   }
@@ -36,7 +36,7 @@ export default class Logs extends BaseCommand {
     const {args, flags} = await this.parse(Logs)
 
     try {
-      const services = args.service ? [args.service] : ['ipfs', 'cluster', 'nginx']
+      const services = args.service ? [args.service] : ['ipfs', 'cluster', 'traefik']
       const logArgs = ['compose', 'logs']
 
       if (flags.follow) logArgs.push('--follow')

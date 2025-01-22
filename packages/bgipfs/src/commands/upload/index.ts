@@ -80,7 +80,7 @@ export default class UploadCommand extends BaseCommand {
       this.logSuccess(`File uploaded. CID: ${result.cid}`)
       if (result.errorCount) {
         this.logError(`${result.errorCount} / ${result.totalNodes} nodes failed`)
-      } else {
+      } else if (result.successCount) {
         this.logSuccess(`Uploaded to ${result.successCount} / ${result.totalNodes} nodes`)
       }
     } else {
