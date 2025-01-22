@@ -354,7 +354,7 @@ export default class Init extends BaseCommand {
     const redownload =
       force ||
       (await this.confirm(
-        'Do you want to redownload Cluster configuration, Docker Compose & nginx files? (You will be prompted to overwrite any local changes)',
+        'Do you want to redownload Cluster configuration & Docker Compose? (You will be prompted to overwrite any local changes)',
       ))
     if (redownload) {
       await templates.copyAllTemplates(force)

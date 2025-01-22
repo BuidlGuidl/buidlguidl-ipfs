@@ -10,14 +10,14 @@ import {checkRunningContainers} from '../../../lib/system.js'
 export default class Start extends BaseCommand {
   static description = 'Start IPFS cluster'
 
-  static examples = ['bgipfs start', 'bgipfs start --mode dns', 'bgipfs start --mode proxy']
+  static examples = ['bgipfs start', 'bgipfs start --mode dns']
 
   static flags = {
     mode: Flags.string({
       char: 'm',
       default: 'ip',
-      description: 'Cluster mode: ip (default), dns (with SSL), or proxy (behind Cloudflare)',
-      options: ['ip', 'dns', 'proxy'],
+      description: 'Cluster mode: ip (default) or dns (with Cloudflare proxy)',
+      options: ['ip', 'dns'],
     }),
   }
 
@@ -27,10 +27,10 @@ export default class Start extends BaseCommand {
     try {
       this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
-      // Update IPFS config in proxy mode
-      if (flags.mode === 'proxy') {
+      // Update IPFS config in DNS mode
+      if (flags.mode === 'dns') {
         try {
-          const env = await new EnvManager().readEnv({ schema: dnsSchema }) as DnsConfig
+          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
           await this.updateIpfsConfig(env.GATEWAY_DOMAIN)
         } catch (error) {
           this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
@@ -42,24 +42,13 @@ export default class Start extends BaseCommand {
       const composeFiles = ['docker-compose.yml']
       if (flags.mode === 'dns') {
         this.logInfo('Using DNS mode config')
-        composeFiles.push('docker-compose.dns.yml')
-      } else if (flags.mode === 'proxy') {
-        this.logInfo('Using proxy mode config')
-        composeFiles.push('docker-compose.proxy.yml')
+        composeFiles.push('docker-compose.dns.yml') // We'll need to rename this file too
       }
 
       this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
 
       // Check required files
-      const requiredFiles = [
-        ...composeFiles,
-        '.env',
-        'service.json',
-        'identity.json',
-        'htpasswd',
-        'ipfs.config.json',
-        // flags.mode === 'proxy' ? 'nginx.proxy.conf' : flags.mode === 'dns' ? 'nginx.dns.conf' : 'nginx.ip.conf',
-      ]
+      const requiredFiles = [...composeFiles, '.env', 'service.json', 'identity.json', 'htpasswd', 'ipfs.config.json']
 
       // Check SSL certificates only if using DNS mode
       if (flags.mode === 'dns') {
@@ -155,7 +144,7 @@ export default class Start extends BaseCommand {
         this.log(`- IPFS Gateway: ${urls.gateway}`)
         this.log(`- Upload Endpoint: ${urls.upload}`)
 
-        if (flags.mode === 'proxy') {
+        if (flags.mode === 'dns') {
           this.logInfo('\nEnsure Cloudflare is configured with:')
           this.log('1. DNS records pointing to your server IP')
           this.log('2. Proxy status enabled (orange cloud)')
@@ -212,7 +201,7 @@ export default class Start extends BaseCommand {
 
     // Add our gateway if not present
     if (!publicGateways[gatewayDomain]) {
-      this.logWarning('Adding proxy gateway configuration...')
+      this.logWarning('Adding DNS gateway configuration...')
       this.logInfo(`Setting gateway domain: ${gatewayDomain}`)
 
       config.Gateway.PublicGateways = {

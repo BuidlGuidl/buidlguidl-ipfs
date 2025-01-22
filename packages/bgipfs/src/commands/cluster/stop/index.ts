@@ -18,7 +18,7 @@ export default class Stop extends BaseCommand {
     const {flags} = await this.parse(Stop)
 
     try {
-      const services = ['ipfs', 'cluster', 'nginx']
+      const services = ['ipfs', 'cluster', 'traefik']
 
       // Show stopping status for each service
       for (const service of services) {
