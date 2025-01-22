@@ -1,4 +1,4 @@
-# Proxy mode overrides
+# DNS mode overrides
 services:
   ipfs:
     ports:

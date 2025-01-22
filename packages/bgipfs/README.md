@@ -51,8 +51,8 @@ During cluster setup, the `cluster config` command will help you populate:
 - `PEERADDRESSES` - Bootstrap peer addresses
 - `AUTH_USERNAME` - Basic auth username
 - `AUTH_PASSWORD` - Basic auth password
-- `GATEWAY_DOMAIN` - Gateway domain (proxy mode)
-- `UPLOAD_DOMAIN` - Upload endpoint domain (proxy mode)
+- `GATEWAY_DOMAIN` - Gateway domain (dns mode)
+- `UPLOAD_DOMAIN` - Upload endpoint domain (dns mode)
 
 #### Configuration Files
 - `identity.json` - Cluster peer identity [DO NOT SHARE]
