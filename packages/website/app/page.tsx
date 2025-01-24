@@ -1,4 +1,5 @@
 import { InstallCommand } from "./components/InstallCommand";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -64,13 +65,13 @@ export default function Home() {
 
           {/* Action Buttons */}
           <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">
-            <a
+            <Link
               className="rounded-lg px-8 py-3 bg-black dark:bg-white text-white dark:text-black font-semibold 
                          transition-all hover:scale-105 hover:shadow-lg"
               href="/upload"
             >
               Upload
-            </a>
+            </Link>
             <a
               className="rounded-lg px-8 py-3 border border-gray-200 dark:border-gray-700 
                          hover:bg-gray-50 dark:hover:bg-gray-800 transition-all font-semibold"

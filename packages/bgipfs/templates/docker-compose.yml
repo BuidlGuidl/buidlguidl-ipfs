@@ -16,7 +16,7 @@ services:
       # IPFS routes
       - "traefik.http.routers.ipfs.rule=PathPrefix(`/ipfs/`) || PathPrefix(`/ipns/`)"
       - "traefik.http.routers.ipfs.entrypoints=web"
-      - "traefik.http.services.ipfs.loadbalancer.server.port=5001"
+      - "traefik.http.services.ipfs.loadbalancer.server.port=8080"
 
   cluster:
     container_name: cluster
@@ -44,7 +44,7 @@ services:
     labels:
       - "traefik.enable=true"
       # IPFS Cluster routes
-      - "traefik.http.routers.cluster.rule=PathPrefix(`/api/v0/`)"
+      - "traefik.http.routers.cluster.rule=Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`)"
       - "traefik.http.routers.cluster.entrypoints=web"
       - "traefik.http.routers.cluster.middlewares=auth"
       - "traefik.http.services.cluster.loadbalancer.server.port=9095"
