@@ -3,7 +3,7 @@ services:
   ipfs:
     ports:
       - "4001:4001"  # swarm
-      - "5001:5001"  # api
+      - "127.0.0.1:5001:5001"  # api access from localhost
     labels:
       - "traefik.enable=true"
       
@@ -24,24 +24,19 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.upload-service.loadbalancer.server.port=9095"
-      - "traefik.http.routers.upload-router.rule=Host(`${UPLOAD_DOMAIN}`) && PathPrefix(`/api/v0/`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
+      - "traefik.http.routers.upload-router.rule=Host(`${UPLOAD_DOMAIN}`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
       - "traefik.http.routers.upload-router.entrypoints=web"
       - "traefik.http.routers.upload-router.middlewares=upload-auth"
       - "traefik.http.routers.upload-router.service=upload-service"
-      - "traefik.http.middlewares.upload-auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
   traefik:
     ports:
       - "80:80"  # HTTP (for Cloudflare proxy)
     command:
+      - "--api=true"
+      - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--log.level=DEBUG"
       - "--accesslog=true"
-    environment:
-      - GATEWAY_DOMAIN=${GATEWAY_DOMAIN}
-      - UPLOAD_DOMAIN=${UPLOAD_DOMAIN}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./htpasswd:/etc/traefik/.htpasswd:ro

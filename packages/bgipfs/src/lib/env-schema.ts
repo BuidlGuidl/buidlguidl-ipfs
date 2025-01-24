@@ -8,8 +8,8 @@ const domainPattern = /^(?:[\dA-Za-z](?:[\dA-Za-z-]{0,61}[\dA-Za-z])?\.)+[A-Za-z
 // Base schema with core IPFS cluster fields
 export const baseSchema = z
   .object({
-    AUTH_PASSWORD: z.string().min(8, 'Password must be at least 8 characters long'),
-    AUTH_USER: z.string().min(3, 'Username must be at least 3 characters long'),
+    ADMIN_PASSWORD: z.string().min(8, 'Admin password must be at least 8 characters long'),
+    ADMIN_USERNAME: z.string().min(3, 'Admin username must be at least 3 characters long'),
     PEERADDRESSES: z.string().refine((val) => {
       if (!val) return true // Empty is valid for first node
       return val
@@ -17,15 +17,15 @@ export const baseSchema = z
         .map((addr) => addr.trim())
         .every((addr) => peerAddressPattern.test(addr))
     }, 'Invalid peer address format. Expected: /dns4/{ip-or-domain}/tcp/9096/ipfs/{peerid}'),
-
     PEERNAME: z.string().min(3, 'Peer name must be at least 3 characters long'),
     SECRET: z.string().regex(secretPattern, 'Must be a 64-character hex string'),
+    USER_PASSWORD: z.string().min(8, 'User password must be at least 8 characters long'),
+    USER_USERNAME: z.string().min(3, 'User username must be at least 3 characters long'),
   })
   .passthrough()
 
 // DNS schema extends base schema with authentication fields
 export const dnsSchema = baseSchema.extend({
-  ADMIN_EMAIL: z.string().email('Must be a valid email address').optional(),
   GATEWAY_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
   UPLOAD_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
 })

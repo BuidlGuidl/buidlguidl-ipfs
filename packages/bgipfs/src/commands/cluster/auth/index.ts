@@ -1,10 +1,8 @@
-import {input, password} from '@inquirer/prompts'
 import {Args, Flags} from '@oclif/core'
-import {execa} from 'execa'
-import {randomBytes} from 'node:crypto'
 import {promises as fs} from 'node:fs'
 
 import {BaseCommand} from '../../../base-command.js'
+import {AuthService} from '../../../lib/auth-service.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 
 export default class Auth extends BaseCommand {
@@ -22,6 +20,12 @@ export default class Auth extends BaseCommand {
   static description = 'Manage authentication credentials'
 
   static flags = {
+    role: Flags.string({
+      char: 'r',
+      description: 'Role to manage (admin or user)',
+      options: ['admin', 'user'],
+      required: true,
+    }),
     update: Flags.boolean({
       char: 'u',
       default: false,
@@ -32,53 +36,39 @@ export default class Auth extends BaseCommand {
   async run(): Promise<void> {
     const {args, flags} = await this.parse(Auth)
     const env = new EnvManager()
+    const authService = new AuthService(env)
 
     try {
-      // Show current credentials if not updating
-      if (!flags.update) {
+      const authFile = `auth/${flags.role}-htpasswd`
+      const authFileExists = await fs
+        .access(authFile)
+        .then(() => true)
+        .catch(() => false)
+
+      // Show current credentials if not updating and auth file exists
+      if (!flags.update && authFileExists) {
         const config = await env.readEnv()
         this.log('Current credentials:')
-        this.log(`Username: ${config.AUTH_USER || 'not set'}`)
-        this.log(`Password: ${config.AUTH_PASSWORD ? '********' : 'not set'}`)
+        if (flags.role === 'admin') {
+          this.log(`Admin username: ${config.ADMIN_USERNAME || 'not set'}`)
+          this.log(`Admin password: ${config.ADMIN_PASSWORD ? '********' : 'not set'}`)
+        } else {
+          this.log(`User username: ${config.USER_USERNAME || 'not set'}`)
+          this.log(`User password: ${config.USER_PASSWORD ? '********' : 'not set'}`)
+        }
+
         return
       }
 
-      // Update credentials
-      const username =
-        args.username ||
-        (await input({
-          default: 'admin',
-          message: 'Enter new username (press enter to use "admin")',
-        }))
+      const authPassword = await authService.setupCredentials(flags.role as 'admin' | 'user', args)
 
-      const authPassword = (args.password ||
-        (await password({
-          message: 'Enter new password (press enter to generate)',
-        }).then((p) => p || this.generateSecret()))) as string
-
-      // Update env file and htpasswd
-      await env.updateEnv([
-        {key: 'AUTH_USER', value: username},
-        {key: 'AUTH_PASSWORD', value: authPassword},
-      ])
-      await this.createAuthFile(username, authPassword)
-
-      this.logSuccess('Authentication credentials updated')
+      this.logSuccess(`${flags.role} credentials updated`)
       if (!args.password) {
         this.log(`Generated password: ${authPassword}`)
-        this.log('Please save this password - it will not be shown again')
+        this.log('This username and password have been saved to the .env file.')
       }
     } catch (error) {
       this.logError(`Failed to manage auth: ${(error as Error).message}`)
     }
-  }
-
-  private async createAuthFile(username: string, password: string): Promise<void> {
-    const htpasswd = `${username}:${await execa('openssl', ['passwd', '-apr1', password]).then((r) => r.stdout)}`
-    await fs.writeFile('htpasswd', htpasswd)
-  }
-
-  private generateSecret(): string {
-    return randomBytes(32).toString('hex')
   }
 }

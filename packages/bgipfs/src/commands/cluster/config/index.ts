@@ -6,6 +6,7 @@ import fs from 'node:fs/promises'
 import {z} from 'zod'
 
 import {BaseCommand} from '../../../base-command.js'
+import {AuthService} from '../../../lib/auth-service.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {baseSchema} from '../../../lib/env-schema.js'
 import {checkDocker, checkRunningContainers} from '../../../lib/system.js'
@@ -50,13 +51,7 @@ export default class Init extends BaseCommand {
       const envValues = await this.collectEnvValues(flags, currentEnv)
       await env.updateEnv(envValues)
 
-      // Create auth file
-      await this.createAuthFile(
-        envValues.find((v) => v.key === 'AUTH_USER')!.value,
-        envValues.find((v) => v.key === 'AUTH_PASSWORD')!.value,
-      )
-
-      await this.initializeCluster()
+      await this.initializeCluster(flags.force)
 
       this.logSuccess('Configuration completed successfully!')
       this.logInfo('Your configuration is in .env')
@@ -78,11 +73,13 @@ export default class Init extends BaseCommand {
   private async collectEnvValues(
     flags: {force: boolean},
     currentEnv: {
-      AUTH_PASSWORD: string
-      AUTH_USER: string
+      ADMIN_PASSWORD: string
+      ADMIN_USERNAME: string
       PEERADDRESSES: string
       PEERNAME: string
       SECRET: string
+      USER_PASSWORD: string
+      USER_USERNAME: string
     },
   ) {
     const peername =
@@ -108,14 +105,43 @@ export default class Init extends BaseCommand {
     }
 
     const peerAddresses = await this.getPeerAddresses(flags, currentEnv)
-    const {authPassword, authUser} = await this.getAuthCredentials(flags, currentEnv)
+
+    // Initialize auth service
+    const authService = new AuthService(new EnvManager())
+
+    // Set up admin credentials first
+    const adminCreds = await authService.setupCredentials(
+      'admin',
+      {
+        password: flags.force ? currentEnv.ADMIN_PASSWORD : undefined,
+        username: flags.force ? currentEnv.ADMIN_USERNAME : undefined,
+      },
+      {save: false},
+    )
+
+    // Then set up user credentials
+    const userCreds = await authService.setupCredentials(
+      'user',
+      {
+        password: flags.force ? currentEnv.USER_PASSWORD : undefined,
+        username: flags.force ? currentEnv.USER_USERNAME : undefined,
+      },
+      {save: false},
+    )
+
+    if (!flags.force) {
+      this.logSuccess('Generated admin password: ' + adminCreds.password)
+      this.logSuccess('Generated user password: ' + userCreds.password)
+    }
 
     return [
       {key: 'PEERNAME', value: peername},
       {key: 'SECRET', value: secret},
       {key: 'PEERADDRESSES', value: peerAddresses || ''},
-      {key: 'AUTH_USER', value: authUser},
-      {key: 'AUTH_PASSWORD', value: authPassword},
+      {key: 'ADMIN_USERNAME', value: adminCreds.username},
+      {key: 'ADMIN_PASSWORD', value: adminCreds.password},
+      {key: 'USER_USERNAME', value: userCreds.username},
+      {key: 'USER_PASSWORD', value: userCreds.password},
     ]
   }
 
@@ -129,58 +155,57 @@ export default class Init extends BaseCommand {
     return true
   }
 
-  private async createAuthFile(username: string, password: string): Promise<void> {
-    try {
-      // Create htpasswd file using openssl (same as auth.sh)
-      const htpasswd = `${username}:${await execa('openssl', ['passwd', '-apr1', password]).then((r) => r.stdout)}`
-      await fs.writeFile('htpasswd', htpasswd)
-      this.logSuccess('Created authentication file')
-    } catch (error) {
-      throw new Error(`Failed to create auth file: ${(error as Error).message}`)
-    }
-  }
+  private async copyWithConfirmation(
+    sourcePath: string,
+    destPath: string,
+    force: boolean,
+    description: string,
+  ): Promise<boolean> {
+    const hasFile = await fs
+      .access(destPath)
+      .then(() => true)
+      .catch(() => false)
 
-  private async generatePassword(): Promise<string> {
-    try {
-      const {stdout} = await execa('openssl', ['rand', '-base64', '32'])
-      return stdout.trim()
-    } catch {
-      // Fall back to Node.js crypto if openssl fails
-      return this.generateSecret()
+    if (!hasFile) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logSuccess(`${description} copied successfully`)
+      return true
     }
+
+    if (force) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logWarning(`${description} forcefully overwritten`)
+      return true
+    }
+
+    const shouldOverwrite = await this.confirm(`${description} already exists. Would you like to overwrite it?`)
+    if (shouldOverwrite) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logSuccess(`${description} overwritten successfully`)
+      return true
+    }
+
+    this.logInfo(`Using existing ${description}`)
+    return true
   }
 
   private generateSecret(): string {
     return randomBytes(32).toString('hex')
-  }
-
-  private async getAuthCredentials(flags: {force: boolean}, currentEnv: {AUTH_PASSWORD: string; AUTH_USER: string}) {
-    const authUser =
-      flags.force && currentEnv.AUTH_USER
-        ? currentEnv.AUTH_USER
-        : await input({
-            default: currentEnv.AUTH_USER || 'admin',
-            message: 'Enter authentication username',
-          })
-
-    let authPassword =
-      flags.force && currentEnv.AUTH_PASSWORD
-        ? currentEnv.AUTH_PASSWORD
-        : await input({
-            default: currentEnv.AUTH_PASSWORD,
-            message: 'Enter authentication password (leave blank to generate a new one)',
-            validate: (value) => {
-              if (value === '') return true
-              return this.validateInput(baseSchema.shape.AUTH_PASSWORD, value)
-            },
-          })
-
-    if (!authPassword) {
-      authPassword = await this.generatePassword()
-      this.logSuccess('Generated password: ' + authPassword)
-    }
-
-    return {authPassword, authUser}
   }
 
   private async getPeerAddresses(flags: {force: boolean}, currentEnv: {PEERADDRESSES: string}): Promise<string> {
@@ -195,7 +220,7 @@ export default class Init extends BaseCommand {
         })
   }
 
-  private async initializeCluster(): Promise<void> {
+  private async initializeCluster(force: boolean): Promise<void> {
     this.logInfo('Initializing IPFS cluster...')
     this.logInfo('Removing data/ipfs-cluster/service.json file if it exists...')
     await fs.unlink('data/ipfs-cluster/service.json').catch(() => {
@@ -276,29 +301,23 @@ export default class Init extends BaseCommand {
       const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
       this.logInfo(`Cluster Peer ID: ${identityJson.id}`)
 
-      const serviceCopied = await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json')
-      if (!serviceCopied) {
-        this.logError('Failed to copy service.json, cluster initialization failed')
-        return
-      }
+      // Handle service.json
+      const serviceSuccess = await this.copyWithConfirmation(
+        'data/ipfs-cluster/service.json',
+        'service.json',
+        force,
+        'service.json',
+      )
+      if (!serviceSuccess) return
 
-      // Copy IPFS config if it doesn't exist
-      const hasIpfsConfig = await fs
-        .access('ipfs.config.json')
-        .then(() => true)
-        .catch(() => false)
-
-      if (hasIpfsConfig) {
-        this.logWarning('Using existing ipfs.config.json, delete and re-run `bgipfs cluster config` to regenerate')
-      } else {
-        const ipfsConfigCopied = await this.copyFileIfNotEmpty('data/ipfs/config', 'ipfs.config.json')
-        if (!ipfsConfigCopied) {
-          this.logError('Failed to copy IPFS config, initialization failed')
-          return
-        }
-
-        this.logSuccess('IPFS config copied successfully')
-      }
+      // Handle ipfs.config.json
+      const ipfsSuccess = await this.copyWithConfirmation(
+        'data/ipfs/config',
+        'ipfs.config.json',
+        force,
+        'ipfs.config.json',
+      )
+      if (!ipfsSuccess) return
 
       this.logSuccess('Configuration files copied successfully')
     } catch (error) {
@@ -317,18 +336,22 @@ export default class Init extends BaseCommand {
   }
 
   private async readCurrentEnv(env: EnvManager): Promise<{
-    AUTH_PASSWORD: string
-    AUTH_USER: string
+    ADMIN_PASSWORD: string
+    ADMIN_USERNAME: string
     PEERADDRESSES: string
     PEERNAME: string
     SECRET: string
+    USER_PASSWORD: string
+    USER_USERNAME: string
   }> {
     const defaultEnv = {
-      AUTH_PASSWORD: '',
-      AUTH_USER: 'admin',
+      ADMIN_PASSWORD: '',
+      ADMIN_USERNAME: 'admin',
       PEERADDRESSES: '',
       PEERNAME: '',
       SECRET: '',
+      USER_PASSWORD: '',
+      USER_USERNAME: 'user',
     }
 
     return fs

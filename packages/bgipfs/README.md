@@ -49,8 +49,10 @@ During cluster setup, the `cluster config` command will help you populate:
 - `PEERNAME` - Peer name in the IPFS Cluster
 - `SECRET` - Cluster secret
 - `PEERADDRESSES` - Bootstrap peer addresses
-- `AUTH_USERNAME` - Basic auth username
-- `AUTH_PASSWORD` - Basic auth password
+- `ADMIN_USERNAME` - Admin username for dashboard access
+- `ADMIN_PASSWORD` - Admin password for dashboard access
+- `USER_USERNAME` - User username for upload endpoint
+- `USER_PASSWORD` - User password for upload endpoint
 - `GATEWAY_DOMAIN` - Gateway domain (dns mode)
 - `UPLOAD_DOMAIN` - Upload endpoint domain (dns mode)
 
@@ -58,7 +60,8 @@ During cluster setup, the `cluster config` command will help you populate:
 - `identity.json` - Cluster peer identity [DO NOT SHARE]
 - `service.json` - Cluster service configuration
 - `ipfs.config.json` - IPFS node configuration
-- `htpasswd` - Basic auth credentials
+- `auth/admin-htpasswd` - Admin credentials for dashboard access
+- `auth/user-htpasswd` - User credentials for upload endpoint
 
 ### Cluster Modes
 
@@ -73,19 +76,12 @@ When using DNS mode, you'll need to configure:
 1. DNS Records in Cloudflare:
    - `gateway.domain.com` - Points to your server IP
    - `*.gateway.domain.com` - Wildcard for IPFS subdomains
-   - `upload.domain.com` - Points to your server IP
+   - `<upload-subdomain>.domain.com` - Points to your server IP (protected by user auth)
 
-2. SSL Certificate Requirements:
-   - Advanced certificate covering:
-     - `gateway.domain.com`
-     - `*.gateway.domain.com`
-     - `*.ipfs.gateway.domain.com` (for IPFS subdomain support)
-     - `upload.domain.com`
-
-3. Cloudflare Settings:
-   - SSL/TLS mode: Flexible or Full
-   - Enable proxy (orange cloud) for all records
-   - Enable WebSockets if using the upload API
+2. Authentication:
+   - Admin credentials protect the Traefik dashboard
+   - User credentials protect the upload endpoint
+   - Gateway endpoints remain public
 
 ### Required Ports
 
@@ -96,6 +92,25 @@ When using DNS mode, you'll need to configure:
 | 8080 | TCP | Yes | No | IPFS gateway |
 | 5555 | TCP | Yes | No | Upload endpoint |
 | 80 | TCP | No | Yes | HTTP proxy |
+
+When running in DNS mode behind Cloudflare, it's recommended to limit HTTP port 80 access to only Cloudflare's IP ranges:
+
+#### AWS Security Groups
+1. Open the AWS Console and navigate to EC2 > Security Groups
+2. Select your security group
+3. Edit inbound rules
+4. Remove any existing rules for port 80 (HTTP)
+5. Add new rules for each Cloudflare IP range:
+   - Type: HTTP
+   - Port: 80
+   - Source: Custom IP
+   - Get the IPv4 ranges from: https://www.cloudflare.com/ips-v4
+   - Note: IPv6 is not supported for inbound rules in EC2 security groups
+
+A helper script is also provided:
+```bash
+./scripts/setup-cloudflare-aws.sh sg-xxxxxxxx us-east-1
+```
 
 ## Upload Commands
 Powered by [ipfs-uploader](../ipfs-uploader/)

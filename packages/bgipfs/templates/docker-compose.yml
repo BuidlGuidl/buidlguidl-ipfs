@@ -5,18 +5,10 @@ services:
     ports:
       - "4001:4001"  # swarm
       - "8080:8080"  # gateway (IP mode only)
-      - "5001:5001"  # api
+      - "127.0.0.1:5001:5001"  # api access from localhost
     volumes:
       - ./data/ipfs:/data/ipfs
       - ./ipfs.config.json:/data/ipfs/config:ro
-    environment:
-      - IPFS_GATEWAY_PUBLICGATEWAYS_USESUBDOMAINS=true
-    labels:
-      - "traefik.enable=true"
-      # IPFS routes
-      - "traefik.http.routers.ipfs.rule=PathPrefix(`/ipfs/`) || PathPrefix(`/ipns/`)"
-      - "traefik.http.routers.ipfs.entrypoints=web"
-      - "traefik.http.services.ipfs.loadbalancer.server.port=5001"
 
   cluster:
     container_name: cluster
@@ -34,8 +26,8 @@ services:
       CLUSTER_SECRET: ${SECRET}
       CLUSTER_PEERADDRESSES: ${PEERADDRESSES}
     ports:
-      - "9094:9094"
-      - "9095:9095"
+      - "127.0.0.1:9094:9094"  # Only accessible from localhost
+      - "127.0.0.1:9095:9095"  # Only accessible from localhost
       - "9096:9096"
     volumes:
       - ./data/ipfs-cluster:/data/ipfs-cluster
@@ -44,25 +36,33 @@ services:
     labels:
       - "traefik.enable=true"
       # IPFS Cluster routes
-      - "traefik.http.routers.cluster.rule=PathPrefix(`/api/v0/`)"
+      - "traefik.http.routers.cluster.rule=Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`)"
       - "traefik.http.routers.cluster.entrypoints=web"
-      - "traefik.http.routers.cluster.middlewares=auth"
+      - "traefik.http.routers.cluster.middlewares=upload-auth"
       - "traefik.http.services.cluster.loadbalancer.server.port=9095"
-      - "traefik.http.middlewares.auth.basicauth.usersfile=/etc/traefik/.htpasswd"
 
   traefik:
     image: traefik:v2.10
     command:
       - "--api=true"
       - "--api.dashboard=true"
-      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:5555"
       - "--log.level=INFO"
     ports:
       - "5555:5555"
-      - "8081:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./htpasswd:/etc/traefik/.htpasswd:ro 
+      - ./auth/admin-htpasswd:/etc/traefik/admin-htpasswd:ro
+      - ./auth/user-htpasswd:/etc/traefik/user-htpasswd:ro
+    labels:
+      - "traefik.enable=true"
+      # Dashboard specific config
+      - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN:-traefik.localhost}`)"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.routers.api.middlewares=dashboard-auth"
+      - "traefik.http.middlewares.dashboard-auth.basicauth.usersfile=/etc/traefik/admin-htpasswd"
+      # Upload auth middleware
+      - "traefik.http.middlewares.upload-auth.basicauth.usersfile=/etc/traefik/user-htpasswd"

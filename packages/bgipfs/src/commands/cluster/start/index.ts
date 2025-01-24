@@ -48,7 +48,15 @@ export default class Start extends BaseCommand {
       this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
 
       // Check required files
-      const requiredFiles = [...composeFiles, '.env', 'service.json', 'identity.json', 'htpasswd', 'ipfs.config.json']
+      const requiredFiles = [
+        ...composeFiles,
+        '.env',
+        'service.json',
+        'identity.json',
+        'auth/admin-htpasswd',
+        'auth/user-htpasswd',
+        'ipfs.config.json',
+      ]
 
       // Check all required files
       this.logInfo('Checking required files...')
