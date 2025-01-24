@@ -25,7 +25,6 @@ export const baseSchema = z
 
 // DNS schema extends base schema with authentication fields
 export const dnsSchema = baseSchema.extend({
-  ADMIN_EMAIL: z.string().email('Must be a valid email address').optional(),
   GATEWAY_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
   UPLOAD_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
 })
