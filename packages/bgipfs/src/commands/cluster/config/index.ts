@@ -51,7 +51,7 @@ export default class Init extends BaseCommand {
       const envValues = await this.collectEnvValues(flags, currentEnv)
       await env.updateEnv(envValues)
 
-      await this.initializeCluster()
+      await this.initializeCluster(flags.force)
 
       this.logSuccess('Configuration completed successfully!')
       this.logInfo('Your configuration is in .env')
@@ -155,6 +155,55 @@ export default class Init extends BaseCommand {
     return true
   }
 
+  private async copyWithConfirmation(
+    sourcePath: string,
+    destPath: string,
+    force: boolean,
+    description: string,
+  ): Promise<boolean> {
+    const hasFile = await fs
+      .access(destPath)
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasFile) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logSuccess(`${description} copied successfully`)
+      return true
+    }
+
+    if (force) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logWarning(`${description} forcefully overwritten`)
+      return true
+    }
+
+    const shouldOverwrite = await this.confirm(`${description} already exists. Would you like to overwrite it?`)
+    if (shouldOverwrite) {
+      const copied = await this.copyFileIfNotEmpty(sourcePath, destPath)
+      if (!copied) {
+        this.logError(`Failed to copy ${description}, initialization failed`)
+        return false
+      }
+
+      this.logSuccess(`${description} overwritten successfully`)
+      return true
+    }
+
+    this.logInfo(`Using existing ${description}`)
+    return true
+  }
+
   private generateSecret(): string {
     return randomBytes(32).toString('hex')
   }
@@ -171,7 +220,7 @@ export default class Init extends BaseCommand {
         })
   }
 
-  private async initializeCluster(): Promise<void> {
+  private async initializeCluster(force: boolean): Promise<void> {
     this.logInfo('Initializing IPFS cluster...')
     this.logInfo('Removing data/ipfs-cluster/service.json file if it exists...')
     await fs.unlink('data/ipfs-cluster/service.json').catch(() => {
@@ -252,29 +301,23 @@ export default class Init extends BaseCommand {
       const identityJson = JSON.parse(await fs.readFile('identity.json', 'utf8'))
       this.logInfo(`Cluster Peer ID: ${identityJson.id}`)
 
-      const serviceCopied = await this.copyFileIfNotEmpty('data/ipfs-cluster/service.json', 'service.json')
-      if (!serviceCopied) {
-        this.logError('Failed to copy service.json, cluster initialization failed')
-        return
-      }
+      // Handle service.json
+      const serviceSuccess = await this.copyWithConfirmation(
+        'data/ipfs-cluster/service.json',
+        'service.json',
+        force,
+        'service.json',
+      )
+      if (!serviceSuccess) return
 
-      // Copy IPFS config if it doesn't exist
-      const hasIpfsConfig = await fs
-        .access('ipfs.config.json')
-        .then(() => true)
-        .catch(() => false)
-
-      if (hasIpfsConfig) {
-        this.logWarning('Using existing ipfs.config.json, delete and re-run `bgipfs cluster config` to regenerate')
-      } else {
-        const ipfsConfigCopied = await this.copyFileIfNotEmpty('data/ipfs/config', 'ipfs.config.json')
-        if (!ipfsConfigCopied) {
-          this.logError('Failed to copy IPFS config, initialization failed')
-          return
-        }
-
-        this.logSuccess('IPFS config copied successfully')
-      }
+      // Handle ipfs.config.json
+      const ipfsSuccess = await this.copyWithConfirmation(
+        'data/ipfs/config',
+        'ipfs.config.json',
+        force,
+        'ipfs.config.json',
+      )
+      if (!ipfsSuccess) return
 
       this.logSuccess('Configuration files copied successfully')
     } catch (error) {

@@ -76,8 +76,7 @@ When using DNS mode, you'll need to configure:
 1. DNS Records in Cloudflare:
    - `gateway.domain.com` - Points to your server IP
    - `*.gateway.domain.com` - Wildcard for IPFS subdomains
-   - `upload.domain.com` - Points to your server IP (protected by user auth)
-   - `traefik.domain.com` - Points to your server IP (protected by admin auth)
+   - `<upload-subdomain>.domain.com` - Points to your server IP (protected by user auth)
 
 2. Authentication:
    - Admin credentials protect the Traefik dashboard
