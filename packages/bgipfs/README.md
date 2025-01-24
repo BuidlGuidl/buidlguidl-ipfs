@@ -49,8 +49,10 @@ During cluster setup, the `cluster config` command will help you populate:
 - `PEERNAME` - Peer name in the IPFS Cluster
 - `SECRET` - Cluster secret
 - `PEERADDRESSES` - Bootstrap peer addresses
-- `AUTH_USERNAME` - Basic auth username
-- `AUTH_PASSWORD` - Basic auth password
+- `ADMIN_USERNAME` - Admin username for dashboard access
+- `ADMIN_PASSWORD` - Admin password for dashboard access
+- `USER_USERNAME` - User username for upload endpoint
+- `USER_PASSWORD` - User password for upload endpoint
 - `GATEWAY_DOMAIN` - Gateway domain (dns mode)
 - `UPLOAD_DOMAIN` - Upload endpoint domain (dns mode)
 
@@ -58,7 +60,8 @@ During cluster setup, the `cluster config` command will help you populate:
 - `identity.json` - Cluster peer identity [DO NOT SHARE]
 - `service.json` - Cluster service configuration
 - `ipfs.config.json` - IPFS node configuration
-- `htpasswd` - Basic auth credentials
+- `auth/admin-htpasswd` - Admin credentials for dashboard access
+- `auth/user-htpasswd` - User credentials for upload endpoint
 
 ### Cluster Modes
 
@@ -73,19 +76,13 @@ When using DNS mode, you'll need to configure:
 1. DNS Records in Cloudflare:
    - `gateway.domain.com` - Points to your server IP
    - `*.gateway.domain.com` - Wildcard for IPFS subdomains
-   - `upload.domain.com` - Points to your server IP
+   - `upload.domain.com` - Points to your server IP (protected by user auth)
+   - `traefik.domain.com` - Points to your server IP (protected by admin auth)
 
-2. SSL Certificate Requirements:
-   - Advanced certificate covering:
-     - `gateway.domain.com`
-     - `*.gateway.domain.com`
-     - `*.ipfs.gateway.domain.com` (for IPFS subdomain support)
-     - `upload.domain.com`
-
-3. Cloudflare Settings:
-   - SSL/TLS mode: Flexible or Full
-   - Enable proxy (orange cloud) for all records
-   - Enable WebSockets if using the upload API
+2. Authentication:
+   - Admin credentials protect the Traefik dashboard
+   - User credentials protect the upload endpoint
+   - Gateway endpoints remain public
 
 ### Required Ports
 

@@ -9,19 +9,6 @@ services:
     volumes:
       - ./data/ipfs:/data/ipfs
       - ./ipfs.config.json:/data/ipfs/config:ro
-    environment:
-      - IPFS_GATEWAY_PUBLICGATEWAYS_USESUBDOMAINS=true
-    labels:
-      - "traefik.enable=true"
-      # IPFS path-based routes
-      - "traefik.http.routers.ipfs.rule=PathPrefix(`/ipfs/`) || PathPrefix(`/ipns/`)"
-      - "traefik.http.routers.ipfs.entrypoints=web"
-      - "traefik.http.services.ipfs.loadbalancer.server.port=8080"
-      # Subdomain gateway router
-      - "traefik.http.routers.subdomain-gateway.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.localhost`)"
-      - "traefik.http.routers.subdomain-gateway.entrypoints=web"
-      - "traefik.http.services.ipfs-gateway.loadbalancer.server.port=8080"
-      - "traefik.http.routers.subdomain-gateway.service=ipfs-gateway"
 
   cluster:
     container_name: cluster

@@ -1,6 +1,9 @@
 # DNS mode overrides
 services:
   ipfs:
+    ports:
+      - "4001:4001"  # swarm
+      - "127.0.0.1:5001:5001"  # api access from localhost
     labels:
       - "traefik.enable=true"
       
