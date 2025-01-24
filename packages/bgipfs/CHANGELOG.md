@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.4
+
+### Patch Changes
+
+- 740e628: Simplification and robustness for node initiation & config
+
 ## 0.0.2
 
 ### Patch Changes

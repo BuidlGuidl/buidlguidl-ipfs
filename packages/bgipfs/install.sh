@@ -26,4 +26,5 @@ node --version
 npm --version
 
 npm install -g bgipfs
-source ~/.bashrc
+
+echo "Installation complete! Run 'source ~/.bashrc' or restart your terminal to use bgipfs"

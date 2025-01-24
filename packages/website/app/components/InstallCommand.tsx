@@ -4,7 +4,7 @@ export const InstallCommand = () => {
   return (
     <div className="w-full max-w-2xl">
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-        Get started with bgipfs-cli:
+        Get started with bgipfs:
       </p>
       <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 font-mono text-sm relative group">
         <code>curl -fsSL https://bgipfs.com/bgipfs-cli/install.sh | sh</code>
