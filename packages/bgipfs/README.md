@@ -97,6 +97,25 @@ When using DNS mode, you'll need to configure:
 | 5555 | TCP | Yes | No | Upload endpoint |
 | 80 | TCP | No | Yes | HTTP proxy |
 
+When running in DNS mode behind Cloudflare, it's recommended to limit HTTP port 80 access to only Cloudflare's IP ranges:
+
+#### AWS Security Groups
+1. Open the AWS Console and navigate to EC2 > Security Groups
+2. Select your security group
+3. Edit inbound rules
+4. Remove any existing rules for port 80 (HTTP)
+5. Add new rules for each Cloudflare IP range:
+   - Type: HTTP
+   - Port: 80
+   - Source: Custom IP
+   - Get the IPv4 ranges from: https://www.cloudflare.com/ips-v4
+   - Note: IPv6 is not supported for inbound rules in EC2 security groups
+
+A helper script is also provided:
+```bash
+./scripts/setup-cloudflare-aws.sh sg-xxxxxxxx us-east-1
+```
+
 ## Upload Commands
 Powered by [ipfs-uploader](../ipfs-uploader/)
 ```bash

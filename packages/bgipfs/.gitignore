@@ -31,3 +31,4 @@ package-lock.json
 
 /out
 tsconfig.tsbuildinfo
+/auth
