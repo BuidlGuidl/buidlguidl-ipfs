@@ -3,6 +3,7 @@ import { pinner } from '@/app/lib/ipfs';
 
 export async function POST(request: NextRequest) {
   try {
+    
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File is required' }, { status: 400 });
     }
 
-    const result = await pinner.add.file(file);
+    const result = await (await pinner()).add.file(file);
     if (!result.success) throw new Error(`Upload failed: ${result.error}`);  
     return NextResponse.json(result);
   } catch (error) {

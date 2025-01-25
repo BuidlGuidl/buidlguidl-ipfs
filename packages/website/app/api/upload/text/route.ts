@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await pinner.add.text(text);
+    const result = await (await pinner()).add.text(text);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Upload failed:', error);

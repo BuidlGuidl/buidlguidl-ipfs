@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    const result = await pinner.add.url(url);
+    const result = await (await pinner()).add.url(url);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Upload failed:", error);
