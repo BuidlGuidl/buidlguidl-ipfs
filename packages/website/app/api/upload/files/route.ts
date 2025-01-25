@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await pinner.add.directory({
+    const result = await (await pinner()).add.directory({
       dirPath: dirName,
       files,
     });
