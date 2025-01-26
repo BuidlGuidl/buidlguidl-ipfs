@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ipfs-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-24",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "IPFS_API_URL": "https://pin.bgipfs.com"
+  }
+}

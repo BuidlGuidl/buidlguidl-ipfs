@@ -1,0 +1,12 @@
+name = "bgipfs-worker"
+main = "src/index.ts"
+compatibility_date = "2024-02-23"
+
+# Add any necessary environment variables
+# [vars]
+# MY_VARIABLE = "production_value"
+
+# Add any necessary KV namespaces, R2 buckets, etc
+# [[kv_namespaces]]
+# binding = "MY_KV"
+# id = "xxx" 
