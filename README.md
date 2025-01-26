@@ -7,10 +7,13 @@ A friendly collection of tools for working with IPFS.
 ## /packages
 
 ### bgipfs
-A CLI tool for managing an IPFS cluster. It allows you to start, stop, and manage your IPFS cluster, as well as configure the cluster to use a domain name for the gateway and upload endpoint.
+A CLI tool for managing an IPFS cluster, and uploading content to IPFS.
 
 ### ipfs-uploader
 A TypeScript client library for uploading & pinning content to IPFS. It allows applications to add and pin content to an IPFS cluster, providing a simple interface for multiple content types.
+
+### ipfs-proxy
+A Cloudflare Worker that provides a proxy for IPFS file uploads, specifically handling the `/api/v0/add` endpoint.
 
 ### website
 The website for BuidlGuidl's IPFS products (this repository). Information, documentation and a demo section showcasing basic pinning service functionality.
