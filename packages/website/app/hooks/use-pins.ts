@@ -16,20 +16,30 @@ interface SerializedIpfsCluster extends Omit<IpfsCluster, 'createdAt' | 'updated
   updatedAt: string;
 }
 
-export function usePins() {
+interface PaginatedPinsResponse {
+  pins: SerializedPin[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
+export function usePins(page = 1, limit = 20) {
   const { getAccessToken } = usePrivy();
-  
-  return useQuery({
-    queryKey: ["pins"],
+
+  return useQuery<PaginatedPinsResponse, Error>({
+    queryKey: ["pins", page, limit],
     queryFn: async () => {
       const token = await getAccessToken();
-      const response = await fetch("/api/pins", {
+      const res = await fetch(`/api/pins?page=${page}&limit=${limit}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch pins");
-      return response.json() as Promise<SerializedPin[]>;
+      if (!res.ok) throw new Error("Failed to fetch pins");
+      return res.json();
     },
   });
 }

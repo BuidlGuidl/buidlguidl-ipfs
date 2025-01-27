@@ -1,11 +1,9 @@
 import { createUploader } from "ipfs-uploader";
 import { headers } from 'next/headers';
 
-export const pinner = async () => { 
+export const pinner = async () => {
   await headers();
   return createUploader({
-  url: process.env.IPFS_API_URL,
-  headers: {
-    "x-api-key": process.env.IPFS_API_KEY!,
-  }
-})};
+    url: process.env.IPFS_API_URL,
+  });
+};

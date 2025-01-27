@@ -10,8 +10,12 @@ export default function PinsPage() {
   const router = useRouter();
   const [editingPin, setEditingPin] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: pins, isLoading, refetch } = usePins();
+  const { data, isLoading, refetch } = usePins(page);
+  const pins = data?.pins;
+  const pagination = data?.pagination;
+
   const updatePin = useUpdatePin();
   const deletePin = useDeletePin();
 
@@ -28,43 +32,43 @@ export default function PinsPage() {
       setEditingPin(null);
       setEditName("");
     } catch (error) {
-      console.error('Failed to update pin:', error);
+      console.error("Failed to update pin:", error);
     }
   }
 
   async function handleDelete(cid: string) {
-    if (!window.confirm('Are you sure you want to unpin this file?')) {
+    if (!window.confirm("Are you sure you want to unpin this file?")) {
       return;
     }
 
     try {
       await deletePin.mutateAsync(cid);
     } catch (error) {
-      console.error('Failed to delete pin:', error);
+      console.error("Failed to delete pin:", error);
     }
   }
 
   function formatDate(date: string) {
     return new Date(date).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
   function formatBytes(sizeStr: string) {
     const bytes = parseInt(sizeStr, 10);
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const units = ["B", "KB", "MB", "GB", "TB"];
     let size = bytes;
     let unitIndex = 0;
-    
+
     while (size >= 1024 && unitIndex < units.length - 1) {
       size /= 1024;
       unitIndex++;
     }
-    
+
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   }
 
@@ -103,7 +107,7 @@ export default function PinsPage() {
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center">
                       {editingPin === pin.cid ? (
-                        <form 
+                        <form
                           onSubmit={(e) => {
                             e.preventDefault();
                             handleUpdateName(pin.cid);
@@ -137,7 +141,7 @@ export default function PinsPage() {
                         </form>
                       ) : (
                         <>
-                          <a 
+                          <a
                             href={`${pin.ipfsCluster.gatewayUrl}/ipfs/${pin.cid}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -165,7 +169,8 @@ export default function PinsPage() {
                       )}
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm text-gray-400">
-                          {formatBytes(pin.size)} • Pinned on {formatDate(pin.createdAt)}
+                          {formatBytes(pin.size)} • Pinned on{" "}
+                          {formatDate(pin.createdAt)}
                         </span>
                         <div className="inline-flex items-center rounded-full bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-200">
                           {pin.ipfsCluster.name}
@@ -185,6 +190,64 @@ export default function PinsPage() {
           </div>
         )}
       </div>
+
+      {pagination && pagination.pages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-800 px-4 py-3 sm:px-6">
+          <div className="flex flex-1 justify-between sm:hidden">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="relative inline-flex items-center rounded-md border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-800 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+              disabled={page === pagination.pages}
+              className="relative ml-3 inline-flex items-center rounded-md border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-400 hover:bg-gray-800 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-400">
+                Showing{" "}
+                <span className="font-medium">
+                  {(page - 1) * pagination.limit + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-medium">
+                  {Math.min(page * pagination.limit, pagination.total)}
+                </span>{" "}
+                of <span className="font-medium">{pagination.total}</span> pins
+              </p>
+            </div>
+            <div>
+              <nav
+                className="isolate inline-flex -space-x-px rounded-md shadow-sm"
+                aria-label="Pagination"
+              >
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(
+                  (pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`relative inline-flex items-center px-4 py-2 text-sm font-medium ${
+                        pageNum === page
+                          ? "bg-gray-800 text-gray-200"
+                          : "text-gray-400 hover:bg-gray-800"
+                      } border border-gray-700`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                )}
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
