@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model IpfsCluster {
+  id          String    @id @default(cuid())
+  name        String
+  userId      String?   // Optional owner
+  gatewayUrl  String
+  apiUrl      String
+  pins        Pin[]
+  apiKeys     ApiKey[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([name, userId]) // Ensure name is unique per user (or globally if userId is null)
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  userId      String
+  apiKey      String    @unique
+  ipfsCluster IpfsCluster  @relation(fields: [ipfsClusterId], references: [id])
+  ipfsClusterId  String    @default("default")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@map("api_keys")
+  @@index([userId])
+  @@unique([name, userId])
+}
+
+model Pin {
+  userId      String
+  cid         String
+  name        String?
+  size        BigInt
+  deletedAt   DateTime?
+  ipfsCluster IpfsCluster  @relation(fields: [ipfsClusterId], references: [id])
+  ipfsClusterId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@id([userId, cid])
+  @@map("pins")
+  @@index([cid])
+} 
