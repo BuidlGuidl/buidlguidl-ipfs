@@ -35,17 +35,8 @@ export default function Home() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                website: this website
-              </a>
-            </li>
-            <li className="transition-colors hover:text-gray-600 dark:hover:text-gray-300">
-              <a
-                href="https://gateway.bgipfs.com/ipfs/bafkreibmcwvxstzb2x3cdcx7oqf65v2abgjikq5ja725mr6xdhe5zyf7cm"
-                className="hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                gateway.bgipfs.com: buidlguidl ipfs gateway
+                BuidlGuidl IPFS: upload and pin files to the BuidlGuidl IPFS
+                cluster
               </a>
             </li>
           </ol>
@@ -59,7 +50,7 @@ export default function Home() {
                          transition-all hover:scale-105 hover:shadow-lg"
               href="/upload"
             >
-              Upload
+              Demo
             </Link>
             <a
               className="rounded-lg px-8 py-3 border border-gray-200 dark:border-gray-700 

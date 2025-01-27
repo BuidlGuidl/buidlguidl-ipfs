@@ -82,7 +82,7 @@ export default function PinsPage() {
         <h1 className="text-2xl font-mono text-white">Pins</h1>
         <button
           onClick={() => refetch()}
-          className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800"
+          className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800"
         >
           Refresh
         </button>
@@ -90,18 +90,18 @@ export default function PinsPage() {
 
       <div className="rounded-lg border border-gray-800 bg-gray-900/50">
         {isLoading ? (
-          <div className="p-4">Loading pins...</div>
+          <div className="p-4 text-gray-300">Loading pins...</div>
         ) : pins?.length === 0 ? (
           <div className="p-4">
-            <div className="text-sm text-gray-500">No pins found</div>
+            <div className="text-sm text-gray-400">No pins found</div>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y divide-gray-800">
             {pins?.map((pin) => (
               <div key={`${pin.userId}-${pin.cid}`} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center">
                       {editingPin === pin.cid ? (
                         <form 
                           onSubmit={(e) => {
@@ -114,13 +114,13 @@ export default function PinsPage() {
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            className="rounded border px-3 py-1.5 min-w-[200px]"
+                            className="block rounded-md border-gray-700 bg-gray-900 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                             placeholder="Enter name"
                             autoFocus
                           />
                           <button
                             type="submit"
-                            className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1"
+                            className="text-sm text-blue-400 hover:text-blue-300 px-2 py-1"
                           >
                             Save
                           </button>
@@ -130,7 +130,7 @@ export default function PinsPage() {
                               setEditingPin(null);
                               setEditName("");
                             }}
-                            className="text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
+                            className="text-sm text-gray-400 hover:text-gray-300 px-2 py-1"
                           >
                             Cancel
                           </button>
@@ -141,7 +141,7 @@ export default function PinsPage() {
                             href={`${pin.ipfsCluster.gatewayUrl}/ipfs/${pin.cid}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-medium text-blue-600 hover:text-blue-800"
+                            className="font-medium text-blue-400 hover:text-blue-300 break-all pr-2"
                           >
                             {pin.name || pin.cid}
                           </a>
@@ -150,18 +150,24 @@ export default function PinsPage() {
                               setEditingPin(pin.cid);
                               setEditName(pin.name || "");
                             }}
-                            className="text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
+                            className="text-gray-400 hover:text-gray-300"
                           >
-                            Edit
+                            Edit name
                           </button>
                         </>
                       )}
                     </div>
-                    <div className="mt-1 text-sm text-gray-600">
-                      {pin.name && <div className="font-mono">{pin.cid}</div>}
-                      <div className="flex items-center gap-2">
-                        <span>{formatBytes(pin.size)} • Pinned on {formatDate(pin.createdAt)}</span>
-                        <div className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                    <div className="mt-1 space-y-1">
+                      {pin.name && (
+                        <div className="text-sm font-mono text-gray-400 break-all">
+                          {pin.cid}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-gray-400">
+                          {formatBytes(pin.size)} • Pinned on {formatDate(pin.createdAt)}
+                        </span>
+                        <div className="inline-flex items-center rounded-full bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-200">
                           {pin.ipfsCluster.name}
                         </div>
                       </div>
@@ -169,7 +175,7 @@ export default function PinsPage() {
                   </div>
                   <button
                     onClick={() => handleDelete(pin.cid)}
-                    className="ml-4 rounded border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+                    className="ml-4 rounded border border-red-800 px-3 py-1.5 text-sm text-red-200 hover:bg-red-900/50"
                   >
                     Delete
                   </button>

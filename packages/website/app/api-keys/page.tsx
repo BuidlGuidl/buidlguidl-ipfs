@@ -143,7 +143,7 @@ export default function ApiKeysPage() {
                       <div className="text-sm text-gray-400">
                         Created on {formatDate(key.createdAt)}
                       </div>
-                      <div className="text-sm font-mono text-gray-300">
+                      <div className="text-sm font-mono text-gray-300 break-words overflow-anywhere">
                         {key.apiKey}
                       </div>
                       <div className="inline-flex items-center rounded-full bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-200">
