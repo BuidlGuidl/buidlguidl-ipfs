@@ -15,13 +15,27 @@ interface Env {
 	IPFS_API_URL: string;
 	IPFS_AUTH_USERNAME: string;
 	IPFS_AUTH_PASSWORD: string;
+	APP_API_URL: string;
+	WORKER_AUTH_SECRET: string;
+}
+
+interface AuthResponse {
+	apiUrl: string;
+	gatewayUrl: string;
+}
+
+interface JsonEntry {
+	Name?: string;
+	Hash: string;
+	Size: string; // IPFS returns size as string
 }
 
 class JsonParser {
 	private buffer = "";
 	private decoder = new TextDecoder();
-	private entries: Array<{Name?: string; Hash: string}> = [];
+	private entries: Array<JsonEntry> = [];
 	private hasError = false;
+	private rootCid?: string;
 
 	transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
 		try {
@@ -70,11 +84,53 @@ class JsonParser {
 		if (this.hasError) {
 			console.error("Upload failed - some files may be orphaned");
 		} else {
-			const root = this.entries.find(e => !e.Name);
+			// For single files, use the only entry
+			// For directories, find the entry without a Name
+			const root = this.entries.length === 1 
+				? this.entries[0] 
+				: this.entries.find(e => !e.Name);
+
 			if (root) {
+				this.rootCid = root.Hash;
 				console.log(`IPFS: Uploaded ${this.entries.length} files with root CID: ${root.Hash}`);
 			}
 		}
+	}
+
+	getRootCid() {
+		return this.rootCid;
+	}
+
+	getCids() {
+		return this.entries.map(e => e.Hash);
+	}
+
+	getCidsToPin(): Array<{ cid: string; size: bigint; name?: string }> {
+		// If there's only one file, pin it
+		if (this.entries.length === 1) {
+			const entry = this.entries[0];
+			return [{
+				cid: entry.Hash,
+				size: BigInt(entry.Size),
+				name: entry.Name
+			}];
+		}
+
+		// If there's a root (directory), just pin that
+		const root = this.entries.find(e => !e.Name);
+		if (root) {
+			return [{
+				cid: root.Hash,
+				size: BigInt(root.Size),
+			}];
+		}
+
+		// Otherwise, pin all files
+		return this.entries.map(e => ({
+			cid: e.Hash,
+			size: BigInt(e.Size),
+			name: e.Name
+		}));
 	}
 }
 
@@ -92,13 +148,44 @@ export default {
 		}
 
 		try {
+			// Get API key from request header
+			const apiKey = request.headers.get('x-api-key');
+			if (!apiKey) {
+				return new Response('API key is required', { status: 401 });
+			}
+
+			// Verify API key and get IPFS node details
+			const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-worker-auth': env.WORKER_AUTH_SECRET,
+				},
+				body: JSON.stringify({ apiKey }),
+			});
+
+			if (!authResponse.ok) {
+				return new Response('Invalid API key', { status: 401 });
+			}
+
+			const { apiUrl } = await authResponse.json() as AuthResponse;
+
 			if (!request.body) throw new Error("No body provided");
 
 			const auth = btoa(`${env.IPFS_AUTH_USERNAME}:${env.IPFS_AUTH_PASSWORD}`);
 
 			// Set up IPFS URL with query params
-			const ipfsUrl = new URL("/api/v0/add", env.IPFS_API_URL);
-			url.searchParams.forEach((value, key) => ipfsUrl.searchParams.append(key, value));
+			const ipfsUrl = new URL("/api/v0/add", apiUrl);
+
+			// Copy all params except cid-version
+			url.searchParams.forEach((value, key) => {
+				if (key !== 'cid-version') {
+					ipfsUrl.searchParams.append(key, value);
+				}
+			});
+
+			// Always use CIDv1, after filtering user params
+			ipfsUrl.searchParams.append("cid-version", "1");
 
 			// Filter headers
 			const headers = Object.fromEntries(
@@ -122,16 +209,54 @@ export default {
 			}
 
 			const parser = new JsonParser();
-			const transformStream = new TransformStream({
-				transform(chunk, controller) {
-					parser.transform(chunk, controller);
-				},
-				flush() {
-					parser.flush();
-				}
-			});
+			const chunks: Uint8Array[] = [];
+			
+			// Collect and transform all chunks
+			for await (const chunk of res.body!) {
+				parser.transform(chunk, {
+					enqueue: (c: Uint8Array) => { chunks.push(c); return 1; },
+					error: () => {},
+					terminate: () => {},
+					desiredSize: 1,
+				});
+			}
+			parser.flush();
 
-			return new Response(res.body?.pipeThrough(transformStream), {
+			// Get the root CID before sending response
+			const rootCid = parser.getRootCid();
+			console.log("Root CID:", rootCid);
+			
+			const cidsToPin = parser.getCidsToPin();
+			console.log("CIDs to pin:", cidsToPin);
+
+			const customName = request.headers.get('x-pin-name');
+			const pinsToCreate = cidsToPin.map(pin => ({
+				...pin,
+				name: pin.name || customName,
+				size: pin.size.toString(), // Convert BigInt to string for JSON serialization
+			}));
+
+			if (pinsToCreate.length > 0) {
+				const pinResponse = await fetch(`${env.APP_API_URL}/api/pin`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-worker-auth': env.WORKER_AUTH_SECRET,
+					},
+					body: JSON.stringify({ 
+						apiKey, 
+						pins: pinsToCreate
+					}),
+				});
+
+				if (!pinResponse.ok) {
+					const error = await pinResponse.text();
+					throw new Error(`Failed to pin files: ${error}`);
+				}
+			}
+
+			// Send the collected response
+			return new Response(new Blob(chunks), {
 				headers: {
 					...res.headers,
 					'Access-Control-Allow-Origin': '*',

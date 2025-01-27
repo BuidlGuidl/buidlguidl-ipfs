@@ -7,6 +7,6 @@
     "enabled": true
   },
   "vars": {
-    "IPFS_API_URL": "https://pin.bgipfs.com"
+    "APP_API_URL": "http://localhost:3000"
   }
 }

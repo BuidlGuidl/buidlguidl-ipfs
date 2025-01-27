@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
+import { Header } from "./components/header";
+import { PrivyClientProvider } from "./components/privy-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,17 +20,18 @@ export const metadata: Metadata = {
   description: "IPFS pinning and management for BuidlGuidl",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`min-h-screen bg-[#0a0c10] text-white ${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers>
+          <PrivyClientProvider>
+            <Header />
+            <main className="mx-auto max-w-3xl p-4">{children}</main>
+          </PrivyClientProvider>
+        </Providers>
       </body>
     </html>
   );
