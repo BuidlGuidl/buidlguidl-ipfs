@@ -18,53 +18,39 @@ interface JsonEntry {
 }
 
 class JsonParser {
-	private buffer = '';
-	private decoder = new TextDecoder();
 	private entries: Array<JsonEntry> = [];
 	private hasError = false;
-	private rootCid?: string;
 	private wrapWithDirectory: boolean;
+	private chunks: Uint8Array[] = []; // Store all chunks
 
 	constructor(wrapWithDirectory: boolean) {
 		this.wrapWithDirectory = wrapWithDirectory;
 	}
 
-	transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
-		try {
-			controller.enqueue(chunk);
-
-			this.buffer += this.decoder.decode(chunk, { stream: true });
-			let startIndex = 0;
-			let endIndex = this.buffer.indexOf('\n', startIndex);
-
-			while (endIndex !== -1) {
-				const line = this.buffer.slice(startIndex, endIndex).trim();
-				if (line) {
-					try {
-						const json = JSON.parse(line);
-						if (json.Hash) {
-							this.entries.push(json);
-						}
-					} catch (e) {
-						// Silently ignore parse errors
-					}
-				}
-				startIndex = endIndex + 1;
-				endIndex = this.buffer.indexOf('\n', startIndex);
-			}
-
-			this.buffer = this.buffer.slice(startIndex);
-		} catch (e) {
-			this.hasError = true;
-			console.error('Transform error:', e);
-			controller.error(e);
-		}
+	addChunk(chunk: Uint8Array) {
+		this.chunks.push(chunk);
 	}
 
-	flush() {
-		if (this.buffer.trim()) {
+	processAllChunks() {
+		// Combine all chunks into a single Uint8Array
+		const totalLength = this.chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+		const fullArray = new Uint8Array(totalLength);
+		let offset = 0;
+		for (const chunk of this.chunks) {
+			fullArray.set(chunk, offset);
+			offset += chunk.length;
+		}
+
+		// Decode the complete array at once
+		const decoder = new TextDecoder();
+		const fullText = decoder.decode(fullArray);
+
+		// Split into lines and process each line
+		const lines = fullText.split('\n').filter((line) => line.trim());
+
+		for (const line of lines) {
 			try {
-				const json = JSON.parse(this.buffer);
+				const json = JSON.parse(line);
 				if (json.Hash) {
 					this.entries.push(json);
 				}
@@ -76,14 +62,7 @@ class JsonParser {
 		if (this.hasError) {
 			console.error('Upload failed - some files may be orphaned');
 		} else {
-			// For single files, use the only entry
-			// For directories, find the entry without a Name
-			const root = this.entries.length === 1 ? this.entries[0] : this.entries.find((e) => !e.Name);
-
-			if (root) {
-				this.rootCid = root.Hash;
-				console.log(`IPFS: Uploaded ${this.entries.length} files with root CID: ${root.Hash}`);
-			}
+			console.log(`IPFS: Uploaded ${this.entries.length} files`);
 		}
 	}
 
@@ -130,7 +109,7 @@ export default {
 				headers: {
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 					'Access-Control-Max-Age': '86400',
 				},
 			});
@@ -222,60 +201,37 @@ export default {
 
 			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 			const parser = new JsonParser(wrapWithDirectory);
-			const chunks: Uint8Array[] = [];
-
-			// Collect and transform all chunks
-			for await (const chunk of res.body!) {
-				parser.transform(chunk, {
-					enqueue: (c: Uint8Array) => {
-						chunks.push(c);
-						return 1;
-					},
-					error: () => {},
-					terminate: () => {},
-					desiredSize: 1,
-				});
-			}
-			parser.flush();
-
-			const cidsToPin = parser.getCidsToPin();
-			console.log('Pinning CIDs:', cidsToPin.map((p) => p.cid).join(', '));
-
 			const customName = request.headers.get('x-pin-name');
-			const pinsToCreate = cidsToPin.map((pin) => ({
-				...pin,
-				name: pin.name || customName,
-				size: pin.size.toString(), // Convert BigInt to string for JSON serialization
-			}));
 
-			if (pinsToCreate.length > 0) {
-				const pinResponse = await fetch(`${env.APP_API_URL}/api/pin`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'x-worker-auth': env.WORKER_AUTH_SECRET,
-					},
-					body: JSON.stringify({
-						apiKey,
-						pins: pinsToCreate,
-					}),
-				});
+			// Create a transform stream that both collects entries and forwards the response
+			const transformStream = new TransformStream({
+				transform(chunk, controller) {
+					parser.addChunk(chunk);
+					controller.enqueue(chunk);
+				},
+				flush() {
+					parser.processAllChunks();
 
-				if (!pinResponse.ok) {
-					const error = await pinResponse.text();
-					throw new Error(`Failed to pin files: ${error}`);
-				} else {
-					console.log(`Pins created: ${pinsToCreate.map((p) => p.cid).join(', ')}`);
-				}
-			}
+					// Handle pinning after we've processed everything
+					const cidsToPin = parser.getCidsToPin();
+					console.log('Pinning CIDs:', cidsToPin.map((p) => p.cid).join(', '));
 
-			// Send the collected response
-			return new Response(new Blob(chunks), {
+					if (cidsToPin.length > 0) {
+						ctx.waitUntil(createPins(env, apiKey, cidsToPin, customName));
+					}
+				},
+			});
+
+			// Pipe the response through our transform stream
+			res.body!.pipeThrough(transformStream);
+
+			// Return the streaming response
+			return new Response(transformStream.readable, {
 				headers: {
 					...res.headers,
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 				},
 			});
 		} catch (error) {
@@ -286,9 +242,42 @@ export default {
 					'Content-Type': 'application/json',
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 				},
 			});
 		}
 	},
 } satisfies ExportedHandler<Env>;
+
+// Move pin creation to a separate async function
+async function createPins(
+	env: Env,
+	apiKey: string,
+	cidsToPin: Array<{ cid: string; size: bigint; name?: string }>,
+	customName: string | null
+) {
+	const pinsToCreate = cidsToPin.map((pin) => ({
+		...pin,
+		name: cidsToPin.length === 1 ? pin.name || customName : pin.name,
+		size: pin.size.toString(),
+	}));
+
+	const pinResponse = await fetch(`${env.APP_API_URL}/api/pin`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'x-worker-auth': env.WORKER_AUTH_SECRET,
+		},
+		body: JSON.stringify({
+			apiKey,
+			pins: pinsToCreate,
+		}),
+	});
+
+	if (!pinResponse.ok) {
+		const error = await pinResponse.text();
+		throw new Error(`Failed to pin files: ${error}`);
+	} else {
+		console.log(`Pins created: ${pinsToCreate.map((p) => p.cid).join(', ')}`);
+	}
+}
