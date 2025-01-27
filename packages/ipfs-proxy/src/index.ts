@@ -138,6 +138,18 @@ class JsonParser {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		// Handle CORS preflight requests
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Max-Age': '86400',
+				},
+			});
+		}
+
 		// Parse the URL to check the path
 		const url = new URL(request.url);
 		if (url.pathname !== '/api/v0/add') {
@@ -272,8 +284,8 @@ export default {
 				headers: {
 					...res.headers,
 					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST',
-					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
 				},
 			});
 		} catch (error) {
@@ -283,6 +295,8 @@ export default {
 				headers: {
 					'Content-Type': 'application/json',
 					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
 				},
 			});
 		}

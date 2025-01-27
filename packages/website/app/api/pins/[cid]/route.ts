@@ -1,16 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { withAuth } from "@/app/lib/api-auth";
+import { getUserId, handleRouteError } from "@/app/lib/api-auth";
 
-// Define the params type for this route
-type Params = { cid: string };
-
-export const PATCH = withAuth<Params>(async (userId, request, context) => {
-  if (!context) throw new Error('No context');
-  const { cid } = context.params;
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ cid: string }> }
+) {
   try {
+    const userId = await getUserId(request);
+    const { cid } = await params;
     const { name } = await request.json();
-    
+
     const pin = await prisma.pin.update({
       where: {
         userId_cid: {
@@ -23,23 +23,23 @@ export const PATCH = withAuth<Params>(async (userId, request, context) => {
 
     const serializedPin = {
       ...pin,
-      size: pin.size.toString()
+      size: pin.size.toString(),
     };
 
     return NextResponse.json(serializedPin);
   } catch (error) {
-    console.error("Failed to update pin:", error);
-    return NextResponse.json(
-      { error: "Failed to update pin" },
-      { status: 500 }
-    );
+    return handleRouteError(error, "update pin");
   }
-});
+}
 
-export const DELETE = withAuth<Params>(async (userId, request, context) => {
-  if (!context) throw new Error('No context');
-  const { cid } = context.params;
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ cid: string }> }
+) {
   try {
+    const userId = await getUserId(request);
+    const { cid } = await params;
+
     const pin = await prisma.pin.update({
       where: {
         userId_cid: {
@@ -54,15 +54,11 @@ export const DELETE = withAuth<Params>(async (userId, request, context) => {
 
     const serializedPin = {
       ...pin,
-      size: pin.size.toString()
+      size: pin.size.toString(),
     };
 
     return NextResponse.json(serializedPin);
   } catch (error) {
-    console.error("Failed to delete pin:", error);
-    return NextResponse.json(
-      { error: "Failed to delete pin" },
-      { status: 500 }
-    );
+    return handleRouteError(error, "delete pin");
   }
-}); 
+}
