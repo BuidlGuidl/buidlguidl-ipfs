@@ -28,7 +28,7 @@ export default function ClustersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-mono text-white">IPFS Clusters</h1>
+      <h1 className="text-2xl font-mono text-white">Clusters</h1>
 
       <div className="rounded-lg border border-gray-800 bg-gray-900/50">
         {isLoading ? (

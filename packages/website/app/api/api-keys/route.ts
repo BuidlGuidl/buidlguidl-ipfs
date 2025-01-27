@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { withAuth } from "@/app/lib/api-auth";
-import { createHash } from "crypto";
 
 export const GET = withAuth(async (userId) => {
   try {
@@ -36,13 +35,12 @@ export const POST = withAuth(async (userId, request) => {
     }
 
     const apiKey = crypto.randomUUID();
-    const hashedKey = createHash("sha256").update(apiKey).digest("hex");
 
     const key = await prisma.apiKey.create({
       data: {
         name,
         userId,
-        apiKey: hashedKey,
+        apiKey,
         ipfsClusterId: "default",
       },
       include: {
@@ -52,9 +50,7 @@ export const POST = withAuth(async (userId, request) => {
 
     return NextResponse.json({ ...key, apiKey });
   } catch (error) {
-    // Safer error logging
-    console.error("Failed to create API key:", error instanceof Error ? error.message : "Unknown error");
-    
+    console.error("Failed to create API key:", error);
     return NextResponse.json(
       { error: "Failed to create API key" },
       { status: 500 }

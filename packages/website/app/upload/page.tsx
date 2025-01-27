@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import Link from "next/link";
 
 export default function PinPage() {
   const [uploading, setUploading] = useState(false);

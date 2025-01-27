@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { createHash, timingSafeEqual } from "crypto";
+import { timingSafeEqual } from "crypto";
 import { PrivyClient } from "@privy-io/server-auth";
 
 export function verifyWorkerAuth(request: NextRequest) {
@@ -14,17 +14,17 @@ export function verifyWorkerAuth(request: NextRequest) {
 }
 
 export async function verifyApiKey(apiKey: string) {
-  const hashedKey = createHash("sha256").update(apiKey).digest("hex");
-  
-  return prisma.apiKey.findFirst({
+  const key = await prisma.apiKey.findFirst({
     where: {
-      apiKey: hashedKey,
+      apiKey,
       deletedAt: null,
     },
     include: {
       ipfsCluster: true,
     },
   });
+
+  return key;
 }
 
 export function withWorkerAuth(handler: (req: NextRequest) => Promise<Response>) {

@@ -65,7 +65,7 @@ export default function ApiKeysPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-mono text-white">API Keys</h1>
+      <h1 className="text-2xl font-mono text-white">Keys</h1>
 
       {(!keys || keys.length < 5) && (
         <form onSubmit={handleCreateKey} className="space-y-4">
@@ -80,7 +80,7 @@ export default function ApiKeysPage() {
                 id="name"
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
-                className="block w-full rounded-md border-gray-700 bg-gray-900 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-700 bg-gray-900 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                 placeholder="Enter key name"
               />
               <button
@@ -88,7 +88,7 @@ export default function ApiKeysPage() {
                 disabled={createKey.isPending || !newKeyName}
                 className="rounded bg-blue-500 px-3 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
               >
-                Create Key
+                Create
               </button>
             </div>
           </div>
@@ -108,9 +108,6 @@ export default function ApiKeysPage() {
           <div className="flex">
             <div className="flex-1">
               <h3 className="text-sm font-medium text-green-200">API Key Created</h3>
-              <p className="text-sm text-gray-300">
-                Note: The API key will only be shown once after creation. Make sure to save it somewhere safe.
-              </p>
               <div className="mt-2 text-sm text-green-200">
                 <p className="font-mono">{showNewKey}</p>
               </div>
@@ -145,6 +142,9 @@ export default function ApiKeysPage() {
                     <div className="mt-1 space-y-1">
                       <div className="text-sm text-gray-400">
                         Created on {formatDate(key.createdAt)}
+                      </div>
+                      <div className="text-sm font-mono text-gray-300">
+                        {key.apiKey}
                       </div>
                       <div className="inline-flex items-center rounded-full bg-blue-900/50 px-2 py-1 text-xs font-medium text-blue-200">
                         {key.ipfsCluster.name}

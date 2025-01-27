@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withWorkerAuth, verifyApiKey } from "@/app/lib/api-auth";
+import { withWorkerAuth } from "@/app/lib/api-auth";
+import { verifyApiKey } from "@/app/lib/api-auth";
 
 export const POST = withWorkerAuth(async (request: NextRequest) => {
   try {

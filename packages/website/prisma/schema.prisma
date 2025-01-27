@@ -30,13 +30,14 @@ model ApiKey {
   userId      String
   apiKey      String    @unique
   ipfsCluster IpfsCluster  @relation(fields: [ipfsClusterId], references: [id])
-  ipfsClusterId  String
+  ipfsClusterId  String    @default("default")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@map("api_keys")
   @@index([userId])
+  @@unique([name, userId])
 }
 
 model Pin {
