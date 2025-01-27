@@ -1,16 +1,3 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.json`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 interface Env {
 	IPFS_AUTH_USERNAME: string;
 	IPFS_AUTH_PASSWORD: string;
@@ -36,6 +23,11 @@ class JsonParser {
 	private entries: Array<JsonEntry> = [];
 	private hasError = false;
 	private rootCid?: string;
+	private wrapWithDirectory: boolean;
+
+	constructor(wrapWithDirectory: boolean) {
+		this.wrapWithDirectory = wrapWithDirectory;
+	}
 
 	transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
 		try {
@@ -95,14 +87,6 @@ class JsonParser {
 		}
 	}
 
-	getRootCid() {
-		return this.rootCid;
-	}
-
-	getCids() {
-		return this.entries.map((e) => e.Hash);
-	}
-
 	getCidsToPin(): Array<{ cid: string; size: bigint; name?: string }> {
 		// If there's only one file, pin it
 		if (this.entries.length === 1) {
@@ -116,23 +100,25 @@ class JsonParser {
 			];
 		}
 
-		// If there's a root (directory), just pin that
-		const root = this.entries.find((e) => !e.Name);
-		if (root) {
+		// If wrap-with-directory is true, always pin the last entry (the directory)
+		if (this.wrapWithDirectory) {
+			const directoryEntry = this.entries[this.entries.length - 1];
 			return [
 				{
-					cid: root.Hash,
-					size: BigInt(root.Size),
+					cid: directoryEntry.Hash,
+					size: BigInt(directoryEntry.Size),
 				},
 			];
 		}
 
-		// Otherwise, pin all files
-		return this.entries.map((e) => ({
-			cid: e.Hash,
-			size: BigInt(e.Size),
-			name: e.Name,
-		}));
+		// Otherwise, pin root-level entries (no '/' in name)
+		return this.entries
+			.filter((e) => !e.Name || !e.Name.includes('/'))
+			.map((e) => ({
+				cid: e.Hash,
+				size: BigInt(e.Size),
+				name: e.Name,
+			}));
 	}
 }
 
@@ -176,13 +162,6 @@ export default {
 			}
 
 			// Verify API key and get IPFS node details
-			console.log('Making auth request to:', `${env.APP_API_URL}/api/auth`);
-			console.log('With headers:', {
-				'Content-Type': 'application/json',
-				'x-worker-auth': 'present', // Don't log the actual secret
-				Host: new URL(env.APP_API_URL).hostname,
-			});
-
 			const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
 				method: 'POST',
 				headers: {
@@ -191,28 +170,17 @@ export default {
 					Host: new URL(env.APP_API_URL).hostname,
 				},
 				body: JSON.stringify({ apiKey }),
-				redirect: 'manual',
 			});
 
-			// Log redirect info if present
-			if (authResponse.status === 301 || authResponse.status === 302 || authResponse.status === 307 || authResponse.status === 308) {
-				console.log('Redirect detected:', {
-					status: authResponse.status,
-					location: authResponse.headers.get('location'),
-					type: authResponse,
-				});
-			}
-
-			// Add detailed logging
-			console.log('Auth response status:', authResponse.status);
-			console.log('Auth response headers:', Object.fromEntries(authResponse.headers));
 			if (!authResponse.ok) {
 				const errorText = await authResponse.text();
-				console.error('Auth error response:', errorText);
 				throw new Error(`Auth failed: ${authResponse.status} - ${errorText}`);
 			}
 
 			const { apiUrl } = (await authResponse.json()) as AuthResponse;
+			if (!apiUrl) {
+				throw new Error('No API URL returned from auth endpoint');
+			}
 
 			if (!request.body) throw new Error('No body provided');
 
@@ -252,7 +220,8 @@ export default {
 				throw new Error(`IPFS error: ${res.status} - ${error}`);
 			}
 
-			const parser = new JsonParser();
+			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
+			const parser = new JsonParser(wrapWithDirectory);
 			const chunks: Uint8Array[] = [];
 
 			// Collect and transform all chunks
@@ -269,12 +238,8 @@ export default {
 			}
 			parser.flush();
 
-			// Get the root CID before sending response
-			const rootCid = parser.getRootCid();
-			console.log('Root CID:', rootCid);
-
 			const cidsToPin = parser.getCidsToPin();
-			console.log('CIDs to pin:', cidsToPin);
+			console.log('Pinning CIDs:', cidsToPin.map((p) => p.cid).join(', '));
 
 			const customName = request.headers.get('x-pin-name');
 			const pinsToCreate = cidsToPin.map((pin) => ({
@@ -299,6 +264,8 @@ export default {
 				if (!pinResponse.ok) {
 					const error = await pinResponse.text();
 					throw new Error(`Failed to pin files: ${error}`);
+				} else {
+					console.log(`Pins created: ${pinsToCreate.map((p) => p.cid).join(', ')}`);
 				}
 			}
 
