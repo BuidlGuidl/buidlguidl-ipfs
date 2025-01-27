@@ -6,16 +6,7 @@
 	"observability": {
 		"enabled": true
 	},
-	"env": {
-		"development": {
-			"vars": {
-				"APP_API_URL": "http://localhost:3000"
-			}
-		},
-		"production": {
-			"vars": {
-				"APP_API_URL": "https://bgipfs.com"
-			}
-		}
+	"vars": {
+		"APP_API_URL": "https://www.bgipfs.com"
 	}
 }
