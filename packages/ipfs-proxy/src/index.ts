@@ -176,17 +176,40 @@ export default {
 			}
 
 			// Verify API key and get IPFS node details
+			console.log('Making auth request to:', `${env.APP_API_URL}/api/auth`);
+			console.log('With headers:', {
+				'Content-Type': 'application/json',
+				'x-worker-auth': 'present', // Don't log the actual secret
+				Host: new URL(env.APP_API_URL).hostname,
+			});
+
 			const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 					'x-worker-auth': env.WORKER_AUTH_SECRET,
+					Host: new URL(env.APP_API_URL).hostname,
 				},
 				body: JSON.stringify({ apiKey }),
+				redirect: 'manual',
 			});
 
+			// Log redirect info if present
+			if (authResponse.status === 301 || authResponse.status === 302 || authResponse.status === 307 || authResponse.status === 308) {
+				console.log('Redirect detected:', {
+					status: authResponse.status,
+					location: authResponse.headers.get('location'),
+					type: authResponse,
+				});
+			}
+
+			// Add detailed logging
+			console.log('Auth response status:', authResponse.status);
+			console.log('Auth response headers:', Object.fromEntries(authResponse.headers));
 			if (!authResponse.ok) {
-				return new Response('Invalid API key', { status: 401 });
+				const errorText = await authResponse.text();
+				console.error('Auth error response:', errorText);
+				throw new Error(`Auth failed: ${authResponse.status} - ${errorText}`);
 			}
 
 			const { apiUrl } = (await authResponse.json()) as AuthResponse;
