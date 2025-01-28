@@ -113,26 +113,25 @@ export default class Init extends BaseCommand {
     const adminCreds = await authService.setupCredentials(
       'admin',
       {
-        password: flags.force ? currentEnv.ADMIN_PASSWORD : undefined,
-        username: flags.force ? currentEnv.ADMIN_USERNAME : undefined,
+        password: currentEnv.ADMIN_PASSWORD,
+        username: currentEnv.ADMIN_USERNAME,
       },
-      {save: false},
+      {force: flags.force, save: false},
     )
 
     // Then set up user credentials
     const userCreds = await authService.setupCredentials(
       'user',
       {
-        password: flags.force ? currentEnv.USER_PASSWORD : undefined,
-        username: flags.force ? currentEnv.USER_USERNAME : undefined,
+        password: currentEnv.USER_PASSWORD,
+        username: currentEnv.USER_USERNAME,
       },
-      {save: false},
+      {force: flags.force, save: false},
     )
 
-    if (!flags.force) {
-      this.logSuccess('Generated admin password: ' + adminCreds.password)
-      this.logSuccess('Generated user password: ' + userCreds.password)
-    }
+    this.logSuccess(`Admin password for ${adminCreds.username}: ${adminCreds.password}`)
+    this.logSuccess(`User password for ${userCreds.username}: ${userCreds.password}`)
+
 
     return [
       {key: 'PEERNAME', value: peername},
