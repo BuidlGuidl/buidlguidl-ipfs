@@ -7,6 +7,6 @@
 		"enabled": true
 	},
 	"vars": {
-		"APP_API_URL": "https://www.bgipfs.com"
+		"APP_API_URL": "https://buidlguidl-ipfs.vercel.app"
 	}
 }

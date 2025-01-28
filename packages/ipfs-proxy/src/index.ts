@@ -1,16 +1,3 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.json`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 interface Env {
 	IPFS_AUTH_USERNAME: string;
 	IPFS_AUTH_PASSWORD: string;
@@ -31,76 +18,50 @@ interface JsonEntry {
 }
 
 class JsonParser {
-	private buffer = '';
+	public entries: Array<JsonEntry> = [];
+	private wrapWithDirectory: boolean;
 	private decoder = new TextDecoder();
-	private entries: Array<JsonEntry> = [];
-	private hasError = false;
-	private rootCid?: string;
+	private buffer = '';
 
-	transform(chunk: Uint8Array, controller: TransformStreamDefaultController) {
-		try {
-			controller.enqueue(chunk);
+	constructor(wrapWithDirectory: boolean) {
+		this.wrapWithDirectory = wrapWithDirectory;
+	}
 
-			this.buffer += this.decoder.decode(chunk, { stream: true });
-			let startIndex = 0;
-			let endIndex = this.buffer.indexOf('\n', startIndex);
+	addChunk(chunk: Uint8Array) {
+		// Decode and add to buffer
+		this.buffer += this.decoder.decode(chunk, { stream: true });
 
-			while (endIndex !== -1) {
-				const line = this.buffer.slice(startIndex, endIndex).trim();
-				if (line) {
-					try {
-						const json = JSON.parse(line);
-						if (json.Hash) {
-							this.entries.push(json);
-						}
-					} catch (e) {
-						// Silently ignore parse errors
-					}
-				}
-				startIndex = endIndex + 1;
-				endIndex = this.buffer.indexOf('\n', startIndex);
+		// Process complete lines
+		const newlineIndex = this.buffer.lastIndexOf('\n');
+		if (newlineIndex === -1) return; // No complete lines yet
+
+		// Get complete lines and keep remainder in buffer
+		const lines = this.buffer.slice(0, newlineIndex).split('\n');
+		this.buffer = this.buffer.slice(newlineIndex + 1);
+
+		// Process complete lines
+		for (const line of lines) {
+			if (!line.trim()) continue;
+			try {
+				const entry = JSON.parse(line);
+				if (entry.Hash) this.entries.push(entry);
+			} catch (e) {
+				console.warn('Parse error:', e);
 			}
-
-			this.buffer = this.buffer.slice(startIndex);
-		} catch (e) {
-			this.hasError = true;
-			console.error('Transform error:', e);
-			controller.error(e);
 		}
 	}
 
 	flush() {
+		// Process any remaining data in buffer
 		if (this.buffer.trim()) {
 			try {
-				const json = JSON.parse(this.buffer);
-				if (json.Hash) {
-					this.entries.push(json);
-				}
+				const entry = JSON.parse(this.buffer);
+				if (entry.Hash) this.entries.push(entry);
 			} catch (e) {
-				// Ignore parse errors
+				console.warn('Parse error in flush:', e);
 			}
 		}
-
-		if (this.hasError) {
-			console.error('Upload failed - some files may be orphaned');
-		} else {
-			// For single files, use the only entry
-			// For directories, find the entry without a Name
-			const root = this.entries.length === 1 ? this.entries[0] : this.entries.find((e) => !e.Name);
-
-			if (root) {
-				this.rootCid = root.Hash;
-				console.log(`IPFS: Uploaded ${this.entries.length} files with root CID: ${root.Hash}`);
-			}
-		}
-	}
-
-	getRootCid() {
-		return this.rootCid;
-	}
-
-	getCids() {
-		return this.entries.map((e) => e.Hash);
+		this.buffer = '';
 	}
 
 	getCidsToPin(): Array<{ cid: string; size: bigint; name?: string }> {
@@ -116,23 +77,29 @@ class JsonParser {
 			];
 		}
 
-		// If there's a root (directory), just pin that
-		const root = this.entries.find((e) => !e.Name);
-		if (root) {
+		// If wrap-with-directory is true, always pin the last entry (the directory)
+		if (this.wrapWithDirectory) {
+			const directoryEntry = this.entries[this.entries.length - 1];
 			return [
 				{
-					cid: root.Hash,
-					size: BigInt(root.Size),
+					cid: directoryEntry.Hash,
+					size: BigInt(directoryEntry.Size),
 				},
 			];
 		}
 
-		// Otherwise, pin all files
-		return this.entries.map((e) => ({
-			cid: e.Hash,
-			size: BigInt(e.Size),
-			name: e.Name,
-		}));
+		// Otherwise, pin root-level entries
+		return this.entries
+			.filter((e) => {
+				// Include entries with no name (raw files)
+				// Or entries with no slashes (root level)
+				return !e.Name || !e.Name.includes('/');
+			})
+			.map((e) => ({
+				cid: e.Hash,
+				size: BigInt(e.Size),
+				name: e.Name,
+			}));
 	}
 }
 
@@ -144,7 +111,7 @@ export default {
 				headers: {
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 					'Access-Control-Max-Age': '86400',
 				},
 			});
@@ -161,11 +128,11 @@ export default {
 			return new Response('Method not allowed', { status: 405 });
 		}
 
-		try {
-			// Get API key from request header or use default
-			const requestApiKey = request.headers.get('x-api-key');
-			const apiKey = requestApiKey || env.DEFAULT_API_KEY;
+		// Get API key from request header or use default
+		const requestApiKey = request.headers.get('x-api-key');
+		const apiKey = requestApiKey || env.DEFAULT_API_KEY;
 
+		try {
 			if (!apiKey) {
 				return new Response('API key is required', {
 					status: 401,
@@ -176,13 +143,6 @@ export default {
 			}
 
 			// Verify API key and get IPFS node details
-			console.log('Making auth request to:', `${env.APP_API_URL}/api/auth`);
-			console.log('With headers:', {
-				'Content-Type': 'application/json',
-				'x-worker-auth': 'present', // Don't log the actual secret
-				Host: new URL(env.APP_API_URL).hostname,
-			});
-
 			const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
 				method: 'POST',
 				headers: {
@@ -191,28 +151,17 @@ export default {
 					Host: new URL(env.APP_API_URL).hostname,
 				},
 				body: JSON.stringify({ apiKey }),
-				redirect: 'manual',
 			});
 
-			// Log redirect info if present
-			if (authResponse.status === 301 || authResponse.status === 302 || authResponse.status === 307 || authResponse.status === 308) {
-				console.log('Redirect detected:', {
-					status: authResponse.status,
-					location: authResponse.headers.get('location'),
-					type: authResponse,
-				});
-			}
-
-			// Add detailed logging
-			console.log('Auth response status:', authResponse.status);
-			console.log('Auth response headers:', Object.fromEntries(authResponse.headers));
 			if (!authResponse.ok) {
 				const errorText = await authResponse.text();
-				console.error('Auth error response:', errorText);
 				throw new Error(`Auth failed: ${authResponse.status} - ${errorText}`);
 			}
 
 			const { apiUrl } = (await authResponse.json()) as AuthResponse;
+			if (!apiUrl) {
+				throw new Error('No API URL returned from auth endpoint');
+			}
 
 			if (!request.body) throw new Error('No body provided');
 
@@ -238,6 +187,9 @@ export default {
 				)
 			);
 
+			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
+			const customName = request.headers.get('x-pin-name');
+
 			const res = await fetch(ipfsUrl, {
 				method: 'POST',
 				headers: {
@@ -252,76 +204,93 @@ export default {
 				throw new Error(`IPFS error: ${res.status} - ${error}`);
 			}
 
-			const parser = new JsonParser();
-			const chunks: Uint8Array[] = [];
+			const parser = new JsonParser(wrapWithDirectory);
 
-			// Collect and transform all chunks
-			for await (const chunk of res.body!) {
-				parser.transform(chunk, {
-					enqueue: (c: Uint8Array) => {
-						chunks.push(c);
-						return 1;
-					},
-					error: () => {},
-					terminate: () => {},
-					desiredSize: 1,
-				});
-			}
-			parser.flush();
+			// Create a transform stream to process the IPFS response
+			const processStream = new TransformStream({
+				transform(chunk, controller) {
+					try {
+						// Process the chunk (parse JSON lines, collect CIDs)
+						parser.addChunk(chunk);
+						// Forward immediately - no need to await since backpressure is handled by TransformStream
+						controller.enqueue(chunk);
+					} catch (e) {
+						console.error('Error processing chunk:', e);
+						// Continue processing even if parsing fails
+						controller.enqueue(chunk);
+					}
+				},
+				flush() {
+					try {
+						// Process any remaining data
+						parser.flush();
 
-			// Get the root CID before sending response
-			const rootCid = parser.getRootCid();
-			console.log('Root CID:', rootCid);
+						// Get CIDs to pin and create pins in background
+						const cidsToPin = parser.getCidsToPin();
+						if (cidsToPin.length > 0) {
+							ctx.waitUntil(
+								createPins(env, apiKey, cidsToPin, customName, parser.entries.length).catch((e) => console.error('Error creating pins:', e))
+							);
+						}
+					} catch (e) {
+						console.error('Error in stream flush:', e);
+					}
+				},
+			});
 
-			const cidsToPin = parser.getCidsToPin();
-			console.log('CIDs to pin:', cidsToPin);
-
-			const customName = request.headers.get('x-pin-name');
-			const pinsToCreate = cidsToPin.map((pin) => ({
-				...pin,
-				name: pin.name || customName,
-				size: pin.size.toString(), // Convert BigInt to string for JSON serialization
-			}));
-
-			if (pinsToCreate.length > 0) {
-				const pinResponse = await fetch(`${env.APP_API_URL}/api/pin`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'x-worker-auth': env.WORKER_AUTH_SECRET,
-					},
-					body: JSON.stringify({
-						apiKey,
-						pins: pinsToCreate,
-					}),
-				});
-
-				if (!pinResponse.ok) {
-					const error = await pinResponse.text();
-					throw new Error(`Failed to pin files: ${error}`);
-				}
-			}
-
-			// Send the collected response
-			return new Response(new Blob(chunks), {
+			// Return the transformed stream immediately
+			return new Response(res.body!.pipeThrough(processStream), {
 				headers: {
 					...res.headers,
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 				},
 			});
 		} catch (error) {
-			console.error('IPFS Add Error:', error);
+			console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
 			return new Response(JSON.stringify({ error: 'Failed to add content to IPFS' }), {
 				status: 500,
 				headers: {
 					'Content-Type': 'application/json',
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
 				},
 			});
 		}
 	},
 } satisfies ExportedHandler<Env>;
+
+async function createPins(
+	env: Env,
+	apiKey: string,
+	cidsToPin: Array<{ cid: string; size: bigint; name?: string }>,
+	customName: string | null,
+	totalEntries: number
+) {
+	const pinsToCreate = cidsToPin.map((pin) => ({
+		...pin,
+		name: cidsToPin.length === 1 ? pin.name || customName : pin.name,
+		size: pin.size.toString(),
+	}));
+
+	const pinResponse = await fetch(`${env.APP_API_URL}/api/pin`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'x-worker-auth': env.WORKER_AUTH_SECRET,
+		},
+		body: JSON.stringify({
+			apiKey,
+			pins: pinsToCreate,
+		}),
+	});
+
+	if (!pinResponse.ok) {
+		const error = await pinResponse.text();
+		throw new Error(`Failed to save CIDs: ${pinsToCreate.map((p) => p.cid).join(', ')} - ${error}`);
+	} else {
+		console.log(`Pins saved: ${pinsToCreate.map((p) => p.cid).join(', ')} (${totalEntries} entries)`);
+	}
+}

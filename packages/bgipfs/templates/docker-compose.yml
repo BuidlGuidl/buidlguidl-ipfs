@@ -35,11 +35,11 @@ services:
       - ./identity.json:/data/ipfs-cluster/identity.json
     labels:
       - "traefik.enable=true"
-      # IPFS Cluster routes
       - "traefik.http.routers.cluster.rule=Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`)"
       - "traefik.http.routers.cluster.entrypoints=web"
-      - "traefik.http.routers.cluster.middlewares=upload-auth"
+      - "traefik.http.routers.cluster.middlewares=upload-auth@docker,connection-headers@docker"
       - "traefik.http.services.cluster.loadbalancer.server.port=9095"
+      - "traefik.http.middlewares.connection-headers.headers.customresponseheaders.Connection=close"
 
   traefik:
     image: traefik:v2.10
