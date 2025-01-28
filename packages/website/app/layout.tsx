@@ -17,14 +17,18 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BuidlGuidl IPFS",
-  description: "IPFS pinning and management for BuidlGuidl",
+  description: "IPFS pinning service for BuidlGuidl",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`min-h-screen bg-[#0a0c10] text-white ${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-[#0a0c10] text-gray-100 antialiased bg-gradient-to-b from-gray-950 to-gray-900`}
       >
         <Providers>
           <PrivyClientProvider>

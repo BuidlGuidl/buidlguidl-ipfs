@@ -1,6 +1,26 @@
 #!/bin/bash
 
-# Install nvm
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check if Node.js is installed
+if command_exists node; then
+    echo "Node.js detected, installing bgipfs..."
+    npm install -g bgipfs
+    echo "bgipfs installed successfully!"
+    exit 0
+fi
+
+# If Node.js is not installed, ask for confirmation
+read -p "Node.js is required but not found. Would you like to install it? [y/N] " answer
+if [[ $answer != "y" && $answer != "Y" ]]; then
+    echo "Installation cancelled. Please install Node.js first and try again."
+    exit 1
+fi
+
+# Install nvm and Node.js
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
 
 # Add nvm initialization to .bashrc if not already present

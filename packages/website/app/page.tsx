@@ -40,8 +40,14 @@ export default function Home() {
               </a>
             </li>
           </ol>
-
-          <InstallCommand />
+          <div className="w-full max-w-2xl">
+            <p className="text-sm text-gray-400">
+              Get started with bgipfs in one command:
+            </p>
+            <InstallCommand command="curl -fsSL https://bgipfs.com/cli/install.sh | sh" />
+            <p className="text-sm text-gray-400">With a package manager:</p>
+            <InstallCommand command="pnpm add bgipfs" />
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-6 items-center flex-col sm:flex-row pt-4">
