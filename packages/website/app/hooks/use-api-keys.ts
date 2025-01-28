@@ -15,8 +15,8 @@ interface SerializedIpfsCluster extends Omit<IpfsCluster, 'createdAt' | 'updated
 }
 
 export function useApiKeys() {
-  const { getAccessToken } = usePrivy();
-  
+  const { authenticated, getAccessToken } = usePrivy();
+
   return useQuery({
     queryKey: ["apiKeys"],
     queryFn: async () => {
@@ -29,6 +29,12 @@ export function useApiKeys() {
       if (!response.ok) throw new Error("Failed to fetch API keys");
       return response.json() as Promise<SerializedApiKey[]>;
     },
+    enabled: !!authenticated,
+    initialData: [] as SerializedApiKey[],
+    // Don't show stale data while refetching
+    staleTime: 0,
+    // Refetch when window is focused
+    refetchOnWindowFocus: true,
   });
 }
 

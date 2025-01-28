@@ -26,6 +26,11 @@ export default class ConfigCommand extends BaseCommand {
   static examples = ['$ bgipfs upload config init', '$ bgipfs upload config get']
 
   static flags = {
+    apiKey: Flags.string({
+      char: 'k',
+      description: 'BGIPFS API key',
+      required: false,
+    }),
     nodeAuth: Flags.string({
       char: 'a',
       description: 'Node authorization header',
@@ -48,7 +53,11 @@ export default class ConfigCommand extends BaseCommand {
           config.url = flags.nodeUrl
         }
 
-        if (flags.nodeAuth) {
+        if (flags.apiKey) {
+          config.headers = {
+            'X-API-Key': flags.apiKey,
+          }
+        } else if (flags.nodeAuth) {
           config.headers = {Authorization: flags.nodeAuth}
         }
 

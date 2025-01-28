@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getUserId, handleRouteError } from "@/app/lib/api-auth";
+import crypto from "crypto";
 
 export async function GET(request: NextRequest) {
   try {
     const userId = await getUserId(request);
-    const keys = await prisma.apiKey.findMany({
-      where: {
-        userId,
-        deletedAt: null,
-      },
+
+    // Get all keys with cluster info
+    const allKeys = await prisma.apiKey.findMany({
+      where: { userId },
       include: {
         ipfsCluster: true,
       },
@@ -18,7 +18,26 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(keys);
+    // If no keys at all, create a default one
+    if (allKeys.length === 0) {
+      const apiKey = crypto.randomUUID();
+      const defaultKey = await prisma.apiKey.create({
+        data: {
+          name: "default",
+          userId,
+          apiKey,
+          ipfsClusterId: "default",
+        },
+        include: {
+          ipfsCluster: true,
+        },
+      });
+      return NextResponse.json([defaultKey]);
+    }
+
+    // Filter out deleted keys
+    const activeKeys = allKeys.filter((key) => !key.deletedAt);
+    return NextResponse.json(activeKeys);
   } catch (error) {
     return handleRouteError(error, "fetch API keys");
   }

@@ -1,9 +1,22 @@
-import { createUploader } from "ipfs-uploader";
-import { headers } from 'next/headers';
+import { createUploader, NodeConfig } from "ipfs-uploader";
+import { headers } from "next/headers";
 
-export const pinner = async () => {
+interface PinnerOptions {
+  apiKey?: string;
+}
+
+export const pinner = async ({ apiKey }: PinnerOptions = {}) => {
   await headers();
-  return createUploader({
+
+  const uploaderConfig: NodeConfig = {
     url: process.env.IPFS_API_URL,
-  });
+  };
+
+  if (apiKey) {
+    uploaderConfig.headers = {
+      "X-API-Key": apiKey,
+    };
+  }
+
+  return createUploader(uploaderConfig);
 };
