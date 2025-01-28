@@ -11,19 +11,16 @@ function UserMenu() {
     <div className="flex items-center gap-4">
       <div className="text-sm">
         <div className="font-mono text-gray-200">
-          {user?.email?.toString() ||
+          {user?.email?.address ||
             user?.wallet?.address?.slice(0, 6) +
               "..." +
               user?.wallet?.address?.slice(-4)}
         </div>
-        {user?.wallet?.address && (
-          <div className="text-xs text-gray-400">
-            {user.wallet.address.slice(0, 6)}...{user.wallet.address.slice(-4)}
-          </div>
-        )}
       </div>
       <button
-        onClick={logout}
+        onClick={async () => {
+          await logout();
+        }}
         className="rounded border border-gray-600 px-3 py-1 text-sm text-gray-300 hover:bg-gray-800"
       >
         Sign Out
@@ -85,6 +82,12 @@ export function Header() {
           {authenticated && (
             <nav className="flex items-center gap-4">
               <Link
+                href="/upload"
+                className="text-sm text-gray-400 hover:text-gray-200"
+              >
+                Upload
+              </Link>
+              <Link
                 href="/pins"
                 className="text-sm text-gray-400 hover:text-gray-200"
               >
@@ -110,11 +113,19 @@ export function Header() {
 
       {/* Mobile menu */}
       <div
-        className={`${isMenuOpen ? "block" : "hidden"} md:hidden border-t border-gray-800`}
+        className={`${
+          isMenuOpen ? "block" : "hidden"
+        } md:hidden border-t border-gray-800`}
       >
         <div className="space-y-2 px-4 py-3">
           {authenticated && (
             <>
+              <Link
+                href="/upload"
+                className="block text-sm text-gray-400 hover:text-gray-200 py-2"
+              >
+                Upload
+              </Link>
               <Link
                 href="/pins"
                 className="block text-sm text-gray-400 hover:text-gray-200 py-2"

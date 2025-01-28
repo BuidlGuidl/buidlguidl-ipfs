@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pinner } from '@/app/lib/ipfs';
+import { verifyApiKey, handleRouteError } from "@/app/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = request.headers.get("X-API-Key") || undefined;
     const text = await request.text();
     const MAX_TEXT_LENGTH = 1_000; // 1MB of text
 
@@ -22,10 +24,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await (await pinner()).add.text(text);
+    // If API key is provided, verify it
+    if (apiKey) {
+      await verifyApiKey(apiKey);
+    }
+
+    const result = await(await pinner({ apiKey })).add.text(text);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Upload failed:', error);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    return handleRouteError(error, "upload text");
   }
 } 
