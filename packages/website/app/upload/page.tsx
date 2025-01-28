@@ -18,7 +18,7 @@ function CodeExample({ apiKey = "YOUR_API_KEY" }: { apiKey?: string }) {
 npm install -g bgipfs
 
 # Initialize with your API key
-bgipfs upload config init --node-url="https://community.bgipfs.com" --api-key="${apiKey}"
+bgipfs upload config init --nodeUrl="https://community.bgipfs.com" --apiKey="${apiKey}"
 
 # Upload a file
 bgipfs upload ./my-file.txt`}</code>
@@ -44,10 +44,7 @@ const uploader = createUploader({
 // Upload a file
 const result = await uploader.add.file(fileObject);
 console.log(\`File uploaded: \${result.cid}\`);
-
-// Upload from URL
-const urlResult = await uploader.add.url("https://example.com/image.png");
-console.log(\`URL content uploaded: \${urlResult.cid}\`);`}</code>
+`}</code>
             </pre>
           </div>
         </div>

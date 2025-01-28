@@ -1,7 +1,7 @@
 {
   "name": "bgipfs",
   "description": "BuidlGuidl IPFS CLI",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "author": "azf20",
   "bin": {
     "bgipfs": "./bin/run.js"
@@ -83,7 +83,8 @@
     "prepack": "oclif manifest && oclif readme",
     "test": "mocha --forbid-only \"test/**/*.test.ts\"",
     "version": "oclif readme && git add README.md",
-    "prebuild": "pnpm --filter ipfs-uploader build"
+    "prebuild": "pnpm --filter ipfs-uploader build",
+    "prepublish": "pnpm build"
   },
   "types": "dist/index.d.ts"
 }

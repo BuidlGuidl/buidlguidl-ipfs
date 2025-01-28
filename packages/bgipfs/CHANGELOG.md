@@ -1,5 +1,12 @@
 # bgipfs
 
+## 0.0.6
+
+### Patch Changes
+
+- eb49e9d: Pass api key to upload config init
+- 9804333: Config & restart ux improvements
+
 ## 0.0.5
 
 ### Patch Changes

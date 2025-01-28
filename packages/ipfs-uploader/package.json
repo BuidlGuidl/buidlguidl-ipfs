@@ -14,7 +14,8 @@
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublish": "pnpm build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
