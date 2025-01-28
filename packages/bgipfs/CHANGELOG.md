@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.5
+
+### Patch Changes
+
+- 1d44c88: Fix traefik connection closure
+
 ## 0.0.4
 
 ### Patch Changes
