@@ -12,6 +12,8 @@ import {baseSchema} from '../../../lib/env-schema.js'
 import {checkDocker, checkRunningContainers} from '../../../lib/system.js'
 import {TemplateManager} from '../../../lib/templates.js'
 
+type ConfigMode = 'all' | 'environment' | 'initialization' | 'templates'
+
 export default class Init extends BaseCommand {
   static description = 'Set up the necessary configuration for IPFS Cluster'
 
@@ -21,6 +23,12 @@ export default class Init extends BaseCommand {
       default: false,
       description:
         'Force configuration: stop running containers, overwrite templates, and skip prompts if valid env exists',
+    }),
+    mode: Flags.string({
+      char: 'm',
+      default: 'all',
+      description: 'Configuration mode to run',
+      options: ['templates', 'environment', 'initialization', 'all'],
     }),
   }
 
@@ -33,31 +41,62 @@ export default class Init extends BaseCommand {
     const env = new EnvManager()
     const templates = new TemplateManager()
 
-    // Check for running containers
+    const mode = flags.mode as ConfigMode
+    const shouldRunTemplates = mode === 'all' || mode === 'templates'
+    const shouldRunEnvironment = mode === 'all' || mode === 'environment'
+    const shouldRunInitialization = mode === 'all' || mode === 'initialization'
+
+    // Check for running containers only if we need to initialize
     await checkDocker()
-    const running = await checkRunningContainers()
-    if (running.length > 0) {
-      if (flags.force) {
-        await execa('docker', ['compose', 'stop'])
-      } else {
-        this.logError('Please stop all running containers first:\n' + running.join('\n'))
-        return
+    if (shouldRunInitialization) {
+      const running = await checkRunningContainers()
+      if (running.length > 0) {
+        if (flags.force) {
+          await execa('docker', ['compose', 'stop'])
+        } else {
+          this.logError('Please stop all running containers first:\n' + running.join('\n'))
+          return
+        }
       }
     }
 
     try {
-      await this.setupConfiguration(templates, flags.force)
-      const currentEnv = await this.readCurrentEnv(env)
-      const envValues = await this.collectEnvValues(flags, currentEnv)
-      await env.updateEnv(envValues)
+      // Step 1: Templates
+      if (shouldRunTemplates) {
+        this.logInfo('Installing required configuration files...')
+        this.logInfo('Checking for required files, you will be prompted to overwrite any local changes')
+        await templates.copyAllTemplates(flags.force)
+      }
 
-      await this.initializeCluster(flags.force)
+      // Step 2: Environment
+      if (shouldRunEnvironment) {
+        this.logInfo('Setting up environment...')
+        const currentEnv = await this.readCurrentEnv(env)
+        const envValues = await this.collectEnvValues(flags, currentEnv)
+        await env.updateEnv(envValues)
+      }
+
+      // Step 3: Initialization
+      if (shouldRunInitialization) {
+        await this.initializeCluster(flags.force)
+      }
 
       this.logSuccess('Configuration completed successfully!')
-      this.logInfo('Your configuration is in .env')
-      this.logInfo('Your cluster identity is in identity.json')
-      this.logInfo('Your cluster service configuration is in service.json')
-      this.logInfo('You can now start the cluster with `bgipfs cluster start`')
+      if (shouldRunTemplates) {
+        this.logInfo('Your docker-compose files have been updated')
+      }
+
+      if (shouldRunEnvironment) {
+        this.logInfo('Your configuration is in .env')
+      }
+
+      if (shouldRunInitialization) {
+        this.logInfo('Your cluster identity is in identity.json')
+        this.logInfo('Your cluster service configuration is in service.json')
+        this.logInfo('You can now start the cluster with `bgipfs cluster start`')
+      } else if (shouldRunTemplates || shouldRunEnvironment) {
+        this.logInfo('You may need to restart the cluster with `bgipfs cluster restart` for changes to take effect')
+      }
     } catch (error) {
       this.logError(`Configuration failed: ${(error as Error).message}`)
     } finally {
@@ -113,26 +152,24 @@ export default class Init extends BaseCommand {
     const adminCreds = await authService.setupCredentials(
       'admin',
       {
-        password: flags.force ? currentEnv.ADMIN_PASSWORD : undefined,
-        username: flags.force ? currentEnv.ADMIN_USERNAME : undefined,
+        password: currentEnv.ADMIN_PASSWORD,
+        username: currentEnv.ADMIN_USERNAME,
       },
-      {save: false},
+      {force: flags.force, save: false},
     )
 
     // Then set up user credentials
     const userCreds = await authService.setupCredentials(
       'user',
       {
-        password: flags.force ? currentEnv.USER_PASSWORD : undefined,
-        username: flags.force ? currentEnv.USER_USERNAME : undefined,
+        password: currentEnv.USER_PASSWORD,
+        username: currentEnv.USER_USERNAME,
       },
-      {save: false},
+      {force: flags.force, save: false},
     )
 
-    if (!flags.force) {
-      this.logSuccess('Generated admin password: ' + adminCreds.password)
-      this.logSuccess('Generated user password: ' + userCreds.password)
-    }
+    this.logSuccess(`Admin password for ${adminCreds.username}: ${adminCreds.password}`)
+    this.logSuccess(`User password for ${userCreds.username}: ${userCreds.password}`)
 
     return [
       {key: 'PEERNAME', value: peername},
@@ -370,14 +407,6 @@ export default class Init extends BaseCommand {
         }
       })
       .catch(() => defaultEnv)
-  }
-
-  private async setupConfiguration(templates: TemplateManager, force: boolean): Promise<void> {
-    this.logInfo('Installing required configuration files...')
-    this.logInfo('Checking for required files, you will be prompted to overwrite any local changes')
-    await templates.copyAllTemplates(force)
-
-    this.logInfo('Setting up environment...')
   }
 
   private validateInput(schema: z.ZodType, value: string): string | true {

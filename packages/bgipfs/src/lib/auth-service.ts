@@ -1,11 +1,11 @@
-import {input, password} from '@inquirer/prompts'
+import {input} from '@inquirer/prompts'
 import {execa} from 'execa'
 import {randomBytes} from 'node:crypto'
 import {promises as fs} from 'node:fs'
 
 import {EnvManager} from './env-manager.js'
 
-const DEFAULT_OPTIONS = {save: true as boolean} as const
+const DEFAULT_OPTIONS = {force: false as boolean, save: true as boolean} as const
 
 export class AuthService {
   constructor(private env: EnvManager) {}
@@ -20,17 +20,20 @@ export class AuthService {
     args?: {password?: string; username?: string},
     options: typeof DEFAULT_OPTIONS = DEFAULT_OPTIONS,
   ): Promise<{password: string; username: string}> {
-    const username =
-      args?.username ||
-      (await input({
-        default: role === 'admin' ? 'admin' : 'user',
-        message: `Enter new ${role} username`,
-      }))
+    const defaultUsername = role === 'admin' ? 'admin' : 'user'
+    const username = options.force
+      ? args?.username || defaultUsername
+      : await input({
+          default: defaultUsername,
+          message: `Enter ${role} username`,
+        })
 
-    const authPassword = (args?.password ||
-      (await password({
-        message: `Enter new ${role} password (press enter to generate)`,
-      }).then((p) => p || this.generatePassword()))) as string
+    const authPassword = options.force
+      ? args?.password || (await this.generatePassword())
+      : await input({
+          default: args?.password,
+          message: `Enter ${role} password (leave blank to generate)`,
+        }).then((p) => p || this.generatePassword())
 
     // Create auth directory if it doesn't exist
     await fs.mkdir('auth', {recursive: true})
