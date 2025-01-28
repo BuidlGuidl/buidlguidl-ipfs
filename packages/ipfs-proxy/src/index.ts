@@ -18,52 +18,50 @@ interface JsonEntry {
 }
 
 class JsonParser {
-	private entries: Array<JsonEntry> = [];
-	private hasError = false;
+	public entries: Array<JsonEntry> = [];
 	private wrapWithDirectory: boolean;
-	private chunks: Uint8Array[] = []; // Store all chunks
+	private decoder = new TextDecoder();
+	private buffer = '';
 
 	constructor(wrapWithDirectory: boolean) {
 		this.wrapWithDirectory = wrapWithDirectory;
 	}
 
 	addChunk(chunk: Uint8Array) {
-		this.chunks.push(chunk);
-	}
+		// Decode and add to buffer
+		this.buffer += this.decoder.decode(chunk, { stream: true });
 
-	processAllChunks() {
-		// Combine all chunks into a single Uint8Array
-		const totalLength = this.chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-		const fullArray = new Uint8Array(totalLength);
-		let offset = 0;
-		for (const chunk of this.chunks) {
-			fullArray.set(chunk, offset);
-			offset += chunk.length;
-		}
+		// Process complete lines
+		const newlineIndex = this.buffer.lastIndexOf('\n');
+		if (newlineIndex === -1) return; // No complete lines yet
 
-		// Decode the complete array at once
-		const decoder = new TextDecoder();
-		const fullText = decoder.decode(fullArray);
+		// Get complete lines and keep remainder in buffer
+		const lines = this.buffer.slice(0, newlineIndex).split('\n');
+		this.buffer = this.buffer.slice(newlineIndex + 1);
 
-		// Split into lines and process each line
-		const lines = fullText.split('\n').filter((line) => line.trim());
-
+		// Process complete lines
 		for (const line of lines) {
+			if (!line.trim()) continue;
 			try {
-				const json = JSON.parse(line);
-				if (json.Hash) {
-					this.entries.push(json);
-				}
+				const entry = JSON.parse(line);
+				if (entry.Hash) this.entries.push(entry);
 			} catch (e) {
-				// Ignore parse errors
+				console.warn('Parse error:', e);
 			}
 		}
+	}
 
-		if (this.hasError) {
-			console.error('Upload failed - some files may be orphaned');
-		} else {
-			console.log(`IPFS: Uploaded ${this.entries.length} files`);
+	flush() {
+		// Process any remaining data in buffer
+		if (this.buffer.trim()) {
+			try {
+				const entry = JSON.parse(this.buffer);
+				if (entry.Hash) this.entries.push(entry);
+			} catch (e) {
+				console.warn('Parse error in flush:', e);
+			}
 		}
+		this.buffer = '';
 	}
 
 	getCidsToPin(): Array<{ cid: string; size: bigint; name?: string }> {
@@ -90,9 +88,13 @@ class JsonParser {
 			];
 		}
 
-		// Otherwise, pin root-level entries (no '/' in name)
+		// Otherwise, pin root-level entries
 		return this.entries
-			.filter((e) => !e.Name || !e.Name.includes('/'))
+			.filter((e) => {
+				// Include entries with no name (raw files)
+				// Or entries with no slashes (root level)
+				return !e.Name || !e.Name.includes('/');
+			})
 			.map((e) => ({
 				cid: e.Hash,
 				size: BigInt(e.Size),
@@ -126,11 +128,11 @@ export default {
 			return new Response('Method not allowed', { status: 405 });
 		}
 
-		try {
-			// Get API key from request header or use default
-			const requestApiKey = request.headers.get('x-api-key');
-			const apiKey = requestApiKey || env.DEFAULT_API_KEY;
+		// Get API key from request header or use default
+		const requestApiKey = request.headers.get('x-api-key');
+		const apiKey = requestApiKey || env.DEFAULT_API_KEY;
 
+		try {
 			if (!apiKey) {
 				return new Response('API key is required', {
 					status: 401,
@@ -185,6 +187,9 @@ export default {
 				)
 			);
 
+			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
+			const customName = request.headers.get('x-pin-name');
+
 			const res = await fetch(ipfsUrl, {
 				method: 'POST',
 				headers: {
@@ -199,34 +204,42 @@ export default {
 				throw new Error(`IPFS error: ${res.status} - ${error}`);
 			}
 
-			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 			const parser = new JsonParser(wrapWithDirectory);
-			const customName = request.headers.get('x-pin-name');
 
-			// Create a transform stream that both collects entries and forwards the response
-			const transformStream = new TransformStream({
+			// Create a transform stream to process the IPFS response
+			const processStream = new TransformStream({
 				transform(chunk, controller) {
-					parser.addChunk(chunk);
-					controller.enqueue(chunk);
+					try {
+						// Process the chunk (parse JSON lines, collect CIDs)
+						parser.addChunk(chunk);
+						// Forward immediately - no need to await since backpressure is handled by TransformStream
+						controller.enqueue(chunk);
+					} catch (e) {
+						console.error('Error processing chunk:', e);
+						// Continue processing even if parsing fails
+						controller.enqueue(chunk);
+					}
 				},
 				flush() {
-					parser.processAllChunks();
+					try {
+						// Process any remaining data
+						parser.flush();
 
-					// Handle pinning after we've processed everything
-					const cidsToPin = parser.getCidsToPin();
-					console.log('Pinning CIDs:', cidsToPin.map((p) => p.cid).join(', '));
-
-					if (cidsToPin.length > 0) {
-						ctx.waitUntil(createPins(env, apiKey, cidsToPin, customName));
+						// Get CIDs to pin and create pins in background
+						const cidsToPin = parser.getCidsToPin();
+						if (cidsToPin.length > 0) {
+							ctx.waitUntil(
+								createPins(env, apiKey, cidsToPin, customName, parser.entries.length).catch((e) => console.error('Error creating pins:', e))
+							);
+						}
+					} catch (e) {
+						console.error('Error in stream flush:', e);
 					}
 				},
 			});
 
-			// Pipe the response through our transform stream
-			res.body!.pipeThrough(transformStream);
-
-			// Return the streaming response
-			return new Response(transformStream.readable, {
+			// Return the transformed stream immediately
+			return new Response(res.body!.pipeThrough(processStream), {
 				headers: {
 					...res.headers,
 					'Access-Control-Allow-Origin': '*',
@@ -235,7 +248,7 @@ export default {
 				},
 			});
 		} catch (error) {
-			console.error('IPFS Add Error:', error);
+			console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
 			return new Response(JSON.stringify({ error: 'Failed to add content to IPFS' }), {
 				status: 500,
 				headers: {
@@ -249,12 +262,12 @@ export default {
 	},
 } satisfies ExportedHandler<Env>;
 
-// Move pin creation to a separate async function
 async function createPins(
 	env: Env,
 	apiKey: string,
 	cidsToPin: Array<{ cid: string; size: bigint; name?: string }>,
-	customName: string | null
+	customName: string | null,
+	totalEntries: number
 ) {
 	const pinsToCreate = cidsToPin.map((pin) => ({
 		...pin,
@@ -276,8 +289,8 @@ async function createPins(
 
 	if (!pinResponse.ok) {
 		const error = await pinResponse.text();
-		throw new Error(`Failed to pin files: ${error}`);
+		throw new Error(`Failed to save CIDs: ${pinsToCreate.map((p) => p.cid).join(', ')} - ${error}`);
 	} else {
-		console.log(`Pins created: ${pinsToCreate.map((p) => p.cid).join(', ')}`);
+		console.log(`Pins saved: ${pinsToCreate.map((p) => p.cid).join(', ')} (${totalEntries} entries)`);
 	}
 }

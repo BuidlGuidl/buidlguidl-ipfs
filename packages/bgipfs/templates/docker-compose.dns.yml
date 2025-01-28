@@ -26,8 +26,9 @@ services:
       - "traefik.http.services.upload-service.loadbalancer.server.port=9095"
       - "traefik.http.routers.upload-router.rule=Host(`${UPLOAD_DOMAIN}`) && (Path(`/api/v0/add`) || Path(`/api/v0/cat`) || Path(`/api/v0/pin/ls`) || Path(`/api/v0/pin/add`))"
       - "traefik.http.routers.upload-router.entrypoints=web"
-      - "traefik.http.routers.upload-router.middlewares=upload-auth"
+      - "traefik.http.routers.upload-router.middlewares=upload-auth@docker,connection-headers@docker"
       - "traefik.http.routers.upload-router.service=upload-service"
+      - "traefik.http.middlewares.connection-headers.headers.customresponseheaders.Connection=close"
 
   traefik:
     ports:
