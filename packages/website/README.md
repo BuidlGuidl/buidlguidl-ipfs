@@ -80,18 +80,20 @@ All endpoints return appropriate HTTP status codes:
 
 ## Environment Variables
 
-IPFS Configuration:
+```
+## IPFS Configuration:
 IPFS_API_URL=http://127.0.0.1:5555
 IPFS_AUTH_USERNAME=ipfs
 IPFS_AUTH_PASSWORD=your_generated_password
 
-Database:
+## Database:
 DATABASE_URL="postgresql://user@localhost:5432/bgipfs"
 
-Authentication:
-NEXT_PUBLIC_PRIVY_APP_ID="your-privy-app-id"
+## Authentication:
+NEXT_PUBLIC_PRIVY_APP_ID=your-privy-app-id
 PRIVY_APP_SECRET=your_privy_app_secret
 PRIVY_VERIFICATION_KEY=your-verification-key-from-dashboard
+```
 
 ## Development
 
