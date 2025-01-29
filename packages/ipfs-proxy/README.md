@@ -1,13 +1,14 @@
 # @ipfs-proxy
 
-A Cloudflare Worker that provides a proxy for IPFS file uploads, specifically handling the `/api/v0/add` endpoint, while maintaining authentication and streaming capabilities.
+A Cloudflare Worker that provides a proxy for IPFS file uploads, specifically handling the `/api/v0/add` endpoint. This is designed to be used by the [website](/packages/website/), providing "hooks" for validation of API keys, and tracking of pins in an app database, while maintaining streaming-enabled uploads of large files.
 
 ## Features
 
 - Proxies IPFS file upload requests to a specified IPFS node
 - Handles large file uploads (up to Cloudflare's limits)
-- Maintains authentication
-- Streams responses
+- Validates API keys by calling an "/api/auth" endpoint - success returns a 200 status and an IPFS node URL
+- After upload, makes a callback to "/api/pin" with the pinned CIDs & API key
+- Streams requests and responses
 - CORS support for browser clients
 - Compatible with kubo-rpc-client
 
@@ -36,11 +37,14 @@ IPFS_AUTH_PASSWORD=your_password
 ```
 
 Production variables:
-- `IPFS_API_URL` is set in wrangler.json
-- `IPFS_AUTH_USERNAME` and `IPFS_AUTH_PASSWORD` should be set as secrets:
+- `APP_API_URL` - The domain of the app that will be making the `api/auth` verification, and the callback to `/api/pin`
+- `WORKER_AUTH_SECRET` - A secret key for the worker, used to validate requests to the `/api/auth` and `/api/pin` endpoints come from a trusted worker
+- `IPFS_AUTH_USERNAME` and `IPFS_AUTH_PASSWORD` are basic auth for authentication of the cloudflare worker by the IPFS node
+- `DEFAULT_API_KEY` - A default API key to use if no API key is provided (optional - this enables unauthenticated pinning to the associated account)
+
+All variables should be set as secrets:
 ```bash
-wrangler secret put IPFS_AUTH_USERNAME
-wrangler secret put IPFS_AUTH_PASSWORD
+wrangler secret put <VARIABLE>
 ```
 
 ## Usage

@@ -39,6 +39,7 @@ bgipfs cluster
   reset    Reset IPFS cluster and remove all data
   start    Start IPFS cluster
   stop     Stop IPFS cluster
+  restart  Restart a running IPFS cluster
 ```
 
 ### Configuration
@@ -74,9 +75,9 @@ The cluster can run in two modes:
 When using DNS mode, you'll need to configure:
 
 1. DNS Records in Cloudflare:
-   - `gateway.domain.com` - Points to your server IP
-   - `*.gateway.domain.com` - Wildcard for IPFS subdomains
-   - `<upload-subdomain>.domain.com` - Points to your server IP (protected by user auth)
+   - `<gateway-domain>` - Points to your server IP
+   - `*.<gateway-domain>` - Wildcard for IPFS subdomains
+   - `<upload-domain>` - Points to your server IP (protected by user auth)
 
 2. Authentication:
    - Admin credentials protect the Traefik dashboard

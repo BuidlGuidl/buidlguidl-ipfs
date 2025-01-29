@@ -1,41 +1,101 @@
 # BuidlGuidl IPFS Interface
 
-Website for BuidlGuidl's IPFS pinning service.
+Website for BuidlGuidl's IPFS pinning service. Provides a web interface and API endpoints for uploading and managing content on IPFS.
 
 ## Features
-- Background & docs
-- Demo file upload
-- API endpoints for uploading content to IPFS
 
-## API Endpoints
+### Authentication & Access Control
+- Privy-powered Web3 login
 
-All API endpoints are under `/api/upload/` and accept POST requests.
+### Database
+- PostgreSQL backend using Prisma ORM
+- Tracks API keys, pins per user, and IPFS clusters
 
-### `/api/upload/file`
+### Pages
+- /api-keys - list API keys, create new keys
+- /pins - list pins, linking to the IPFS gateway
+- /upload - UI upload, and code snippets
+- /clusters - lists IPFS clusters
+
+### API Endpoints
+
+All API endpoints accept authentication via:
+- Privy session token (web interface)
+- API key (programmatic access)
+
+#### Upload Endpoints
+All upload endpoints are under `/api/upload/` and accept POST requests.
+
+`/api/upload/file`
 Upload a single file using FormData with a 'file' field.
 
-### `/api/upload/files`
+`/api/upload/files`
 Upload multiple files using FormData with multiple files and a 'dirName' field.
 
-### `/api/upload/text`
+`/api/upload/text`
 Upload plain text content by sending the text directly in the request body.
 
-### `/api/upload/json`
+`/api/upload/json`
 Upload JSON data by sending the JSON object in the request body.
 
-### `/api/upload/glob`
+`/api/upload/glob`
 Upload multiple files with paths using a glob-like format. Send an array of objects containing `path` and `content` fields.
 
-## Response Format
+#### Pin Management
+`GET /api/pins`
+List all tracked pins
 
-All successful uploads return a JSON response with:
-- `cid`: The IPFS Content Identifier
-- `size`: Size of the uploaded content in bytes
-- Additional metadata depending on the upload type
+`GET /api/pins/{cid}`
+Get pin details
+
+`POST /api/pin`
+Tracks pinned content
+
+`DELETE /api/pins/{cid}`
+Soft-deletes tracked pins
+
+#### API Keys
+`GET /api/api-keys`
+List all API keys
+
+`POST /api/api-keys`
+Create new API key
+
+`DELETE /api/api-keys/{id}`
+Delete API key
+
+### Clusters
+`GET /api/clusters`
+List all IPFS clusters (read-only)
+
 
 ## Error Handling
 
 All endpoints return appropriate HTTP status codes:
 - 400 for invalid requests
+- 401 for unauthorized access
+- 403 for forbidden actions
 - 500 for server errors
 - Each error response includes an `error` field with a description
+
+## Environment Variables
+
+IPFS Configuration:
+IPFS_API_URL=http://127.0.0.1:5555
+IPFS_AUTH_USERNAME=ipfs
+IPFS_AUTH_PASSWORD=your_generated_password
+
+Database:
+DATABASE_URL="postgresql://user@localhost:5432/bgipfs"
+
+Authentication:
+NEXT_PUBLIC_PRIVY_APP_ID="your-privy-app-id"
+PRIVY_APP_SECRET=your_privy_app_secret
+PRIVY_VERIFICATION_KEY=your-verification-key-from-dashboard
+
+## Development
+
+1. Copy `.env.example` to `.env` and fill in the required values
+2. Install dependencies: `pnpm install`
+3. Push database schema: `pnpm prisma db push`
+4. Start the development server: `pnpm dev`
