@@ -3,10 +3,6 @@ import {
   PutObjectCommand,
   HeadObjectCommand,
 } from "@aws-sdk/client-s3";
-import { CarWriter } from "@ipld/car";
-import { mfs } from "@helia/mfs";
-import { car } from "@helia/car";
-import { createHeliaHTTP } from "@helia/http";
 import {
   BaseUploader,
   UploadResult,
@@ -17,7 +13,14 @@ import {
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
 import { globSource } from "kubo-rpc-client";
-import all from "it-all";
+import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
+
+type FileLike = {
+  name: string;
+  path?: string;
+  // stream should return a ReadableStream as expected by ipfs-car
+  stream: () => ReadableStream<Uint8Array>;
+};
 
 export class S3Uploader implements BaseUploader {
   private client: S3Client;
@@ -79,82 +82,56 @@ export class S3Uploader implements BaseUploader {
   }
 
   private async uploadDirectory(
-    files: { path: string; content: Buffer | Uint8Array }[],
+    files: FileLike[],
     rootName?: string
   ): Promise<UploadResult> {
-    // Sort files by path depth (deeper paths first)
-    files.sort((a, b) => {
-      return (
-        (b.path.match(/\//g) || []).length - (a.path.match(/\//g) || []).length
-      );
-    });
+    try {
+      let rootCID: any;
+      const chunks: Uint8Array[] = [];
 
-    const helia = await createHeliaHTTP();
+      await createDirectoryEncoderStream(files)
+        .pipeThrough(
+          new TransformStream({
+            transform(block, controller) {
+              rootCID = block.cid;
+              controller.enqueue(block);
+            },
+          })
+        )
+        .pipeThrough(new CAREncoderStream())
+        .pipeTo(
+          new WritableStream({
+            write(chunk) {
+              chunks.push(chunk);
+            },
+          })
+        );
 
-    const heliaFs = mfs(helia);
-
-    // Add all files to UnixFS
-    for (const file of files) {
-      // Create directory path if needed
-      const pathParts = file.path.split("/").slice(1, -1);
-      let currentPath = "";
-      for (const part of pathParts) {
-        currentPath += "/" + part;
-        try {
-          await heliaFs.mkdir(currentPath);
-        } catch (error) {
-          // directory exists
-        }
+      if (!rootCID) {
+        throw new Error("Failed to generate root CID");
       }
 
-      // Add file content
-      const filename = "/" + (file.path.split("/").pop() || "");
-      await heliaFs.writeBytes(file.content, filename);
-      if (filename !== file.path) {
-        await heliaFs.cp(filename, file.path);
-        await heliaFs.rm(filename);
-      }
+      // Concatenate chunks into single buffer
+      const carContent = Buffer.concat(chunks);
+
+      // Upload CAR file with proper metadata
+      const key = rootName || rootCID.toString();
+      const command = new PutObjectCommand({
+        Bucket: this.config.options.bucket,
+        Key: key,
+        Body: carContent,
+        Metadata: {
+          import: "car",
+        },
+      });
+
+      await this.client.send(command);
+      const cid = await this.getCidFromMetadata(key);
+
+      return { success: true, cid };
+    } catch (error) {
+      return createErrorResult<UploadResult>(error);
     }
-
-    // Get root CID and create CAR file
-    const rootStat = await heliaFs.stat("/");
-
-    // Export as CAR file
-    const c = car(helia);
-    const { writer, out } = await CarWriter.create([rootStat.cid]);
-
-    // Collect CAR chunks in memory
-    const chunks: Uint8Array[] = [];
-    const collectChunks = async () => {
-      for await (const chunk of out) {
-        chunks.push(chunk);
-      }
-    };
-
-    // Start collecting chunks and export simultaneously
-    const [_] = await Promise.all([
-      collectChunks(),
-      c.export(rootStat.cid, writer),
-    ]);
-
-    // Concatenate chunks into single buffer
-    const carContent = Buffer.concat(chunks);
-
-    // Upload CAR file with proper metadata
-    const key = rootName || rootStat.cid.toString();
-    const command = new PutObjectCommand({
-      Bucket: this.config.options.bucket,
-      Key: key,
-      Body: carContent,
-      Metadata: {
-        import: "car",
-      },
-    });
-
-    await this.client.send(command);
-    const cid = await this.getCidFromMetadata(key);
-
-    return { success: true, cid };
   }
 
   add = {
@@ -297,46 +274,54 @@ export class S3Uploader implements BaseUploader {
 
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
-        // Check if using 4everland endpoint
         if (this.config.options.endpoint.includes("4everland")) {
           throw new Error(
             "Directory uploads via CAR files are not supported with 4everland endpoints."
           );
         }
 
-        let entries: { path: string; content: Buffer | Uint8Array }[] = [];
+        let files: FileLike[] = [];
 
         if ("files" in input) {
-          // Handle browser files
-          for (const file of input.files) {
-            const buffer = await file.arrayBuffer();
-            entries.push({
-              path: `${file.name}`,
-              content: new Uint8Array(buffer),
-            });
-          }
+          // Convert browser File objects to ReadableStream
+          files = input.files.map((file) => ({
+            name: file.name,
+            stream: () => file.stream(),
+          }));
         } else {
           if (typeof window !== "undefined") {
             throw new Error(
               "Directory path uploads are only supported in Node.js environments"
             );
           }
-          // Handle Node.js directory path
+          // Node.js path case stays the same since globSource already gives us the right format
           for await (const file of globSource(
             input.dirPath,
             input.pattern ?? "**/*"
           )) {
             if (file.content) {
-              const chunks = await all(file.content);
-              entries.push({
-                path: `${file.path}`,
-                content: Buffer.concat(chunks),
+              files.push({
+                name: file.path,
+                // Convert AsyncIterable to ReadableStream
+                stream: () =>
+                  new ReadableStream({
+                    async start(controller) {
+                      try {
+                        for await (const chunk of file.content!) {
+                          controller.enqueue(chunk);
+                        }
+                        controller.close();
+                      } catch (error) {
+                        controller.error(error);
+                      }
+                    },
+                  }),
               });
             }
           }
         }
 
-        if (entries.length === 0) {
+        if (files.length === 0) {
           throw new Error(
             "dirPath" in input
               ? `No files found in directory: ${input.dirPath}`
@@ -345,7 +330,7 @@ export class S3Uploader implements BaseUploader {
         }
 
         return this.uploadDirectory(
-          entries,
+          files,
           "dirPath" in input ? input.dirPath.split("/").pop() : input.dirName
         );
       } catch (error) {
