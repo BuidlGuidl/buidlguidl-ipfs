@@ -46,9 +46,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId(request);
-    const { name } = await request.json();
+    const { name, ipfsClusterId } = await request.json();
+
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    // If cluster ID is provided, verify the user owns it
+    if (ipfsClusterId && ipfsClusterId !== "default") {
+      const cluster = await prisma.ipfsCluster.findFirst({
+        where: {
+          id: ipfsClusterId,
+          userId: userId,
+        },
+      });
+
+      if (!cluster) {
+        return NextResponse.json(
+          { error: "Invalid cluster ID or cluster not owned by user" },
+          { status: 403 }
+        );
+      }
     }
 
     const apiKey = crypto.randomUUID();
@@ -57,7 +75,7 @@ export async function POST(request: NextRequest) {
         name,
         userId,
         apiKey,
-        ipfsClusterId: "default",
+        ipfsClusterId: ipfsClusterId || "default",
       },
       include: {
         ipfsCluster: true,

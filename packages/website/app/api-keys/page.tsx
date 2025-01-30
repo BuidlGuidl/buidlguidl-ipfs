@@ -4,14 +4,19 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useApiKeys, useCreateApiKey, useDeleteApiKey } from "@/app/hooks/use-api-keys";
+import { useClusters } from "@/app/hooks/use-clusters";
 
 export default function ApiKeysPage() {
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
   const [newKeyName, setNewKeyName] = useState("");
+  const [selectedClusterId, setSelectedClusterId] = useState<
+    string | undefined
+  >(undefined);
   const [showNewKey, setShowNewKey] = useState<string | null>(null);
 
   const { data: keys, isLoading } = useApiKeys();
+  const { data: clusters } = useClusters();
   const createKey = useCreateApiKey();
   const deleteKey = useDeleteApiKey();
 
@@ -25,33 +30,37 @@ export default function ApiKeysPage() {
   async function handleCreateKey(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const result = await createKey.mutateAsync(newKeyName);
+      const result = await createKey.mutateAsync({
+        name: newKeyName,
+        ipfsClusterId: selectedClusterId,
+      });
       setShowNewKey(result.apiKey);
       setNewKeyName("");
+      setSelectedClusterId("default");
     } catch (error) {
-      console.error('Failed to create API key:', error);
+      console.error("Failed to create API key:", error);
     }
   }
 
   async function handleDeleteKey(id: string) {
-    if (!window.confirm('Are you sure you want to delete this API key?')) {
+    if (!window.confirm("Are you sure you want to delete this API key?")) {
       return;
     }
 
     try {
       await deleteKey.mutateAsync(id);
     } catch (error) {
-      console.error('Failed to delete API key:', error);
+      console.error("Failed to delete API key:", error);
     }
   }
 
   function formatDate(date: string) {
     return new Date(date).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
@@ -70,7 +79,10 @@ export default function ApiKeysPage() {
       {(!keys || keys.length < 5) && (
         <form onSubmit={handleCreateKey} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-300">
+            <label
+              htmlFor="name"
+              className="block text-sm font-medium text-gray-300"
+            >
               New API Key Name
             </label>
             <div className="mt-1 flex gap-4">
@@ -83,6 +95,19 @@ export default function ApiKeysPage() {
                 className="block w-full rounded-md border-gray-700 bg-gray-900 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                 placeholder="Enter key name"
               />
+              {clusters && clusters.length > 1 && (
+                <select
+                  value={selectedClusterId}
+                  onChange={(e) => setSelectedClusterId(e.target.value)}
+                  className="block rounded-md border-gray-700 bg-gray-900 text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
+                >
+                  {clusters.map((cluster) => (
+                    <option key={cluster.id} value={cluster.id}>
+                      {cluster.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 type="submit"
                 disabled={createKey.isPending || !newKeyName}
@@ -107,7 +132,9 @@ export default function ApiKeysPage() {
         <div className="rounded-md bg-green-900/50 border border-green-700/50 p-4">
           <div className="flex">
             <div className="flex-1">
-              <h3 className="text-sm font-medium text-green-200">API Key Created</h3>
+              <h3 className="text-sm font-medium text-green-200">
+                API Key Created
+              </h3>
               <div className="mt-2 text-sm text-green-200">
                 <p className="font-mono">{showNewKey}</p>
               </div>

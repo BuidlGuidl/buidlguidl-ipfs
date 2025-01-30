@@ -14,6 +14,11 @@ interface SerializedIpfsCluster extends Omit<IpfsCluster, 'createdAt' | 'updated
   updatedAt: string;
 }
 
+interface CreateApiKeyParams {
+  name: string;
+  ipfsClusterId?: string;
+}
+
 export function useApiKeys() {
   const { authenticated, getAccessToken } = usePrivy();
 
@@ -41,9 +46,9 @@ export function useApiKeys() {
 export function useCreateApiKey() {
   const queryClient = useQueryClient();
   const { getAccessToken } = usePrivy();
-  
+
   return useMutation({
-    mutationFn: async (name: string) => {
+    mutationFn: async (params: CreateApiKeyParams) => {
       const token = await getAccessToken();
       const response = await fetch("/api/api-keys", {
         method: "POST",
@@ -51,7 +56,7 @@ export function useCreateApiKey() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(params),
       });
       if (!response.ok) throw new Error("Failed to create API key");
       return response.json();
