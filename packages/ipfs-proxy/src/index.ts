@@ -1,9 +1,14 @@
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
+
 interface Env {
 	IPFS_AUTH_USERNAME: string;
 	IPFS_AUTH_PASSWORD: string;
 	APP_API_URL: string;
 	WORKER_AUTH_SECRET: string;
 	DEFAULT_API_KEY: string;
+	MAX_UPLOAD_SIZE?: string; // Optional environment variable for max upload size in bytes
 }
 
 interface AuthResponse {
@@ -103,171 +108,148 @@ class JsonParser {
 	}
 }
 
-export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// Handle CORS preflight requests
-		if (request.method === 'OPTIONS') {
-			return new Response(null, {
-				headers: {
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
-					'Access-Control-Max-Age': '86400',
-				},
-			});
+const app = new Hono<{ Bindings: Env }>();
+
+// Add middleware
+app.use(
+	'*',
+	cors({
+		origin: '*',
+		allowMethods: ['POST', 'OPTIONS'],
+		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name'],
+		maxAge: 86400,
+	}),
+);
+
+// Add body size limit middleware
+app.use('/api/v0/add', async (c, next) => {
+	const maxSize = c.env.MAX_UPLOAD_SIZE ? parseInt(c.env.MAX_UPLOAD_SIZE) : 50 * 1024 * 1024;
+	return bodyLimit({ maxSize })(c, next);
+});
+
+// Main upload route
+app.post('/api/v0/add', async (c) => {
+	const env = c.env;
+	const apiKey = c.req.header('x-api-key') || env.DEFAULT_API_KEY;
+
+	if (!apiKey) {
+		return c.json({ error: 'API key is required' }, 401);
+	}
+
+	try {
+		// Verify API key and get IPFS node details
+		const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'x-worker-auth': env.WORKER_AUTH_SECRET,
+				Host: new URL(env.APP_API_URL).hostname,
+			},
+			body: JSON.stringify({ apiKey }),
+		});
+
+		if (!authResponse.ok) {
+			const errorText = await authResponse.text();
+			throw new Error(`Auth failed: ${authResponse.status} - ${errorText}`);
 		}
 
-		// Parse the URL to check the path
+		const { apiUrl } = (await authResponse.json()) as AuthResponse;
+		if (!apiUrl) {
+			throw new Error('No API URL returned from auth endpoint');
+		}
+
+		const request = c.req.raw;
+		if (!request.body) throw new Error('No body provided');
+
+		const auth = btoa(`${env.IPFS_AUTH_USERNAME}:${env.IPFS_AUTH_PASSWORD}`);
 		const url = new URL(request.url);
-		if (url.pathname !== '/api/v0/add') {
-			return new Response('Not Found', { status: 404 });
+		const ipfsUrl = new URL('/api/v0/add', apiUrl);
+
+		// Copy all params except cid-version
+		url.searchParams.forEach((value, key) => {
+			if (key !== 'cid-version') {
+				ipfsUrl.searchParams.append(key, value);
+			}
+		});
+
+		// Always use CIDv1
+		ipfsUrl.searchParams.append('cid-version', '1');
+
+		// Filter headers
+		const headers = Object.fromEntries(
+			Array.from(request.headers.entries()).filter(
+				([key]) => !['host', 'transfer-encoding', 'content-length', 'authorization'].includes(key.toLowerCase()),
+			),
+		);
+
+		const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
+		const customName = request.headers.get('x-pin-name');
+
+		const res = await fetch(ipfsUrl, {
+			method: 'POST',
+			headers: {
+				...headers,
+				Authorization: `Basic ${auth}`,
+			},
+			body: request.body,
+		});
+
+		if (res.status !== 200) {
+			const error = await res.text();
+			throw new Error(`IPFS error: ${res.status} - ${error}`);
 		}
 
-		// Only allow POST requests
-		if (request.method !== 'POST') {
-			return new Response('Method not allowed', { status: 405 });
-		}
+		const parser = new JsonParser(wrapWithDirectory);
 
-		// Get API key from request header or use default
-		const requestApiKey = request.headers.get('x-api-key');
-		const apiKey = requestApiKey || env.DEFAULT_API_KEY;
-
-		try {
-			if (!apiKey) {
-				return new Response('API key is required', {
-					status: 401,
-					headers: {
-						'Access-Control-Allow-Origin': '*',
-					},
-				});
-			}
-
-			// Verify API key and get IPFS node details
-			const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-worker-auth': env.WORKER_AUTH_SECRET,
-					Host: new URL(env.APP_API_URL).hostname,
-				},
-				body: JSON.stringify({ apiKey }),
-			});
-
-			if (!authResponse.ok) {
-				const errorText = await authResponse.text();
-				throw new Error(`Auth failed: ${authResponse.status} - ${errorText}`);
-			}
-
-			const { apiUrl } = (await authResponse.json()) as AuthResponse;
-			if (!apiUrl) {
-				throw new Error('No API URL returned from auth endpoint');
-			}
-
-			if (!request.body) throw new Error('No body provided');
-
-			const auth = btoa(`${env.IPFS_AUTH_USERNAME}:${env.IPFS_AUTH_PASSWORD}`);
-
-			// Set up IPFS URL with query params
-			const ipfsUrl = new URL('/api/v0/add', apiUrl);
-
-			// Copy all params except cid-version
-			url.searchParams.forEach((value, key) => {
-				if (key !== 'cid-version') {
-					ipfsUrl.searchParams.append(key, value);
+		const processStream = new TransformStream({
+			transform(chunk, controller) {
+				try {
+					parser.addChunk(chunk);
+					controller.enqueue(chunk);
+				} catch (e) {
+					console.error('Error processing chunk:', e);
+					controller.enqueue(chunk);
 				}
-			});
-
-			// Always use CIDv1, after filtering user params
-			ipfsUrl.searchParams.append('cid-version', '1');
-
-			// Filter headers
-			const headers = Object.fromEntries(
-				Array.from(request.headers.entries()).filter(
-					([key]) => !['host', 'transfer-encoding', 'content-length', 'authorization'].includes(key.toLowerCase())
-				)
-			);
-
-			const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
-			const customName = request.headers.get('x-pin-name');
-
-			const res = await fetch(ipfsUrl, {
-				method: 'POST',
-				headers: {
-					...headers,
-					Authorization: `Basic ${auth}`,
-				},
-				body: request.body,
-			});
-
-			if (res.status !== 200) {
-				const error = await res.text();
-				throw new Error(`IPFS error: ${res.status} - ${error}`);
-			}
-
-			const parser = new JsonParser(wrapWithDirectory);
-
-			// Create a transform stream to process the IPFS response
-			const processStream = new TransformStream({
-				transform(chunk, controller) {
-					try {
-						// Process the chunk (parse JSON lines, collect CIDs)
-						parser.addChunk(chunk);
-						// Forward immediately - no need to await since backpressure is handled by TransformStream
-						controller.enqueue(chunk);
-					} catch (e) {
-						console.error('Error processing chunk:', e);
-						// Continue processing even if parsing fails
-						controller.enqueue(chunk);
+			},
+			flush() {
+				try {
+					parser.flush();
+					const cidsToPin = parser.getCidsToPin();
+					if (cidsToPin.length > 0) {
+						c.executionCtx.waitUntil(
+							createPins(env, apiKey, cidsToPin, customName, parser.entries.length).catch((e) => console.error('Error creating pins:', e)),
+						);
 					}
-				},
-				flush() {
-					try {
-						// Process any remaining data
-						parser.flush();
+				} catch (e) {
+					console.error('Error in stream flush:', e);
+				}
+			},
+		});
 
-						// Get CIDs to pin and create pins in background
-						const cidsToPin = parser.getCidsToPin();
-						if (cidsToPin.length > 0) {
-							ctx.waitUntil(
-								createPins(env, apiKey, cidsToPin, customName, parser.entries.length).catch((e) => console.error('Error creating pins:', e))
-							);
-						}
-					} catch (e) {
-						console.error('Error in stream flush:', e);
-					}
-				},
-			});
+		const stream = res.body!.pipeThrough(processStream);
 
-			// Return the transformed stream immediately
-			return new Response(res.body!.pipeThrough(processStream), {
-				headers: {
-					...res.headers,
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
-				},
-			});
-		} catch (error) {
-			console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
-			return new Response(JSON.stringify({ error: 'Failed to add content to IPFS' }), {
-				status: 500,
-				headers: {
-					'Content-Type': 'application/json',
-					'Access-Control-Allow-Origin': '*',
-					'Access-Control-Allow-Methods': 'POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
-				},
-			});
-		}
-	},
-} satisfies ExportedHandler<Env>;
+		return new Response(stream, {
+			headers: {
+				...res.headers,
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Methods': 'POST, OPTIONS',
+				'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
+			},
+		});
+	} catch (error) {
+		console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
+		return c.json({ error: 'Failed to add content to IPFS' }, 500);
+	}
+});
+
+export default app;
 
 async function createPins(
 	env: Env,
 	apiKey: string,
 	cidsToPin: Array<{ cid: string; size: bigint; name?: string }>,
 	customName: string | null,
-	totalEntries: number
+	totalEntries: number,
 ) {
 	const pinsToCreate = cidsToPin.map((pin) => ({
 		...pin,
