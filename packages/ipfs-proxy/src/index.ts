@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { bodyLimit } from 'hono/body-limit';
+import { stream } from 'hono/streaming';
 
 interface Env {
 	IPFS_AUTH_USERNAME: string;
@@ -35,7 +35,6 @@ class JsonParser {
 	addChunk(chunk: Uint8Array) {
 		// Decode and add to buffer
 		this.buffer += this.decoder.decode(chunk, { stream: true });
-
 		// Process complete lines
 		const newlineIndex = this.buffer.lastIndexOf('\n');
 		if (newlineIndex === -1) return; // No complete lines yet
@@ -61,7 +60,7 @@ class JsonParser {
 		if (this.buffer.trim()) {
 			try {
 				const entry = JSON.parse(this.buffer);
-				if (entry.Hash) this.entries.push(entry);
+				if (entry?.Hash) this.entries.push(entry);
 			} catch (e) {
 				console.warn('Parse error in flush:', e);
 			}
@@ -70,6 +69,7 @@ class JsonParser {
 	}
 
 	getCidsToPin(): Array<{ cid: string; size: bigint; name?: string }> {
+		if (this.entries.length === 0) return [];
 		// If there's only one file, pin it
 		if (this.entries.length === 1) {
 			const entry = this.entries[0];
@@ -118,14 +118,8 @@ app.use(
 		allowMethods: ['POST', 'OPTIONS'],
 		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name'],
 		maxAge: 86400,
-	}),
+	})
 );
-
-// Add body size limit middleware
-app.use('/api/v0/add', async (c, next) => {
-	const maxSize = c.env.MAX_UPLOAD_SIZE ? parseInt(c.env.MAX_UPLOAD_SIZE) : 50 * 1024 * 1024;
-	return bodyLimit({ maxSize })(c, next);
-});
 
 // Main upload route
 app.post('/api/v0/add', async (c) => {
@@ -178,64 +172,93 @@ app.post('/api/v0/add', async (c) => {
 		// Filter headers
 		const headers = Object.fromEntries(
 			Array.from(request.headers.entries()).filter(
-				([key]) => !['host', 'transfer-encoding', 'content-length', 'authorization'].includes(key.toLowerCase()),
-			),
+				([key]) => !['host', 'transfer-encoding', 'content-length', 'authorization'].includes(key.toLowerCase())
+			)
 		);
 
 		const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 		const customName = request.headers.get('x-pin-name');
 
-		const res = await fetch(ipfsUrl, {
-			method: 'POST',
-			headers: {
-				...headers,
-				Authorization: `Basic ${auth}`,
-			},
-			body: request.body,
-		});
+		const maxSize = 100 * 1024 * 1024; // 100MB
 
-		if (res.status !== 200) {
-			const error = await res.text();
-			throw new Error(`IPFS error: ${res.status} - ${error}`);
+		// Early size check using content-length header if available
+		const contentLength = request.headers.get('content-length');
+		if (contentLength) {
+			const declaredSize = parseInt(contentLength);
+			if (declaredSize > maxSize) {
+				return c.json(
+					{
+						error: `Upload size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB`,
+					},
+					413
+				);
+			}
 		}
 
-		const parser = new JsonParser(wrapWithDirectory);
+		// If no content-length or size is ok, proceed with streaming size check
+		const abortController = new AbortController();
+		let totalSize = 0;
 
-		const processStream = new TransformStream({
+		// Create size checking stream
+		const sizeCheckStream = new TransformStream({
 			transform(chunk, controller) {
-				try {
-					parser.addChunk(chunk);
-					controller.enqueue(chunk);
-				} catch (e) {
-					console.error('Error processing chunk:', e);
-					controller.enqueue(chunk);
+				totalSize += chunk.length;
+				if (totalSize > maxSize) {
+					abortController.abort(`Upload size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB`);
 				}
-			},
-			flush() {
-				try {
-					parser.flush();
-					const cidsToPin = parser.getCidsToPin();
-					if (cidsToPin.length > 0) {
-						c.executionCtx.waitUntil(
-							createPins(env, apiKey, cidsToPin, customName, parser.entries.length).catch((e) => console.error('Error creating pins:', e)),
-						);
-					}
-				} catch (e) {
-					console.error('Error in stream flush:', e);
-				}
+				controller.enqueue(chunk);
 			},
 		});
 
-		const stream = res.body!.pipeThrough(processStream);
-
-		return new Response(stream, {
-			headers: {
-				...res.headers,
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Methods': 'POST, OPTIONS',
-				'Access-Control-Allow-Headers': 'Content-Type, x-api-key, x-pin-name',
-			},
+		// Send to IPFS with abort signal
+		const ipfsPromise = fetch(ipfsUrl, {
+			method: 'POST',
+			headers: { ...headers, Authorization: `Basic ${auth}` },
+			body: request.body.pipeThrough(sizeCheckStream),
+			signal: abortController.signal,
 		});
+
+		try {
+			const res = await ipfsPromise;
+			if (!res.ok) {
+				throw new Error(`IPFS error: ${res.status}`);
+			}
+
+			// Now handle the IPFS response with our stream handler
+			const parser = new JsonParser(wrapWithDirectory);
+
+			return stream(c, async (stream) => {
+				const processStream = new TransformStream({
+					transform(chunk, controller) {
+						try {
+							parser.addChunk(chunk);
+							controller.enqueue(chunk);
+						} catch (e) {
+							console.error(`Error processing chunk for key ${apiKey}:`, e);
+							controller.error(e);
+						}
+					},
+					flush(controller) {
+						parser.flush();
+						const cidsToPin = parser.getCidsToPin();
+						if (cidsToPin.length === 0) {
+							console.error(`No CIDs to pin for key ${apiKey}`);
+							controller.error(new Error('No CIDs to pin'));
+							return;
+						}
+						c.executionCtx.waitUntil(createPins(env, apiKey, cidsToPin, customName, parser.entries.length));
+					},
+				});
+
+				// Pipe IPFS response through our processor and to the client
+				await stream.pipe(res.body!.pipeThrough(processStream));
+			});
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('exceeds maximum allowed size')) {
+				return c.json({ error: error.message }, 413);
+			}
+			throw error;
+		}
 	} catch (error) {
 		console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
 		return c.json({ error: 'Failed to add content to IPFS' }, 500);
