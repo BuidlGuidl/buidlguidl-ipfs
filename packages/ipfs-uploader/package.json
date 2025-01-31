@@ -1,5 +1,13 @@
 {
   "name": "ipfs-uploader",
+  "homepage": "https://github.com/buidlguidl/buidlguidl-ipfs",
+  "bugs": "https://github.com/buidlguidl/buidlguidl-ipfs/issues",
+  "license": "MIT",
+  "keywords": [
+    "ipfs",
+    "kubo",
+    "web3"
+  ],
   "version": "0.0.2",
   "type": "module",
   "main": "dist/index.js",
