@@ -86,10 +86,10 @@ export default class ConfigCommand extends BaseCommand {
 
     try {
       await access(configFilePath)
-      this.logWarning(`Configuration file already exists at ${CONFIG_FILENAME}, update it instead`)
+      this.logWarning(`Configuration file already exists at ${CONFIG_FILENAME}.`)
     } catch {
       await writeFile(configFilePath, JSON.stringify(config, null, 2))
-      this.logSuccess('Configuration file initialized successfully')
+      this.logSuccess('Configuration file initialized successfully.')
     }
   }
 
