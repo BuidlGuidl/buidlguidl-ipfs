@@ -260,7 +260,7 @@ app.post('/api/v0/add', async (c) => {
 			throw error;
 		}
 	} catch (error) {
-		console.error(`IPFS Add Error for key ${apiKey}: ${error}`);
+		console.error(`IPFS Add Error for key ${apiKey.toString()}: ${error}`);
 		return c.json({ error: 'Failed to add content to IPFS' }, 500);
 	}
 });

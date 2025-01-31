@@ -150,7 +150,7 @@ export default function FileUploader({
               </span>
             </div>
             <a
-              href={`https://gateway.bgipfs.com/ipfs/${result.cid}`}
+              href={`https://community.bgipfs.com/ipfs/${result.cid}`}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-flex items-center text-blue-600 hover:text-blue-800 hover:underline"
