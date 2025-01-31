@@ -3,13 +3,14 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useClusters } from "@/app/hooks/use-clusters";
+import { useUser } from "@/app/hooks/use-user";
 
 export default function ClustersPage() {
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
 
-  const { data: clusters, isLoading } = useClusters();
+  const { data: user, isLoading } = useUser();
+  const clusters = user?.clusters.map((uc) => uc.ipfsCluster) ?? [];
 
   // Auth protection
   useEffect(() => {
@@ -43,9 +44,11 @@ export default function ClustersPage() {
               <div key={cluster.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-gray-200">{cluster.name}</div>
+                    <div className="font-medium text-gray-200">
+                      {cluster.name}
+                    </div>
                     <div className="mt-1 text-sm text-gray-400">
-                      {cluster.userId ? 'Private' : 'Public'} • Gateway: {cluster.gatewayUrl}
+                      Gateway: {cluster.gatewayUrl}
                     </div>
                   </div>
                 </div>

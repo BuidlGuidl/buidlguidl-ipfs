@@ -1,7 +1,7 @@
 "use client";
 
-import { useApiKeys } from "@/app/hooks/use-api-keys";
-import FileUploader from "../components/FileUploader";
+import { useUser } from "@/app/hooks/use-user";
+import FileUploader from "../components/file-uploader";
 import { usePrivy } from "@privy-io/react-auth";
 
 function CodeExample({ apiKey = "YOUR_API_KEY" }: { apiKey?: string }) {
@@ -75,18 +75,20 @@ console.log(\`File uploaded: \${result.Hash}\`);`}</code>
 }
 
 export default function PinPage() {
-  const { authenticated } = usePrivy();
-  const { data: keys } = useApiKeys();
-  const apiKey = authenticated ? keys?.[0]?.apiKey : undefined;
+  const { authenticated, ready } = usePrivy();
+  const { data: user, isLoading } = useUser();
+  const apiKey = authenticated ? user?.apiKeys[0]?.apiKey : undefined;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div className="w-full max-w-3xl">
-        <div className="mb-8">
-          <FileUploader apiKey={apiKey} />
+      {ready && !isLoading ? (
+        <div className="w-full max-w-screen">
+          <div className="mb-8">{<FileUploader apiKey={apiKey} />}</div>
+          <CodeExample apiKey={apiKey} />
         </div>
-        <CodeExample apiKey={apiKey} />
-      </div>
+      ) : (
+        <div>Loading...</div>
+      )}
     </div>
   );
 }

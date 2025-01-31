@@ -3,8 +3,11 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useApiKeys, useCreateApiKey, useDeleteApiKey } from "@/app/hooks/use-api-keys";
-import { useClusters } from "@/app/hooks/use-clusters";
+import {
+  useUser,
+  useCreateApiKey,
+  useDeleteApiKey,
+} from "@/app/hooks/use-user";
 
 export default function ApiKeysPage() {
   const { ready, authenticated } = usePrivy();
@@ -12,11 +15,12 @@ export default function ApiKeysPage() {
   const [newKeyName, setNewKeyName] = useState("");
   const [selectedClusterId, setSelectedClusterId] = useState<
     string | undefined
-  >(undefined);
+  >(process.env.NEXT_PUBLIC_DEFAULT_CLUSTER_ID ?? "default");
   const [showNewKey, setShowNewKey] = useState<string | null>(null);
 
-  const { data: keys, isLoading } = useApiKeys();
-  const { data: clusters } = useClusters();
+  const { data: user, isLoading } = useUser();
+  const keys = user?.apiKeys ?? [];
+  const clusters = user?.clusters.map((uc) => uc.ipfsCluster) ?? [];
   const createKey = useCreateApiKey();
   const deleteKey = useDeleteApiKey();
 
@@ -64,7 +68,7 @@ export default function ApiKeysPage() {
     });
   }
 
-  if (!ready || !authenticated) {
+  if (!ready || !authenticated || isLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-lg">Loading...</div>

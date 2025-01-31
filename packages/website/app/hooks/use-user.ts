@@ -1,15 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
-import type { ApiKey, IpfsCluster } from "@prisma/client";
+import type { User, ApiKey, IpfsCluster } from "@prisma/client";
 
-interface SerializedApiKey extends Omit<ApiKey, 'createdAt' | 'updatedAt' | 'deletedAt'> {
+export interface SerializedUser
+  extends Omit<User, "size" | "sizeLimit" | "createdAt" | "updatedAt"> {
+  size: string;
+  sizeLimit: string;
+  createdAt: string;
+  updatedAt: string;
+  apiKeys: SerializedApiKey[];
+  clusters: SerializedUserCluster[];
+}
+
+interface SerializedApiKey
+  extends Omit<ApiKey, "createdAt" | "updatedAt" | "deletedAt"> {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
   ipfsCluster: SerializedIpfsCluster;
 }
 
-interface SerializedIpfsCluster extends Omit<IpfsCluster, 'createdAt' | 'updatedAt'> {
+interface SerializedUserCluster {
+  userId: string;
+  clusterId: string;
+  createdAt: string;
+  updatedAt: string;
+  ipfsCluster: SerializedIpfsCluster;
+}
+
+interface SerializedIpfsCluster
+  extends Omit<IpfsCluster, "createdAt" | "updatedAt"> {
   createdAt: string;
   updatedAt: string;
 }
@@ -19,23 +39,22 @@ interface CreateApiKeyParams {
   ipfsClusterId?: string;
 }
 
-export function useApiKeys() {
+export function useUser() {
   const { authenticated, getAccessToken } = usePrivy();
 
   return useQuery({
-    queryKey: ["apiKeys"],
+    queryKey: ["user"],
     queryFn: async () => {
       const token = await getAccessToken();
-      const response = await fetch("/api/api-keys", {
+      const response = await fetch("/api/user", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch API keys");
-      return response.json() as Promise<SerializedApiKey[]>;
+      if (!response.ok) throw new Error("Failed to fetch user data");
+      return response.json() as Promise<SerializedUser>;
     },
     enabled: !!authenticated,
-    initialData: [] as SerializedApiKey[],
     // Don't show stale data while refetching
     staleTime: 0,
     // Refetch when window is focused
@@ -62,7 +81,7 @@ export function useCreateApiKey() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
+      queryClient.invalidateQueries({ queryKey: ["user"] });
     },
   });
 }
@@ -70,7 +89,7 @@ export function useCreateApiKey() {
 export function useDeleteApiKey() {
   const queryClient = useQueryClient();
   const { getAccessToken } = usePrivy();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
       const token = await getAccessToken();
@@ -84,7 +103,7 @@ export function useDeleteApiKey() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apiKeys"] });
+      queryClient.invalidateQueries({ queryKey: ["user"] });
     },
   });
-} 
+}
