@@ -3,19 +3,20 @@
 import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import { useState } from "react";
+import { LoginButton } from "./login-button";
 
-function UserMenu() {
+function WalletAddress() {
   const { user, logout } = usePrivy();
 
   return (
     <div className="flex items-center gap-4">
       <div className="text-sm">
-        <div className="font-mono text-gray-200">
+        <Link href={`/account`} className="font-mono text-gray-200">
           {user?.email?.address ||
             user?.wallet?.address?.slice(0, 6) +
               "..." +
               user?.wallet?.address?.slice(-4)}
-        </div>
+        </Link>
       </div>
       <button
         onClick={async () => {
@@ -29,31 +30,25 @@ function UserMenu() {
   );
 }
 
-function LoginButton() {
-  const { ready, authenticated, login } = usePrivy();
-  const disableLogin = !ready || (ready && authenticated);
-
-  return (
-    <button
-      disabled={disableLogin}
-      onClick={login}
-      className="rounded bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
-    >
-      {ready ? "Log in" : "Loading..."}
-    </button>
-  );
-}
-
 export function Header() {
   const { authenticated } = usePrivy();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const navigationLinks = [
+    { href: "/upload", label: "Upload" },
+    { href: "/pins", label: "Pins" },
+    { href: "/api-keys", label: "Keys" },
+    { href: "/clusters", label: "Clusters" },
+  ];
+
   return (
-    <header className="border-b bg-[#0a0c10]">
-      <div className="mx-auto flex max-w-3xl items-center justify-between p-4">
-        <Link href="/" className="font-mono text-white">
-          BuidlGuidl IPFS
-        </Link>
+    <header className="border-b border-white/10">
+      <div className="mx-auto flex h-16 max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-xl font-bold">
+            BuidlGuidl IPFS
+          </Link>
+        </div>
 
         {/* Mobile menu button */}
         <button
@@ -77,77 +72,55 @@ export function Header() {
           </svg>
         </button>
 
-        {/* Desktop menu */}
+        {/* Desktop navigation */}
+
         <div className="hidden md:flex items-center gap-4">
-          {authenticated && (
-            <nav className="flex items-center gap-4">
-              <Link
-                href="/upload"
-                className="text-sm text-gray-400 hover:text-gray-200"
-              >
-                Upload
-              </Link>
-              <Link
-                href="/pins"
-                className="text-sm text-gray-400 hover:text-gray-200"
-              >
-                Pins
-              </Link>
-              <Link
-                href="/api-keys"
-                className="text-sm text-gray-400 hover:text-gray-200"
-              >
-                Keys
-              </Link>
-              <Link
-                href="/clusters"
-                className="text-sm text-gray-400 hover:text-gray-200"
-              >
-                Clusters
-              </Link>
-            </nav>
+          {authenticated ? (
+            <>
+              {navigationLinks.map((link) => (
+                <Link key={link.href} href={link.href} className="text-sm">
+                  {link.label}
+                </Link>
+              ))}
+              <WalletAddress />
+            </>
+          ) : (
+            <LoginButton
+              className="rounded-lg px-4 py-2 text-sm border border-white/20
+                        transition-all hover:scale-105 hover:shadow-lg hover:bg-white/5"
+            />
           )}
-          {authenticated ? <UserMenu /> : <LoginButton />}
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile navigation */}
       <div
         className={`${
           isMenuOpen ? "block" : "hidden"
-        } md:hidden border-t border-gray-800`}
+        } md:hidden border-t border-white/10`}
       >
         <div className="space-y-2 px-4 py-3">
-          {authenticated && (
-            <>
-              <Link
-                href="/upload"
-                className="block text-sm text-gray-400 hover:text-gray-200 py-2"
-              >
-                Upload
-              </Link>
-              <Link
-                href="/pins"
-                className="block text-sm text-gray-400 hover:text-gray-200 py-2"
-              >
-                Pins
-              </Link>
-              <Link
-                href="/api-keys"
-                className="block text-sm text-gray-400 hover:text-gray-200 py-2"
-              >
-                Keys
-              </Link>
-              <Link
-                href="/clusters"
-                className="block text-sm text-gray-400 hover:text-gray-200 py-2"
-              >
-                Clusters
-              </Link>
-            </>
-          )}
           <div className="py-2">
-            {authenticated ? <UserMenu /> : <LoginButton />}
+            {authenticated ? (
+              <>
+                {navigationLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block text-sm text-gray-400 hover:text-gray-200 py-2"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <WalletAddress />
+              </>
+            ) : (
+              <LoginButton
+                className="w-full rounded-lg px-4 py-2 text-sm border border-white/20
+                          transition-all hover:scale-105 hover:shadow-lg hover:bg-white/5"
+              />
+            )}
           </div>
         </div>
       </div>

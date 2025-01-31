@@ -5,10 +5,10 @@ const prisma = new PrismaClient();
 async function main() {
   // Create default IPFS cluster if it doesn't exist
   const defaultCluster = await prisma.ipfsCluster.upsert({
-    where: { id: "default" },
+    where: { id: "community" },
     update: {},
     create: {
-      id: "default",
+      id: "community",
       name: "Community",
       apiUrl: "http://localhost:5555",
       gatewayUrl: "http://localhost:8080",

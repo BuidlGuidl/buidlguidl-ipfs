@@ -5,7 +5,7 @@ A Cloudflare Worker that provides a proxy for IPFS file uploads, specifically ha
 ## Features
 
 - Proxies IPFS file upload requests to a specified IPFS node
-- Handles large file uploads (up to Cloudflare's limits)
+- Handles large file uploads (operator-specified max size)
 - Validates API keys by calling an "/api/auth" endpoint - success returns a 200 status and an IPFS node URL
 - After upload, makes a callback to "/api/pin" with the pinned CIDs & API key
 - Streams requests and responses
@@ -41,6 +41,7 @@ Production variables:
 - `WORKER_AUTH_SECRET` - A secret key for the worker, used to validate requests to the `/api/auth` and `/api/pin` endpoints come from a trusted worker
 - `IPFS_AUTH_USERNAME` and `IPFS_AUTH_PASSWORD` are basic auth for authentication of the cloudflare worker by the IPFS node
 - `DEFAULT_API_KEY` - A default API key to use if no API key is provided (optional - this enables unauthenticated pinning to the associated account)
+- `MAX_UPLOAD_SIZE` - The maximum size of a file to upload, in bytes. Defaults to 100MB.
 
 All variables should be set as secrets:
 ```bash
@@ -81,5 +82,7 @@ Response:
 ## Error Handling
 
 - 404: Path not found (only /api/v0/add is supported)
+- 401: Unauthorized (invalid API key)
+- 413: Payload too large (file too large)
 - 405: Method not allowed (only POST is supported)
 - 500: IPFS node errors or internal errors 

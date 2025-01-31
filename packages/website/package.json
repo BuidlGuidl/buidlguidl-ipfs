@@ -1,6 +1,6 @@
 {
   "name": "app",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "scripts": {
     "predev": "pnpm --filter ipfs-uploader build",
@@ -14,19 +14,12 @@
     "db:seed": "ts-node --project tsconfig.seed.json prisma/seed.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
-    "@helia/unixfs": "^1.0.0",
     "@prisma/client": "^6.2.1",
     "@privy-io/react-auth": "^2.0.8",
     "@privy-io/server-auth": "^1.18.2",
     "@tanstack/react-query": "^5.64.2",
     "@tanstack/react-query-devtools": "^5.64.2",
-    "blockstore-s3": "^2.0.2",
-    "datastore-s3": "^12.0.2",
-    "helia": "^5.1.1",
-    "interface-datastore": "^8.3.1",
     "ipfs-uploader": "workspace:*",
-    "multiformats": "^13.3.1",
     "next": "15.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

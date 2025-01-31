@@ -112,7 +112,7 @@ export class NodeUploader implements BaseUploader {
             wrapWithDirectory: true,
             cidVersion: 1 as const,
             // progress: (progress: number) => {
-            //   // console.log("Upload progress:", progress);
+            //   console.log("Upload progress:", progress);
             // },
           };
 
@@ -131,8 +131,8 @@ export class NodeUploader implements BaseUploader {
         if (!rootCid) {
           throw new Error(
             "dirPath" in input
-              ? `No files found in directory: ${input.dirPath}`
-              : "No files were processed"
+              ? `Directory upload failed for ${input.dirPath}`
+              : "Directory upload failed"
           );
         }
         return { success: true, cid: rootCid.toString() };

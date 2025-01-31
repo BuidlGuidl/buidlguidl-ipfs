@@ -7,9 +7,12 @@ export async function GET(request: NextRequest) {
   try {
     const userId = await getUserId(request);
 
-    // Get all keys with cluster info
-    const allKeys = await prisma.apiKey.findMany({
-      where: { userId },
+    // Get all active keys with cluster info
+    const activeKeys = await prisma.apiKey.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+      },
       include: {
         ipfsCluster: true,
       },
@@ -18,25 +21,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // If no keys at all, create a default one
-    if (allKeys.length === 0) {
-      const apiKey = crypto.randomUUID();
-      const defaultKey = await prisma.apiKey.create({
-        data: {
-          name: "default",
-          userId,
-          apiKey,
-          ipfsClusterId: "default",
-        },
-        include: {
-          ipfsCluster: true,
-        },
-      });
-      return NextResponse.json([defaultKey]);
-    }
-
-    // Filter out deleted keys
-    const activeKeys = allKeys.filter((key) => !key.deletedAt);
     return NextResponse.json(activeKeys);
   } catch (error) {
     return handleRouteError(error, "fetch API keys");
@@ -46,9 +30,29 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId(request);
-    const { name } = await request.json();
+    const { name, ipfsClusterId } = await request.json();
+
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    // If cluster ID is provided, verify the user has access to it
+    if (ipfsClusterId && ipfsClusterId !== "default") {
+      const userCluster = await prisma.userCluster.findUnique({
+        where: {
+          userId_clusterId: {
+            userId,
+            clusterId: ipfsClusterId,
+          },
+        },
+      });
+
+      if (!userCluster) {
+        return NextResponse.json(
+          { error: "Invalid cluster ID or cluster not accessible" },
+          { status: 403 }
+        );
+      }
     }
 
     const apiKey = crypto.randomUUID();
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
         name,
         userId,
         apiKey,
-        ipfsClusterId: "default",
+        ipfsClusterId: ipfsClusterId || "default",
       },
       include: {
         ipfsCluster: true,
