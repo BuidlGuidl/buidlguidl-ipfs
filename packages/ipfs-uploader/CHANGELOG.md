@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.3
+
+### Patch Changes
+
+- a378dcb: more informative logging, new repo location
+
 ## 0.0.2
 
 ### Patch Changes

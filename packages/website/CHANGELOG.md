@@ -1,5 +1,12 @@
 # app
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [a378dcb]
+  - ipfs-uploader@0.0.3
+
 ## 0.1.2
 
 ### Patch Changes

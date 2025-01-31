@@ -1,5 +1,13 @@
 # bgipfs
 
+## 0.0.8
+
+### Patch Changes
+
+- a378dcb: more informative logging, new repo location
+- Updated dependencies [a378dcb]
+  - ipfs-uploader@0.0.3
+
 ## 0.0.7
 
 ### Patch Changes
