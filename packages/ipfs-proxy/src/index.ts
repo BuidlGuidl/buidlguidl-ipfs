@@ -179,7 +179,7 @@ app.post('/api/v0/add', async (c) => {
 		const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 		const customName = request.headers.get('x-pin-name');
 
-		const maxSize = 100 * 1024 * 1024; // 100MB
+		const maxSize = parseInt(env.MAX_UPLOAD_SIZE || '104857600'); // 100MB
 
 		// Early size check using content-length header if available
 		const contentLength = request.headers.get('content-length');
