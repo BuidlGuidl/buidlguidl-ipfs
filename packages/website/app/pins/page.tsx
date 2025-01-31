@@ -4,6 +4,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { usePins, useUpdatePin, useDeletePin } from "@/app/hooks/use-pins";
+import { formatBytes } from "@/app/lib/utils";
 
 export default function PinsPage() {
   const { ready, authenticated } = usePrivy();
@@ -25,6 +26,13 @@ export default function PinsPage() {
       router.push("/");
     }
   }, [ready, authenticated, router]);
+
+  // Refresh pins on mount
+  useEffect(() => {
+    if (authenticated) {
+      refetch();
+    }
+  }, [authenticated, refetch]);
 
   async function handleUpdateName(cid: string) {
     try {
@@ -56,20 +64,6 @@ export default function PinsPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
-  }
-
-  function formatBytes(sizeStr: string) {
-    const bytes = parseInt(sizeStr, 10);
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let size = bytes;
-    let unitIndex = 0;
-
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
   }
 
   if (!ready || !authenticated) {

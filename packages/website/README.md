@@ -16,6 +16,7 @@ Website for BuidlGuidl's IPFS pinning service. Provides a web interface and API 
 - /pins - list pins, linking to the IPFS gateway
 - /upload - UI upload, and code snippets
 - /clusters - lists IPFS clusters
+- /account - user information and usage
 
 ### API Endpoints
 
@@ -64,9 +65,9 @@ Create new API key
 `DELETE /api/api-keys/{id}`
 Delete API key
 
-### Clusters
-`GET /api/clusters`
-List all IPFS clusters (read-only)
+### User Information
+`GET /api/user`
+Get user information
 
 
 ## Error Handling
@@ -93,6 +94,10 @@ DATABASE_URL="postgresql://user@localhost:5432/bgipfs"
 NEXT_PUBLIC_PRIVY_APP_ID=your-privy-app-id
 PRIVY_APP_SECRET=your_privy_app_secret
 PRIVY_VERIFICATION_KEY=your-verification-key-from-dashboard
+
+DEFAULT_PIN_LIMIT=1000
+DEFAULT_SIZE_LIMIT=104857600
+NEXT_PUBLIC_DEFAULT_CLUSTER_ID=community
 ```
 
 ## Development

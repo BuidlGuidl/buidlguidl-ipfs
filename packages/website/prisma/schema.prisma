@@ -10,48 +10,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String        @id
+  pinLimit  Int           @default(1000)
+  sizeLimit BigInt        @default(10737418240) // 10GB in bytes
+  pinCount  Int           @default(0)
+  size      BigInt        @default(0)
+  clusters  UserCluster[]
+  pins      Pin[]
+  apiKeys   ApiKey[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("users")
+}
+
 model IpfsCluster {
-  id          String    @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
-  userId      String?   // Optional owner
   gatewayUrl  String
   apiUrl      String
-  pins        Pin[]
-  apiKeys     ApiKey[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  apiKey      ApiKey[]
+  userCluster UserCluster[]
+  Pin         Pin[]
 
-  @@unique([name, userId]) // Ensure name is unique per user (or globally if userId is null)
+  @@unique([name])
+  @@map("ipfs_clusters")
+}
+
+model UserCluster {
+  userId      String
+  clusterId   String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id])
+  ipfsCluster IpfsCluster @relation(fields: [clusterId], references: [id])
+
+  @@id([userId, clusterId])
+  @@map("user_clusters")
 }
 
 model ApiKey {
-  id          String    @id @default(cuid())
-  name        String
-  userId      String
-  apiKey      String    @unique
-  ipfsCluster IpfsCluster  @relation(fields: [ipfsClusterId], references: [id])
-  ipfsClusterId  String    @default("default")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  id            String      @id @default(cuid())
+  name          String
+  userId        String
+  apiKey        String      @unique
+  ipfsClusterId String      @default("default")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+  user          User        @relation(fields: [userId], references: [id])
+  ipfsCluster   IpfsCluster @relation(fields: [ipfsClusterId], references: [id])
 
-  @@map("api_keys")
-  @@index([userId])
   @@unique([name, userId])
+  @@index([userId])
+  @@map("api_keys")
 }
 
 model Pin {
-  userId      String
-  cid         String
-  name        String?
-  size        BigInt
-  deletedAt   DateTime?
-  ipfsCluster IpfsCluster  @relation(fields: [ipfsClusterId], references: [id])
-  ipfsClusterId  String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  userId        String
+  cid           String
+  name          String?
+  size          BigInt
+  deletedAt     DateTime?
+  ipfsClusterId String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id])
+  ipfsCluster   IpfsCluster @relation(fields: [ipfsClusterId], references: [id])
 
   @@id([userId, cid])
-  @@map("pins")
   @@index([cid])
-} 
+  @@map("pins")
+}

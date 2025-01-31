@@ -6,7 +6,7 @@
   "bin": {
     "bgipfs": "./bin/run.js"
   },
-  "bugs": "https://github.com/azf20/buidlguidl-ipfs/issues",
+  "bugs": "https://github.com/buidlguidl/buidlguidl-ipfs/issues",
   "dependencies": {
     "@inquirer/prompts": "^3.3.0",
     "@oclif/core": "^4",
@@ -46,7 +46,7 @@
     "/templates",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/azf20/buidlguidl-ipfs",
+  "homepage": "https://github.com/buidlguidl/buidlguidl-ipfs",
   "keywords": [
     "oclif",
     "ipfs",
@@ -74,7 +74,7 @@
       }
     }
   },
-  "repository": "azf20/buidlguidl-ipfs",
+  "repository": "buidlguidl/buidlguidl-ipfs",
   "scripts": {
     "build": "shx rm -rf dist && tsc -b",
     "lint": "eslint . --ext .ts",
