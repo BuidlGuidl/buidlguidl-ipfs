@@ -32,6 +32,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script
+          defer
+          data-domain="bgipfs.com"
+          src="https://plausible.io/js/script.js"
+        ></script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-[#0a0c10] text-gray-100 antialiased bg-gradient-to-b from-gray-900 to-gray-800`}
       >

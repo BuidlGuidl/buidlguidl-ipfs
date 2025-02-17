@@ -7,7 +7,6 @@ import {
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
 import { globSource } from "kubo-rpc-client";
-import NodeFormData from "form-data";
 
 export class PinataUploader implements BaseUploader {
   private config: PinataUploaderConfig;
@@ -32,6 +31,11 @@ export class PinataUploader implements BaseUploader {
       try {
         if (typeof window === "undefined") {
           // Node.js environment
+          const [{ default: NodeFormData }, { got }] = await Promise.all([
+            import("form-data"),
+            import("got"),
+          ]);
+
           const formData = new NodeFormData();
 
           if (typeof input === "string") {
@@ -43,8 +47,8 @@ export class PinataUploader implements BaseUploader {
           } else {
             // Handle File object - convert to stream for efficient upload
             const buffer = await input.arrayBuffer();
-            const stream = require("stream");
-            const readableStream = new stream.Readable();
+            const { Readable } = await import("stream");
+            const readableStream = new Readable();
             readableStream.push(Buffer.from(buffer));
             readableStream.push(null);
             formData.append("file", readableStream, input.name);
@@ -52,7 +56,6 @@ export class PinataUploader implements BaseUploader {
 
           formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
 
-          const { got } = await import("got");
           const response = await got.post(
             "https://api.pinata.cloud/pinning/pinFileToIPFS",
             {
@@ -144,14 +147,19 @@ export class PinataUploader implements BaseUploader {
       try {
         if (typeof window === "undefined") {
           // Node.js environment
+          const [{ default: NodeFormData }, { got }] = await Promise.all([
+            import("form-data"),
+            import("got"),
+          ]);
+
           const formData = new NodeFormData();
 
           if ("files" in input) {
             // Handle browser Files in Node.js - convert to streams
             for (const file of input.files) {
               const buffer = await file.arrayBuffer();
-              const stream = require("stream");
-              const readableStream = new stream.Readable();
+              const { Readable } = await import("stream");
+              const readableStream = new Readable();
               readableStream.push(Buffer.from(buffer));
               readableStream.push(null);
               formData.append("file", readableStream, {
@@ -173,8 +181,6 @@ export class PinataUploader implements BaseUploader {
 
           formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
 
-          // Use got for streaming upload
-          const { got } = await import("got");
           const response = await got.post(
             "https://api.pinata.cloud/pinning/pinFileToIPFS",
             {
