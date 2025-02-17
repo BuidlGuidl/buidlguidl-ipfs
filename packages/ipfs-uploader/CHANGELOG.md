@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.5
+
+### Patch Changes
+
+- 9a1e333: revert to aws sdk
+
 ## 0.0.4
 
 ### Patch Changes
