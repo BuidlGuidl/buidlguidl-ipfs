@@ -118,9 +118,9 @@ importers:
 
   packages/ipfs-uploader:
     dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.0.0
-        version: 3.726.0
+      '@bradenmacdonald/s3-lite-client':
+        specifier: npm:@jsr/bradenmacdonald__s3-lite-client@^0.8.0
+        version: '@jsr/bradenmacdonald__s3-lite-client@0.8.0'
       form-data:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1401,6 +1401,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@jsr/bradenmacdonald__s3-lite-client@0.8.0':
+    resolution: {integrity: sha512-q4n9/bqDPdNVOnljSOY0eVKHz1WpRAuJebPIpl2YH4iWSaSduxKJBucnomEEgfEMM5zA0ohRd2biWCwB53QaBg==, tarball: https://npm.jsr.io/~/11/@jsr/bradenmacdonald__s3-lite-client/0.8.0.tgz}
 
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
@@ -3412,6 +3415,7 @@ packages:
   eslint-config-oclif-typescript@3.1.13:
     resolution: {integrity: sha512-SY9uUPGL3N5M0evNikzZBq+IQABPhzilrhdVbpjpFDd6OxMD8r3E1VMCwGMA2vP+yGUE+MtQHS1yFzNpo8C26Q==}
     engines: {node: '>=18.0.0'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   eslint-config-oclif@5.2.2:
     resolution: {integrity: sha512-NNTyyolSmKJicgxtoWZ/hoy2Rw56WIoWCFxgnBkXqDgi9qPKMwZs2Nx2b6SHLJvCiWWhZhWr5V46CFPo3PSPag==}
@@ -8408,6 +8412,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
+
+  '@jsr/bradenmacdonald__s3-lite-client@0.8.0': {}
 
   '@leichtgewicht/ip-codec@2.0.5': {}
 
