@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.6
+
+### Patch Changes
+
+- 5b8a5ac: fix s3Config, separate node pinata upload
+
 ## 0.0.5
 
 ### Patch Changes
