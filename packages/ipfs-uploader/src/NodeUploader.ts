@@ -30,30 +30,21 @@ export class NodeUploader implements BaseUploader {
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
       try {
-        let content: Uint8Array;
-        try {
-          if (input instanceof File) {
-            const buffer = await input.arrayBuffer();
-            content = new Uint8Array(buffer);
-          } else if (typeof window === "undefined") {
-            const { readFile } = await import("fs/promises");
-            const buffer = await readFile(input);
-            content = new Uint8Array(buffer);
-          } else {
-            throw new Error(
-              "File path strings are only supported in Node.js environments"
-            );
-          }
-        } catch (error) {
+        let content: Buffer | Uint8Array;
+
+        if (input instanceof File) {
+          const buffer = await input.arrayBuffer();
+          content = new Uint8Array(buffer);
+        } else if (typeof window === "undefined") {
+          const { readFile } = await import("fs/promises");
+          content = await readFile(input);
+        } else {
           throw new Error(
-            `Failed to read file content: ${error instanceof Error ? error.message : String(error)}`
+            "File path strings are only supported in Node.js environments"
           );
         }
 
-        const add = await this.rpcClient.add(content, {
-          cidVersion: 1,
-        });
-        return { success: true, cid: add.cid.toString() };
+        return this.add.buffer(content);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }
@@ -157,6 +148,17 @@ export class NodeUploader implements BaseUploader {
         }
 
         const add = await this.rpcClient.add(urlSource(url), {
+          cidVersion: 1,
+        });
+        return { success: true, cid: add.cid.toString() };
+      } catch (error) {
+        return createErrorResult<UploadResult>(error);
+      }
+    },
+
+    buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
+      try {
+        const add = await this.rpcClient.add(content, {
           cidVersion: 1,
         });
         return { success: true, cid: add.cid.toString() };
