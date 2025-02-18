@@ -106,4 +106,4 @@ export type NodeConfig =
 export type PinataConfig = PinataOptions | PinataUploaderConfig;
 export type S3Config = S3Options | S3UploaderConfig;
 
-export type UploaderConfig = NodeConfig | PinataConfig | S3UploaderConfig;
+export type UploaderConfig = NodeConfig | PinataConfig | S3Config;

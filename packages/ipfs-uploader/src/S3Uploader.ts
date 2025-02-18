@@ -14,6 +14,7 @@ import {
 import { createErrorResult } from "./utils.js";
 import { globSource } from "kubo-rpc-client";
 import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
+import { Upload } from "@aws-sdk/lib-storage";
 
 type FileLike = {
   name: string;
@@ -114,18 +115,31 @@ export class S3Uploader implements BaseUploader {
       // Concatenate chunks into single buffer
       const carContent = Buffer.concat(chunks);
 
-      // Upload CAR file with proper metadata
+      // Use Upload instead of PutObjectCommand
       const key = rootName || rootCID.toString();
-      const command = new PutObjectCommand({
-        Bucket: this.config.options.bucket,
-        Key: key,
-        Body: carContent,
-        Metadata: {
-          import: "car",
+      const uploadParams = {
+        client: this.client,
+        params: {
+          Bucket: this.config.options.bucket,
+          Key: key,
+          Body: carContent,
+          Metadata: {
+            import: "car",
+          },
         },
+        queueSize: 4, // Number of concurrent uploads
+        partSize: 26843546, // 25.6MB chunk size
+      };
+
+      const parallelUpload = new Upload(uploadParams);
+
+      // Optional: Add progress tracking
+      parallelUpload.on("httpUploadProgress", (progress) => {
+        // You could emit events here if needed
+        console.debug("Upload progress:", progress);
       });
 
-      await this.client.send(command);
+      await parallelUpload.done();
       const cid = await this.getCidFromMetadata(key);
 
       return { success: true, cid };

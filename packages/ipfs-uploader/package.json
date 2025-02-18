@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.726.0",
+    "@aws-sdk/lib-storage": "^3.750.0",
     "form-data": "^4.0.1",
     "got": "^14.4.5",
     "ipfs-car": "^2.0.0",
