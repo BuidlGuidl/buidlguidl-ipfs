@@ -1,5 +1,13 @@
 # bgipfs
 
+## 0.0.12
+
+### Patch Changes
+
+- 875e07f: edit files for window support
+- Updated dependencies [875e07f]
+  - ipfs-uploader@0.0.7
+
 ## 0.0.11
 
 ### Patch Changes

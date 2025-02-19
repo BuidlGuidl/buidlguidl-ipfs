@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.7
+
+### Patch Changes
+
+- 875e07f: add.buffer method
+
 ## 0.0.6
 
 ### Patch Changes
