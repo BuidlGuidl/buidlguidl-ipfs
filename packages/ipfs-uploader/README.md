@@ -8,6 +8,7 @@ Library for uploading and pinning content to IPFS. Supports multiple backends in
 - Upload and pin single files
 - Upload and pin text content
 - Upload and pin JSON content
+- Upload and pin raw buffer data
 - Upload and pin directories (with path or file array)
 - Upload from URLs
 - Support for both Node.js and browser environments
@@ -65,6 +66,7 @@ const multiUploader = createUploader([
 const textResult = await uploader.add.text("Hello IPFS!");
 const fileResult = await uploader.add.file(new File(["Hello IPFS!"], "test.txt"));
 const jsonResult = await uploader.add.json({ hello: "IPFS" });
+const bufferResult = await uploader.add.buffer(Buffer.from("Hello IPFS!"));
 
 // Directory upload (from path - Node.js only)
 const dirResult = await uploader.add.directory({

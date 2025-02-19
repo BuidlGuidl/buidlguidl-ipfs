@@ -68,6 +68,7 @@ export interface BaseUploader {
     json: (content: any) => Promise<UploadResult>;
     directory: (input: DirectoryInput) => Promise<UploadResult>;
     url: (url: string) => Promise<UploadResult>;
+    buffer: (content: Buffer | Uint8Array) => Promise<UploadResult>;
   };
 }
 

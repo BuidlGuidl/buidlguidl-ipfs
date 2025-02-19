@@ -167,5 +167,17 @@ export class PinataUploader implements BaseUploader {
         return createErrorResult<UploadResult>(error);
       }
     },
+
+    buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
+      try {
+        const blob = new Blob([content]);
+        const file = new File([blob], `buffer-${Date.now()}`, {
+          type: "application/octet-stream",
+        });
+        return this.add.file(file);
+      } catch (error) {
+        return createErrorResult<UploadResult>(error);
+      }
+    },
   };
 }

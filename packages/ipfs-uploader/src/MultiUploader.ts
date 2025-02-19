@@ -63,6 +63,8 @@ export class MultiUploader implements BaseUploader {
     directory: (input: DirectoryInput) =>
       this.executeMultiUpload((u) => u.add.directory(input)),
     url: (url: string) => this.executeMultiUpload((u) => u.add.url(url)),
+    buffer: (content: Buffer | Uint8Array) =>
+      this.executeMultiUpload((u) => u.add.buffer(content)),
   };
 }
 
