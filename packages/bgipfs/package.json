@@ -41,10 +41,10 @@
     "node": ">=20.0.0"
   },
   "files": [
-    "/bin",
-    "/dist",
-    "/templates",
-    "/oclif.manifest.json"
+    "bin",
+    "dist",
+    "templates",
+    "oclif.manifest.json"
   ],
   "homepage": "https://github.com/buidlguidl/buidlguidl-ipfs",
   "keywords": [
