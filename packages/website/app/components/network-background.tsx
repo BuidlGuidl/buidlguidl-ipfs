@@ -14,7 +14,7 @@ interface Castle {
 export function NetworkBackground({ opacity = 0.3 }: { opacity?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [castles, setCastles] = useState<Castle[]>([]);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   // Initialize castles with one fixed castle at (0,0) and 50 randomly positioned moving castles
   useEffect(() => {
