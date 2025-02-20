@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.8
+
+### Patch Changes
+
+- 2fc1fd0: add.json consistency & robustness
+
 ## 0.0.7
 
 ### Patch Changes
