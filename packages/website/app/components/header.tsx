@@ -45,8 +45,12 @@ export function Header() {
     <header className="border-b border-white/10">
       <div className="mx-auto flex h-16 max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-xl font-bold">
-            BuidlGuidl IPFS
+          <Link
+            href="/"
+            className="text-xl font-bold header-logo flex items-center gap-2"
+          >
+            <img src="/castle.png" alt="Castle" className="w-6 h-6" />
+            <span className="pt-[3px]">BuidlGuidl IPFS</span>
           </Link>
         </div>
 
