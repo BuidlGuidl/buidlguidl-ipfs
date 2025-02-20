@@ -4,6 +4,7 @@ import {
   PinataUploaderConfig,
   PinataConfig,
   DirectoryInput,
+  JsonValue,
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
 
@@ -67,7 +68,7 @@ export class PinataUploader implements BaseUploader {
       }
     },
 
-    json: async (content: any): Promise<UploadResult> => {
+    json: async <T extends JsonValue>(content: T): Promise<UploadResult> => {
       try {
         const response = await fetch(
           "https://api.pinata.cloud/pinning/pinJSONToIPFS",
@@ -77,7 +78,12 @@ export class PinataUploader implements BaseUploader {
               Authorization: `Bearer ${this.config.options.jwt}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(content),
+            body: JSON.stringify({
+              pinataOptions: {
+                cidVersion: 1,
+              },
+              pinataContent: content,
+            }),
           }
         );
 

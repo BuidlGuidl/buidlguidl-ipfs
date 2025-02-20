@@ -1,12 +1,13 @@
 import { CID } from "multiformats/cid";
 import { create, KuboRPCClient, globSource, urlSource } from "kubo-rpc-client";
-import * as jsonCodec from "multiformats/codecs/json";
+// import * as jsonCodec from "multiformats/codecs/json";
 import {
   KuboOptions,
   UploadResult,
   NodeUploaderConfig,
   NodeConfig,
   DirectoryInput,
+  JsonValue,
 } from "./types.js";
 import { BaseUploader } from "./types.js";
 import { createErrorResult } from "./utils.js";
@@ -59,10 +60,10 @@ export class NodeUploader implements BaseUploader {
       }
     },
 
-    json: async (content: any): Promise<UploadResult> => {
+    json: async <T extends JsonValue>(content: T): Promise<UploadResult> => {
       try {
-        let buf = jsonCodec.encode(content);
-        const add = await this.rpcClient.add(buf, { cidVersion: 1 });
+        const jsonString = JSON.stringify(content);
+        const add = await this.rpcClient.add(jsonString, { cidVersion: 1 });
         return { success: true, cid: add.cid.toString() };
       } catch (error) {
         return createErrorResult<UploadResult>(error);

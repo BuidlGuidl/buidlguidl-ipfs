@@ -5,6 +5,7 @@ import {
   BaseUploadResult,
   FileArrayResult,
   DirectoryInput,
+  JsonValue,
 } from "./types.js";
 
 export class MultiUploader implements BaseUploader {
@@ -59,7 +60,8 @@ export class MultiUploader implements BaseUploader {
       this.executeMultiUpload((u) => u.add.file(input)),
     text: (content: string) =>
       this.executeMultiUpload((u) => u.add.text(content)),
-    json: (content: any) => this.executeMultiUpload((u) => u.add.json(content)),
+    json: <T extends JsonValue>(content: T) =>
+      this.executeMultiUpload((u) => u.add.json(content)),
     directory: (input: DirectoryInput) =>
       this.executeMultiUpload((u) => u.add.directory(input)),
     url: (url: string) => this.executeMultiUpload((u) => u.add.url(url)),

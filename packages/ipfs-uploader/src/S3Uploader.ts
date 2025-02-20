@@ -10,6 +10,7 @@ import {
   S3Config,
   S3Options,
   DirectoryInput,
+  JsonValue,
 } from "./types.js";
 import { createErrorResult } from "./utils.js";
 import { globSource } from "kubo-rpc-client";
@@ -214,7 +215,7 @@ export class S3Uploader implements BaseUploader {
       }
     },
 
-    json: async (content: any): Promise<UploadResult> => {
+    json: async <T extends JsonValue>(content: T): Promise<UploadResult> => {
       try {
         const key = `json-${Date.now()}.json`;
         const command = new PutObjectCommand({

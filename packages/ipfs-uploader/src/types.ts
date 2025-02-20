@@ -65,7 +65,7 @@ export interface BaseUploader {
   add: {
     file: (input: File | string) => Promise<UploadResult>;
     text: (content: string) => Promise<UploadResult>;
-    json: (content: any) => Promise<UploadResult>;
+    json: <T extends JsonValue>(content: T) => Promise<UploadResult>;
     directory: (input: DirectoryInput) => Promise<UploadResult>;
     url: (url: string) => Promise<UploadResult>;
     buffer: (content: Buffer | Uint8Array) => Promise<UploadResult>;
@@ -101,10 +101,17 @@ export interface S3UploaderConfig {
 }
 
 // Allow either simple or full config
-export type NodeConfig =
-  | KuboOptions
-  | (NodeUploaderConfig & { options: KuboOptions });
+export type NodeConfig = KuboOptions | NodeUploaderConfig;
 export type PinataConfig = PinataOptions | PinataUploaderConfig;
 export type S3Config = S3Options | S3UploaderConfig;
 
 export type UploaderConfig = NodeConfig | PinataConfig | S3Config;
+
+// Add this type to define valid JSON values
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
