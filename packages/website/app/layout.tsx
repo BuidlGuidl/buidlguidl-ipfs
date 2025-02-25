@@ -7,6 +7,7 @@ import { PrivyClientProvider } from "./components/privy-provider";
 import { Footer } from "./components/footer";
 import { AlphaBanner } from "./components/alpha-banner";
 import { NetworkBackground } from "./components/network-background";
+import { PackageManagerProvider } from "./contexts/package-manager-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,11 +46,13 @@ export default function RootLayout({
       >
         <Providers>
           <PrivyClientProvider>
-            <NetworkBackground opacity={0.2} />
-            <AlphaBanner />
-            <Header />
-            <main className="mx-auto max-w-3xl p-4">{children}</main>
-            <Footer />
+            <PackageManagerProvider>
+              <NetworkBackground opacity={0.2} />
+              <AlphaBanner />
+              <Header />
+              <main className="mx-auto max-w-3xl p-4">{children}</main>
+              <Footer />
+            </PackageManagerProvider>
           </PrivyClientProvider>
         </Providers>
       </body>
