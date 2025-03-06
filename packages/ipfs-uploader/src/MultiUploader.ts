@@ -43,13 +43,14 @@ export class MultiUploader implements BaseUploader {
       .filter((r) => r.success);
     const successCount = successResults.length;
     const totalNodes = this.uploaders.size;
+    const allNodesSucceeded = successCount === totalNodes;
 
     return {
-      success: successCount > 0,
+      success: allNodesSucceeded,
       successCount,
       errorCount: totalNodes - successCount,
       totalNodes,
-      allNodesSucceeded: successCount === totalNodes,
+      allNodesSucceeded,
       cid: successResults[0]?.cid ?? "",
       results,
     };
