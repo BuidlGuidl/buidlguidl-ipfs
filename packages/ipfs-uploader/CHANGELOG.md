@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.9
+
+### Patch Changes
+
+- 44e5a55: update multiuploader success to require all nodes
+
 ## 0.0.8
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # bgipfs
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [44e5a55]
+  - ipfs-uploader@0.0.9
+
 ## 0.0.13
 
 ### Patch Changes
