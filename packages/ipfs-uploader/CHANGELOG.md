@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.10
+
+### Patch Changes
+
+- d7ddc0d: fix server pinata File upload
+
 ## 0.0.9
 
 ### Patch Changes
