@@ -19,11 +19,18 @@ export async function handleNodeFileUpload(
     const filename = input.split("/").pop() || "file";
     formData.append("file", stream, filename);
   } else {
-    const buffer = await input.arrayBuffer();
-    const readableStream = new Readable();
-    readableStream.push(Buffer.from(buffer));
-    readableStream.push(null);
-    formData.append("file", readableStream, input.name);
+    // Convert File to Buffer and create a stream
+    const buffer = Buffer.from(await input.arrayBuffer());
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+
+    // Use form-data's append with explicit stream options
+    formData.append("file", stream, {
+      filename: input.name,
+      contentType: input.type || "application/octet-stream",
+      knownLength: buffer.length,
+    });
   }
 
   formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
