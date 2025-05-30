@@ -55,8 +55,8 @@ export default class IpfsPeer extends BaseCommand {
           message: 'Enter the Peer ID of the IPFS node to connect to',
           validate(value) {
             if (!value) return 'Peer ID is required'
-            if (!/^Qm[\dA-Za-z]{44}$/.test(value)) {
-              return 'Must be a valid Peer ID (Qm followed by 44 base58 characters)'
+            if (!/^[\dA-Za-z]{52}$/.test(value)) {
+              return 'Must be a valid Peer ID (52 base58 characters)'
             }
 
             return true
@@ -82,8 +82,8 @@ export default class IpfsPeer extends BaseCommand {
 
       if (peers.includes(peerId)) {
         this.logSuccess('Connection verified!')
-        this.logInfo('Connected peers:')
-        this.log(peers)
+        // this.logInfo('Connected peers:')
+        // this.log(peers)
       } else {
         this.logError('Failed to verify connection - peer not found in swarm peers')
       }

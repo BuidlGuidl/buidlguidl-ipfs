@@ -27,7 +27,7 @@ export const baseSchema = z
 // DNS schema extends base schema with authentication fields
 export const dnsSchema = baseSchema.extend({
   GATEWAY_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
-  IPFS_PEERING_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
+  IPFS_PEERING_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name').optional(),
   UPLOAD_DOMAIN: z.string().regex(domainPattern, 'Must be a valid domain name'),
 })
 
