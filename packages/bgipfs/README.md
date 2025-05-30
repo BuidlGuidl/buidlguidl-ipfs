@@ -19,6 +19,7 @@ npm install -g bgipfs
 ```bash
 TOPICS
   cluster  Commands for setting up and managing IPFS cluster operations
+  ipfs     Commands for managing IPFS node configuration and peering
   sync     Sync pins from an origin IPFS node to a destination IPFS node
   upload   Commands for uploading files to IPFS
 
@@ -29,17 +30,28 @@ COMMANDS
   version  Show version information
 ```
 
+## IPFS Commands
+```bash
+bgipfs ipfs
+  announce  Configure IPFS to announce its public domain for peering
+  peer     Connect to another IPFS node
+```
+
 ## Cluster Commands
 ```bash
 bgipfs cluster
-  auth     Manage authentication credentials
-  config   Set up or update the necessary configuration
-  install  Install all required dependencies
-  logs     Show container logs
-  reset    Reset IPFS cluster and remove all data
-  start    Start IPFS cluster
-  stop     Stop IPFS cluster
-  restart  Restart a running IPFS cluster
+  ipfs-announce  Configure IPFS to announce its public domain for peering
+  auth          Manage authentication credentials
+  backup        Create a backup of IPFS cluster data and configuration
+  config        Set up or update the necessary configuration
+  install       Install all required dependencies
+  logs          Show container logs
+  ipfs-peer     Connect to another IPFS node
+  reset         Reset IPFS cluster and remove all data
+  start         Start IPFS cluster
+  stop          Stop IPFS cluster
+  restart       Restart a running IPFS cluster
+  update        Update IPFS and IPFS Cluster to their latest versions
 ```
 
 ### Configuration
@@ -64,54 +76,77 @@ During cluster setup, the `cluster config` command will help you populate:
 - `auth/admin-htpasswd` - Admin credentials for dashboard access
 - `auth/user-htpasswd` - User credentials for upload endpoint
 
-### Cluster Modes
+#### Backup
+The `cluster backup` command creates a complete backup of your IPFS cluster, including:
+- IPFS node data
+- IPFS Cluster data
+- All configuration files
+- Authentication files
 
-The cluster can run in two modes:
-- `ip` - Basic IP-based mode (default)
-- `dns` - Domain-based mode with Cloudflare proxy
-
-### DNS Mode Setup
-
-When using DNS mode, you'll need to configure:
-
-1. DNS Records in Cloudflare:
-   - `<gateway-domain>` - Points to your server IP
-   - `*.<gateway-domain>` - Wildcard for IPFS subdomains
-   - `<upload-domain>` - Points to your server IP (protected by user auth)
-
-2. Authentication:
-   - Admin credentials protect the Traefik dashboard
-   - User credentials protect the upload endpoint
-   - Gateway endpoints remain public
-
-### Required Ports
-
-| Port | Protocol | IP Mode | DNS Mode | Purpose |
-|------|----------|---------|----------|----------|
-| 4001 | TCP | Yes | Yes | IPFS swarm |
-| 9096 | TCP | Yes | Yes | Cluster swarm |
-| 8080 | TCP | Yes | No | IPFS gateway |
-| 5555 | TCP | Yes | No | Upload endpoint |
-| 80 | TCP | No | Yes | HTTP proxy |
-
-When running in DNS mode behind Cloudflare, it's recommended to limit HTTP port 80 access to only Cloudflare's IP ranges:
-
-#### AWS Security Groups
-1. Open the AWS Console and navigate to EC2 > Security Groups
-2. Select your security group
-3. Edit inbound rules
-4. Remove any existing rules for port 80 (HTTP)
-5. Add new rules for each Cloudflare IP range:
-   - Type: HTTP
-   - Port: 80
-   - Source: Custom IP
-   - Get the IPv4 ranges from: https://www.cloudflare.com/ips-v4
-   - Note: IPv6 is not supported for inbound rules in EC2 security groups
-
-A helper script is also provided:
+Usage:
 ```bash
-./scripts/setup-cloudflare-aws.sh sg-xxxxxxxx us-east-1
+# Create backup with automatic timestamped directory
+bgipfs cluster backup
+
+# Create backup in a specific directory
+bgipfs cluster backup --output ./my-backup
 ```
+
+### Updating
+
+The `cluster update` command helps you update IPFS and IPFS Cluster to their latest versions:
+
+```bash
+# Update with automatic backup
+bgipfs cluster update
+
+# Update without backup
+bgipfs cluster update --no-backup
+
+# Update with backup to specific directory
+bgipfs cluster update --backup-dir ./my-backup
+```
+
+The update process:
+1. Creates a backup of all data and configuration (unless --no-backup is specified)
+2. Stops the running services
+3. Pulls the latest Docker images
+4. Starts the services with the new versions
+5. Verifies all services are running correctly
+
+### IPFS Peering
+
+To enable peering between IPFS nodes in your cluster:
+
+1. **Announce Your Node**
+   ```bash
+   # Configure with interactive prompt
+   bgipfs cluster ipfs-announce
+
+   # Configure with specific domain
+   bgipfs cluster ipfs-announce --domain example.com
+   ```
+   This will:
+   - Configure IPFS to listen on all interfaces
+   - Announce your public domain for peering
+   - Clear any no-announce filters
+   - Restart IPFS to apply changes
+   - Display your Peer ID
+
+2. **Connect to Another Node**
+   ```bash
+   # Connect with interactive prompts
+   bgipfs cluster ipfs-peer
+
+   # Connect with specific details
+   bgipfs cluster ipfs-peer --domain example.com --peer-id QmPeerId
+   ```
+   This will:
+   - Connect to the specified IPFS node
+   - Verify the connection was successful
+   - Display all connected peers
+
+The domain will be saved in your `.env` file as `IPFS_PEERING_DOMAIN`.
 
 ## Upload Commands
 Powered by [ipfs-uploader](../ipfs-uploader/)
