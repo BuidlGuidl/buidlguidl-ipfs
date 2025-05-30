@@ -109,10 +109,40 @@ export async function checkDocker(): Promise<void> {
 
 export async function checkRunningContainers(): Promise<string[]> {
   try {
-    await checkDocker()
-    const {stdout} = await execa('docker', ['ps', '--format', '{{.Names}}'])
-    return stdout.split('\n').filter(Boolean)
+    const {stdout} = await execa('docker', ['compose', 'ps', 'ipfs', 'cluster', '--format', 'json'])
+
+    // Split the output into lines and parse each JSON object
+    const containers = stdout
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+
+    return containers
+      .filter((container: {State: string}) => container.State === 'running')
+      .map((container: {Name: string}) => container.Name)
   } catch {
     return []
+  }
+}
+
+export async function getContainerVersions(): Promise<{cluster: string; ipfs: string}> {
+  const {stdout: ipfsVersion} = await execa('docker', ['exec', 'ipfs', 'ipfs', 'version'])
+  const {stdout: clusterVersion} = await execa('docker', ['exec', 'cluster', 'ipfs-cluster-service', 'version'])
+
+  // Parse IPFS version from "ipfs version X.Y.Z" format
+  const ipfsMatch = ipfsVersion.match(/ipfs version (\d+\.\d+\.\d+)/)
+  if (!ipfsMatch) {
+    throw new Error('Failed to parse IPFS version')
+  }
+
+  // Parse cluster version from "X.Y.Z+git..." format
+  const clusterMatch = clusterVersion.match(/^(\d+\.\d+\.\d+)/)
+  if (!clusterMatch) {
+    throw new Error('Failed to parse IPFS Cluster version')
+  }
+
+  return {
+    cluster: clusterMatch[1],
+    ipfs: ipfsMatch[1],
   }
 }

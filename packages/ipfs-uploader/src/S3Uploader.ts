@@ -1,9 +1,4 @@
 import {
-  S3Client,
-  PutObjectCommand,
-  HeadObjectCommand,
-} from "@aws-sdk/client-s3";
-import {
   BaseUploader,
   UploadResult,
   S3UploaderConfig,
@@ -15,7 +10,13 @@ import {
 import { createErrorResult } from "./utils.js";
 import { globSource } from "kubo-rpc-client";
 import { createDirectoryEncoderStream, CAREncoderStream } from "ipfs-car";
-import { Upload } from "@aws-sdk/lib-storage";
+import { createPresignedUrl, uploadCar } from "@stauro/filebase-upload";
+import { CID } from "multiformats/cid";
+import { CarWriter } from "@ipld/car/writer";
+import { createWriteStream } from "node:fs";
+import { open, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { Writable } from "node:stream";
 
 type FileLike = {
   name: string;
@@ -25,7 +26,6 @@ type FileLike = {
 };
 
 export class S3Uploader implements BaseUploader {
-  private client: S3Client;
   private config: S3UploaderConfig;
 
   constructor(config: S3Config) {
@@ -33,158 +33,118 @@ export class S3Uploader implements BaseUploader {
       options: "id" in config ? config.options : (config as S3Options),
       id: "id" in config ? config.id : undefined,
     };
-
-    this.client = new S3Client({
-      endpoint: this.config.options.endpoint,
-      region: this.config.options.region || "us-east-1",
-      credentials: {
-        accessKeyId: this.config.options.accessKeyId,
-        secretAccessKey: this.config.options.secretAccessKey,
-      },
-      forcePathStyle: true,
-    });
   }
 
   get id(): string {
     return this.config.id ?? this.config.options.endpoint;
   }
 
-  private async getCidFromMetadata(key: string): Promise<string> {
-    try {
-      const headCommand = new HeadObjectCommand({
-        Bucket: this.config.options.bucket,
-        Key: key,
-      });
+  private getToken(): string {
+    return Buffer.from(
+      `${this.config.options.accessKeyId}:${this.config.options.secretAccessKey}`
+    ).toString("base64");
+  }
 
-      const response = await this.client.send(headCommand);
+  private async uploadFile(file: File): Promise<UploadResult> {
+    const url = await createPresignedUrl({
+      bucketName: this.config.options.bucket,
+      token: this.getToken(),
+      file,
+    });
 
-      if (
-        !response.$metadata.httpStatusCode ||
-        response.$metadata.httpStatusCode !== 200
-      ) {
-        throw new Error("Failed to get object metadata");
-      }
+    const response = await fetch(decodeURIComponent(url), {
+      method: "PUT",
+      body: file,
+    });
 
-      // Try both metadata formats
-      const cidStr =
-        response.Metadata?.["ipfs-hash"] || // 4EVERLAND
-        response.Metadata?.["cid"] || // Filebase
-        response.Metadata?.["x-amz-meta-cid"]; // Filebase alternative
-
-      if (!cidStr) {
-        throw new Error("Could not find IPFS CID in object metadata");
-      }
-
-      return cidStr;
-    } catch (error) {
-      throw new Error(
-        `Failed to get CID: ${error instanceof Error ? error.message : String(error)}`
-      );
+    if (!response.ok) {
+      throw new Error(`Failed to upload file: ${response.statusText}`);
     }
+
+    // Check multiple possible locations for the CID
+    const cid =
+      response.headers.get("x-amz-meta-cid") || // Filebase standard
+      response.headers.get("x-amz-meta-ipfs-hash") || // 4EVERLAND
+      response.headers.get("x-amz-meta-cid") || // Filebase alternative
+      response.headers.get("cid"); // Generic
+
+    if (!cid) {
+      throw new Error("Failed to get CID from Filebase response");
+    }
+
+    return { success: true, cid };
   }
 
   private async uploadDirectory(
     files: FileLike[],
     rootName?: string
   ): Promise<UploadResult> {
-    try {
-      let rootCID: any;
-      const chunks: Uint8Array[] = [];
+    const tmp = tmpdir();
+    const output = `${tmp}/${rootName || "directory"}.car`;
 
-      await createDirectoryEncoderStream(files)
-        .pipeThrough(
-          new TransformStream({
-            transform(block, controller) {
-              rootCID = block.cid;
-              controller.enqueue(block);
-            },
-          })
-        )
-        .pipeThrough(new CAREncoderStream())
-        .pipeTo(
-          new WritableStream({
-            write(chunk) {
-              chunks.push(chunk);
-            },
-          })
-        );
+    const placeholderCID = CID.parse(
+      "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+    );
+    let rootCID = placeholderCID;
 
-      if (!rootCID) {
-        throw new Error("Failed to generate root CID");
-      }
-
-      // Concatenate chunks into single buffer
-      const carContent = Buffer.concat(chunks);
-
-      // Use Upload instead of PutObjectCommand
-      const key = rootName || rootCID.toString();
-      const uploadParams = {
-        client: this.client,
-        params: {
-          Bucket: this.config.options.bucket,
-          Key: key,
-          Body: carContent,
-          Metadata: {
-            import: "car",
+    await createDirectoryEncoderStream(files)
+      .pipeThrough(
+        new TransformStream({
+          transform(block, controller) {
+            rootCID = block.cid as CID;
+            controller.enqueue(block);
           },
-        },
-        queueSize: 4, // Number of concurrent uploads
-        partSize: 26843546, // 25.6MB chunk size
-      };
+        })
+      )
+      .pipeThrough(new CAREncoderStream([placeholderCID]))
+      .pipeTo(Writable.toWeb(createWriteStream(output)));
 
-      const parallelUpload = new Upload(uploadParams);
+    const fd = await open(output, "r+");
+    await CarWriter.updateRootsInFile(fd, [rootCID]);
+    await fd.close();
 
-      // Optional: Add progress tracking
-      parallelUpload.on("httpUploadProgress", (progress) => {
-        // You could emit events here if needed
-        console.debug("Upload progress:", progress);
-      });
+    const fileContent = await readFile(output);
+    const file = new File([fileContent], "directory.car", {
+      type: "application/vnd.ipld.car",
+    });
 
-      await parallelUpload.done();
-      const cid = await this.getCidFromMetadata(key);
+    const response = await uploadCar({
+      bucketName: this.config.options.bucket,
+      token: this.getToken(),
+      file,
+    });
 
-      return { success: true, cid };
-    } catch (error) {
-      return createErrorResult<UploadResult>(error);
+    // Check multiple possible locations for the CID
+    const cid =
+      response.headers.get("x-amz-meta-cid") || // Filebase standard
+      response.headers.get("x-amz-meta-ipfs-hash") || // 4EVERLAND
+      response.headers.get("x-amz-meta-cid") || // Filebase alternative
+      response.headers.get("cid"); // Generic
+
+    if (!cid) {
+      throw new Error("Failed to get CID from Filebase response");
     }
+
+    return { success: true, cid };
   }
 
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
       try {
-        let key: string;
-        let body: Buffer | Uint8Array | string | Blob;
-
+        let file: File;
         if (input instanceof File) {
-          key = input.name;
-          body = input;
+          file = input;
         } else if (typeof window === "undefined") {
           const { readFile } = await import("fs/promises");
-          body = await readFile(input);
-          key = input.split("/").pop() || "file";
+          const content = await readFile(input);
+          file = new File([content], input.split("/").pop() || "file");
         } else {
           throw new Error(
             "File path strings are only supported in Node.js environments"
           );
         }
 
-        const command = new PutObjectCommand({
-          Bucket: this.config.options.bucket,
-          Key: key,
-          Body: body,
-        });
-
-        const putResponse = await this.client.send(command);
-        if (
-          !putResponse.$metadata.httpStatusCode ||
-          putResponse.$metadata.httpStatusCode !== 200
-        ) {
-          throw new Error("Failed to upload to S3");
-        }
-
-        const cid = await this.getCidFromMetadata(key);
-
-        return { success: true, cid };
+        return this.uploadFile(file);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }
@@ -192,24 +152,10 @@ export class S3Uploader implements BaseUploader {
 
     text: async (content: string): Promise<UploadResult> => {
       try {
-        const key = `text-${Date.now()}.txt`;
-        const command = new PutObjectCommand({
-          Bucket: this.config.options.bucket,
-          Key: key,
-          Body: content,
-          ContentType: "text/plain",
+        const file = new File([content], `text-${Date.now()}.txt`, {
+          type: "text/plain",
         });
-
-        const putResponse = await this.client.send(command);
-        if (
-          !putResponse.$metadata.httpStatusCode ||
-          putResponse.$metadata.httpStatusCode !== 200
-        ) {
-          throw new Error("Failed to upload to S3");
-        }
-
-        const cid = await this.getCidFromMetadata(key);
-        return { success: true, cid };
+        return this.uploadFile(file);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }
@@ -217,24 +163,14 @@ export class S3Uploader implements BaseUploader {
 
     json: async <T extends JsonValue>(content: T): Promise<UploadResult> => {
       try {
-        const key = `json-${Date.now()}.json`;
-        const command = new PutObjectCommand({
-          Bucket: this.config.options.bucket,
-          Key: key,
-          Body: JSON.stringify(content),
-          ContentType: "application/json",
-        });
-
-        const putResponse = await this.client.send(command);
-        if (
-          !putResponse.$metadata.httpStatusCode ||
-          putResponse.$metadata.httpStatusCode !== 200
-        ) {
-          throw new Error("Failed to upload to S3");
-        }
-
-        const cid = await this.getCidFromMetadata(key);
-        return { success: true, cid };
+        const file = new File(
+          [JSON.stringify(content)],
+          `json-${Date.now()}.json`,
+          {
+            type: "application/json",
+          }
+        );
+        return this.uploadFile(file);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }
@@ -243,58 +179,38 @@ export class S3Uploader implements BaseUploader {
     url: async (url: string): Promise<UploadResult> => {
       try {
         // Validate URL
-        const parsedUrl = new URL(url);
-        const filename = parsedUrl.pathname.split("/").pop() || "download";
-        const key = `url-${Date.now()}-${filename}`;
+        try {
+          new URL(url);
+        } catch (error) {
+          return createErrorResult<UploadResult>(
+            new Error("Invalid URL provided")
+          );
+        }
+
+        const filename = url.split("/").pop() || "download";
 
         // Download the file
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error(
-            `Failed to download from URL: ${response.statusText}`
+          return createErrorResult<UploadResult>(
+            new Error(`Failed to download from URL: ${response.statusText}`)
           );
         }
 
-        // Convert blob to buffer for S3
         const blob = await response.blob();
-        const arrayBuffer = await blob.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        // Upload to S3
-        const command = new PutObjectCommand({
-          Bucket: this.config.options.bucket,
-          Key: key,
-          Body: buffer,
-          ContentType:
+        const file = new File([blob], `url-${Date.now()}-${filename}`, {
+          type:
             response.headers.get("content-type") || "application/octet-stream",
         });
 
-        const putResponse = await this.client.send(command);
-        if (
-          !putResponse.$metadata.httpStatusCode ||
-          putResponse.$metadata.httpStatusCode !== 200
-        ) {
-          throw new Error("Failed to upload to S3");
-        }
-
-        const cid = await this.getCidFromMetadata(key);
-        return { success: true, cid };
+        return this.uploadFile(file);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("Invalid URL")) {
-          throw new Error("Invalid URL provided");
-        }
         return createErrorResult<UploadResult>(error);
       }
     },
 
     directory: async (input: DirectoryInput): Promise<UploadResult> => {
       try {
-        if (this.config.options.endpoint.includes("4everland")) {
-          throw new Error(
-            "Directory uploads via CAR files are not supported with 4everland endpoints."
-          );
-        }
-
         let files: FileLike[] = [];
 
         if ("files" in input) {
@@ -362,11 +278,10 @@ export class S3Uploader implements BaseUploader {
 
     buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
       try {
-        const blob = new Blob([content]);
-        const file = new File([blob], `buffer-${Date.now()}`, {
+        const file = new File([content], `buffer-${Date.now()}`, {
           type: "application/octet-stream",
         });
-        return this.add.file(file);
+        return this.uploadFile(file);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }

@@ -1,4 +1,5 @@
 import { Options as KuboOptions } from "kubo-rpc-client";
+import { ReadStream } from "fs";
 
 export { KuboOptions };
 
@@ -29,6 +30,8 @@ export interface UploadResult extends BaseUploadResult {
   allNodesSucceeded?: boolean;
   /** Individual results from each node in a multi-node upload */
   results?: Array<[string, NodeUploadResult]>;
+  /** Array of uploaded files with their names and CIDs */
+  files?: { name: string; cid: string }[];
 }
 
 /** Result from a file array upload operation */
@@ -63,9 +66,9 @@ export type DirectoryInput = BrowserDirectoryInput | NodeDirectoryInput;
 export interface BaseUploader {
   id: string;
   add: {
-    file: (input: File | string) => Promise<UploadResult>;
-    text: (content: string) => Promise<UploadResult>;
+    file: (input: string | File) => Promise<UploadResult>;
     json: <T extends JsonValue>(content: T) => Promise<UploadResult>;
+    text: (content: string) => Promise<UploadResult>;
     directory: (input: DirectoryInput) => Promise<UploadResult>;
     url: (url: string) => Promise<UploadResult>;
     buffer: (content: Buffer | Uint8Array) => Promise<UploadResult>;
@@ -73,18 +76,32 @@ export interface BaseUploader {
 }
 
 export interface PinataOptions {
+  jwt?: string;
+  gateway?: string;
+  signingEndpoint?: string;
+  groupId?: string;
+  expires?: number;
+  defaultFilename?: string;
+}
+
+export interface PinataJwtOptions {
   jwt: string;
   gateway?: string;
 }
 
-export interface NodeUploaderConfig {
-  id?: string;
-  options: KuboOptions;
+export interface PinataPresignedOptions {
+  signingEndpoint: string;
+  gateway?: string;
 }
 
 export interface PinataUploaderConfig {
-  id?: string;
   options: PinataOptions;
+  id?: string;
+}
+
+export interface NodeUploaderConfig {
+  options: KuboOptions;
+  id?: string;
 }
 
 export interface S3Options {

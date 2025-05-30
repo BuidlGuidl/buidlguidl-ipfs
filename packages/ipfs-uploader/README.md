@@ -13,6 +13,7 @@ Library for uploading and pinning content to IPFS. Supports multiple backends in
 - Upload from URLs
 - Support for both Node.js and browser environments
 - Support for multiple pinners - IPFS nodes, Pinata, and S3-compatible endpoints (Filebase, 4everland, etc.)
+- Support for Pinata presigned URLs for secure client-side uploads
 
 ## Installation
 
@@ -23,7 +24,7 @@ pnpm add ipfs-uploader
 ## Usage
 
 ```typescript
-import { createUploader } from "ipfs-uploader";
+import { createUploader, createPresignedUrl } from "ipfs-uploader";
 
 // Single backend example
 const pinataUploader = createUploader([
@@ -89,6 +90,39 @@ const filesResult = await uploader.add.directory({
 const urlResult = await uploader.add.url("https://example.com");
 ```
 
+## Using Presigned URLs with Pinata
+
+For secure client-side uploads, you can use Pinata's presigned URL functionality. This allows you to upload files without exposing your JWT token to the client.
+
+First, create an API endpoint that generates presigned URLs:
+
+```typescript
+// Next.js API route example
+import { createPresignedUrl } from "ipfs-uploader";
+
+export async function GET(request: Request) {
+  const filename = new URL(request.url).searchParams.get("filename") || "upload";
+  const url = await createPresignedUrl({
+    jwt: process.env.PINATA_JWT!,
+    groupId: "my-group-id", // optional
+    expires: 30, // optional, defaults to 30 seconds
+    defaultFilename: filename
+  });
+  return Response.json({ url });
+}
+```
+
+Then use the presigned URL endpoint with the PinataUploader:
+
+```typescript
+const uploader = createUploader({
+  signingEndpoint: "/api/pinata/sign" // Your presigned URL endpoint
+});
+
+// Upload a file using the presigned URL
+const result = await uploader.add.file(new File(["Hello IPFS!"], "test.txt"));
+```
+
 ## Response Types
 
 All upload methods return a Promise with an UploadResult:
@@ -112,6 +146,75 @@ interface MultiUploadResult extends UploadResult {
   results: Array<[string, UploadResult]>;
 }
 ```
+
+## Testing
+
+The library includes a comprehensive test suite that verifies functionality across different uploaders and scenarios. To run the tests:
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests for a specific uploader
+pnpm test -t "S3Uploader"
+pnpm test -t "PinataUploader"
+
+# Run specific test cases
+pnpm test -t "should upload a directory of files"
+pnpm test -t "should upload a file"
+```
+
+### Test Coverage
+
+The test suite covers:
+
+1. **File Uploads**
+   - Single file uploads
+   - File path uploads (Node.js)
+   - File object uploads (Browser)
+
+2. **Content Uploads**
+   - Text content
+   - JSON content
+   - Buffer data
+
+3. **Directory Uploads**
+   - Directory path uploads (Node.js)
+   - File array uploads (Browser)
+   - Directory structure preservation
+
+4. **URL Uploads**
+   - URL validation
+   - Content type handling
+   - Error handling for invalid URLs
+
+5. **Provider-Specific Tests**
+   - Filebase S3 compatibility
+   - Pinata JWT authentication
+   - Pinata presigned URLs
+   - IPFS node integration
+
+### Environment Setup
+
+Tests require environment variables to be set up in `.env.test`:
+
+```env
+# Filebase configuration
+FILEBASE_ENDPOINT=https://s3.filebase.com
+FILEBASE_ACCESS_KEY=your-access-key
+FILEBASE_SECRET_KEY=your-secret-key
+FILEBASE_BUCKET=your-bucket
+
+# Pinata configuration
+PINATA_JWT=your-jwt-token
+PINATA_GATEWAY=https://gateway.pinata.cloud
+
+# BGIPFS configuration
+BGIPFS_URL=http://localhost:5555
+BGIPFS_X_API_KEY=your-api-key
+```
+
+Make sure to set up these environment variables before running the tests.
 
 
 
