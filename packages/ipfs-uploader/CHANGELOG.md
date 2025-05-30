@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.11
+
+### Patch Changes
+
+- 508f7ca: pinata signedUrls, stauro for filebase, tests
+
 ## 0.0.10
 
 ### Patch Changes

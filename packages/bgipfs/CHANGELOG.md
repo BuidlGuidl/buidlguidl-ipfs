@@ -1,5 +1,13 @@
 # bgipfs
 
+## 0.0.16
+
+### Patch Changes
+
+- 508f7ca: ipfs peering (announcing and adding), updating versions
+- Updated dependencies [508f7ca]
+  - ipfs-uploader@0.0.11
+
 ## 0.0.15
 
 ### Patch Changes
