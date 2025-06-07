@@ -26,15 +26,26 @@ export default class Sync extends BaseCommand {
     'bgipfs sync ls',
     'bgipfs sync pin',
     'bgipfs sync add',
-    'bgipfs sync ls --savePins',
     'bgipfs sync ls --limit 10',
     'bgipfs sync pin --limit 5',
+    'bgipfs sync add --statusFile sync-status.csv',
+    'bgipfs sync add --statusFile sync-status.csv --retry',
+    'bgipfs sync add --chunkSize 20 --progressUpdate 50',
+    'bgipfs sync add --errorThreshold 25 --errorWindow 50',
   ]
 
   static override flags = {
     chunkSize: Flags.integer({
       default: 10,
       description: 'Number of pins to process in parallel',
+    }),
+    errorThreshold: Flags.integer({
+      default: 50,
+      description: 'Stop if rolling error rate exceeds this percentage (0-100)',
+    }),
+    errorWindow: Flags.integer({
+      default: 100,
+      description: 'Number of pins to consider for rolling error rate',
     }),
     limit: Flags.integer({
       description: 'Limit the number of pins to process (useful for testing)',
@@ -48,9 +59,9 @@ export default class Sync extends BaseCommand {
       default: 100,
       description: 'Number of pins to process before showing progress',
     }),
-    savePins: Flags.boolean({
+    retry: Flags.boolean({
       default: false,
-      description: 'Save pinned CIDs to a file',
+      description: 'Retry failed pins from status file',
     }),
     statusFile: Flags.string({
       description: 'File to track sync status. If exists, will resume from last state.',
@@ -73,6 +84,7 @@ export default class Sync extends BaseCommand {
     let errorCount = 0
     let lastProgressUpdate = 0
     const startTime = Date.now()
+    const errorWindow: boolean[] = []
 
     try {
       // Step 1: Get all pins and save to CSV
@@ -101,11 +113,15 @@ export default class Sync extends BaseCommand {
           })
 
         // Filter out already processed pins if status file exists
-        const processedPins = await this.getProcessedPins(statusFile)
+        const processedPins = await this.getProcessedPins(statusFile, flags.retry ? 1 : undefined)
         if (processedPins.size > 0) {
           const originalCount = pins.length
           pins = pins.filter((pin) => !processedPins.has(pin.cid))
-          this.logInfo(`Skipping ${originalCount - pins.length} already processed pins`)
+          if (flags.retry) {
+            this.logInfo(`Retrying ${pins.length} failed pins`)
+          } else {
+            this.logInfo(`Skipping ${originalCount - pins.length} already processed pins`)
+          }
         }
 
         // Process in chunks
@@ -122,6 +138,7 @@ export default class Sync extends BaseCommand {
 
           // eslint-disable-next-line no-await-in-loop
           const results = await this.processChunk(chunk, originIpfs, destinationIpfs, args.mode === 'pin')
+
           // eslint-disable-next-line no-await-in-loop
           await this.writeChunkResults(statusFile, results)
 
@@ -129,16 +146,36 @@ export default class Sync extends BaseCommand {
           pinCount += chunk.length
           errorCount += results.filter((r) => r.error).length
 
+          // Update error window
+          for (const result of results) errorWindow.push(Boolean(result.error))
+
+          // Check rolling error rate
+          const errorRate = this.calculateRollingErrorRate(errorWindow, flags.errorWindow)
+          if (errorRate > flags.errorThreshold) {
+            this.logError(`Rolling error rate (${errorRate.toFixed(1)}%) exceeded threshold (${flags.errorThreshold}%)`)
+            this.logError('Stopping sync due to high error rate. Check origin IPFS node status.')
+            break
+          }
+
           if (pinCount - lastProgressUpdate >= flags.progressUpdate) {
             const elapsedMinutes = (Date.now() - startTime) / 1000 / 60
             const rate = pinCount / elapsedMinutes
-            this.logInfo(`Progress: ${pinCount} pins processed (${rate.toFixed(1)} pins/minute), ${errorCount} errors`)
+            const totalErrorRate = (errorCount / pinCount) * 100
+            this.logInfo(
+              `Progress: ${pinCount} pins processed (${rate.toFixed(1)} pins/minute), ` +
+                `${errorCount} errors (${totalErrorRate.toFixed(1)}% total, ${errorRate.toFixed(1)}% rolling)`,
+            )
             lastProgressUpdate = pinCount
           }
         }
 
         const totalMinutes = (Date.now() - startTime) / 1000 / 60
-        this.logSuccess(`Completed ${pinCount} pins in ${totalMinutes.toFixed(1)} minutes (${errorCount} errors)`)
+        const finalErrorRate = (errorCount / pinCount) * 100
+        const finalRollingRate = this.calculateRollingErrorRate(errorWindow, flags.errorWindow)
+        this.logSuccess(
+          `Completed ${pinCount} pins in ${totalMinutes.toFixed(1)} minutes ` +
+            `(${errorCount} errors, ${finalErrorRate.toFixed(1)}% total, ${finalRollingRate.toFixed(1)}% rolling)`,
+        )
         this.logInfo(`Results saved to ${statusFile}`)
       }
     } catch (error) {
@@ -146,11 +183,26 @@ export default class Sync extends BaseCommand {
     }
   }
 
-  private async getProcessedPins(statusFile: string): Promise<Set<string>> {
+  private calculateRollingErrorRate(errorWindow: boolean[], windowSize: number): number {
+    const recentErrors = errorWindow.slice(-windowSize)
+    if (recentErrors.length === 0) return 0
+    return (recentErrors.filter(Boolean).length / recentErrors.length) * 100
+  }
+
+  private async getProcessedPins(statusFile: string, successFilter?: number): Promise<Set<string>> {
     try {
       const content = await fs.readFile(statusFile, 'utf8')
       const lines = content.split('\n').slice(1) // Skip header
-      return new Set(lines.filter((line) => line.trim()).map((line) => line.split(',')[0]))
+      return new Set(
+        lines
+          .filter((line) => line.trim())
+          .filter((line) => {
+            if (successFilter === undefined) return true
+            const success = line.split(',')[2]
+            return Number(success) === successFilter
+          })
+          .map((line) => line.split(',')[0]),
+      )
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         // File doesn't exist, create it with headers
@@ -230,14 +282,19 @@ export default class Sync extends BaseCommand {
     for (const result of results) {
       // eslint-disable-next-line no-await-in-loop
       await this.writeCsvLine(filename, {
-        ...result,
+        cid: result.cid,
+        error: result.error || '',
+        size: result.size,
         success: result.error ? 0 : 1,
+        type: result.type,
       })
     }
   }
 
   private async writeCsvLine(file: string, data: Record<string, number | string>) {
-    const line = Object.values(data).join(',') + '\n'
+    // Ensure columns are written in the correct order
+    const orderedData = [data.cid, data.type, data.success, data.size, data.error]
+    const line = orderedData.join(',') + '\n'
     await fs.appendFile(file, line)
   }
 }

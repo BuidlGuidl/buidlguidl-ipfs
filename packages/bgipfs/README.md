@@ -179,3 +179,43 @@ bgipfs sync config init  # Initialize sync configuration
 bgipfs sync config get   # Get sync configuration
 bgipfs sync [ls|add|pin] # Sync pins between IPFS nodes - ls just lists, pin lists and pins, add fetches, adds and pins
 ```
+
+### Examples
+```bash
+# List pins from origin node
+bgipfs sync ls
+
+# List pins with a limit
+bgipfs sync ls --limit 10
+
+# Pin CIDs from origin to destination
+bgipfs sync pin
+
+# Pin with a limit
+bgipfs sync pin --limit 5
+
+# Add and pin content from origin to destination
+bgipfs sync add
+
+# Add with status tracking and resume capability
+bgipfs sync add --statusFile sync-status.csv
+
+# Retry failed pins from previous run
+bgipfs sync add --statusFile sync-status.csv --retry
+
+# Customize parallel processing and progress updates
+bgipfs sync add --chunkSize 20 --progressUpdate 50
+
+# Set error thresholds for automatic stopping
+bgipfs sync add --errorThreshold 25 --errorWindow 50
+```
+
+### Options
+- `--statusFile`: File to track sync status. If exists, will resume from last state
+- `--retry`: Retry failed pins from status file
+- `--limit`: Limit the number of pins to process (useful for testing)
+- `--chunkSize`: Number of pins to process in parallel (default: 10)
+- `--progressUpdate`: Number of pins to process before showing progress (default: 100)
+- `--errorThreshold`: Stop if rolling error rate exceeds this percentage (0-100, default: 50)
+- `--errorWindow`: Number of pins to consider for rolling error rate (default: 100)
+- `--pinSource`: Source of pins: "origin" or path to CSV file (default: "origin")
