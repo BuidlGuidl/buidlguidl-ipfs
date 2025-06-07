@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.17
+
+### Patch Changes
+
+- 059cc3e: bgipfs sync robustness and performance improvements
+
 ## 0.0.16
 
 ### Patch Changes
