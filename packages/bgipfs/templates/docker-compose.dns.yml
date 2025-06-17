@@ -14,11 +14,16 @@ services:
       - "traefik.http.routers.main-gateway.rule=Host(`${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.main-gateway.entrypoints=web"
       - "traefik.http.routers.main-gateway.service=ipfs-gateway"
+      - "traefik.http.routers.main-gateway.middlewares=xfp-https@docker"
       
       # Subdomain gateway router
       - "traefik.http.routers.subdomain-gateway.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.${GATEWAY_DOMAIN}`)"
       - "traefik.http.routers.subdomain-gateway.entrypoints=web"
       - "traefik.http.routers.subdomain-gateway.service=ipfs-gateway"
+      - "traefik.http.routers.subdomain-gateway.middlewares=xfp-https@docker"
+
+      # Middleware: force the header for anything that hits the gateway
+      - "traefik.http.middlewares.xfp-https.headers.customrequestheaders.X-Forwarded-Proto=https"
 
   cluster:
     labels:
