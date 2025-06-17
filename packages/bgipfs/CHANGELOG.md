@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.18
+
+### Patch Changes
+
+- 1d6264b: Added X-Forwarded-Proto=https header to gateway requests
+
 ## 0.0.17
 
 ### Patch Changes
