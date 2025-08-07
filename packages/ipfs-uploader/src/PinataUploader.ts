@@ -32,6 +32,10 @@ export class PinataUploader implements BaseUploader {
     return "signingEndpoint" in options;
   }
 
+  private getCidVersion(): 0 | 1 {
+    return this.config.options.cidVersion ?? 1;
+  }
+
   private async getPresignedUrl(): Promise<string> {
     if (!this.isPresignedUrlAuth(this.config.options)) {
       throw new Error("Invalid authentication configuration");
@@ -100,7 +104,10 @@ export class PinataUploader implements BaseUploader {
 
         const formData = new FormData();
         formData.append("file", input);
-        formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+        formData.append(
+          "pinataOptions",
+          JSON.stringify({ cidVersion: this.getCidVersion() })
+        );
 
         if (this.isPresignedUrlAuth(this.config.options)) {
           const presignedUrl = await this.getPresignedUrl();
@@ -148,7 +155,7 @@ export class PinataUploader implements BaseUploader {
             },
             body: JSON.stringify({
               pinataOptions: {
-                cidVersion: 1,
+                cidVersion: this.getCidVersion(),
               },
               pinataContent: content,
             }),
@@ -206,7 +213,7 @@ export class PinataUploader implements BaseUploader {
               formData.append("file", file, `${input.dirName}/${file.name}`);
               formData.append(
                 "pinataOptions",
-                JSON.stringify({ cidVersion: 1 })
+                JSON.stringify({ cidVersion: this.getCidVersion() })
               );
 
               const result = await this.uploadFile(formData, presignedUrl);
@@ -234,7 +241,10 @@ export class PinataUploader implements BaseUploader {
           formData.append("file", file, `${input.dirName}/${file.name}`);
         }
 
-        formData.append("pinataOptions", JSON.stringify({ cidVersion: 1 }));
+        formData.append(
+          "pinataOptions",
+          JSON.stringify({ cidVersion: this.getCidVersion() })
+        );
 
         return this.uploadFile(
           formData,

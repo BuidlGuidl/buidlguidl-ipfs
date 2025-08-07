@@ -20,6 +20,7 @@ export class NodeUploader implements BaseUploader {
     this.config = {
       options: "id" in config ? config.options : (config as KuboOptions),
       id: "id" in config ? config.id : undefined,
+      cidVersion: "cidVersion" in config ? config.cidVersion : 1,
     };
     this.rpcClient = create(this.config.options);
   }
@@ -31,21 +32,40 @@ export class NodeUploader implements BaseUploader {
   add = {
     file: async (input: File | string): Promise<UploadResult> => {
       try {
-        let content: Buffer | Uint8Array;
-
         if (input instanceof File) {
-          const buffer = await input.arrayBuffer();
-          content = new Uint8Array(buffer);
+          const add = await this.rpcClient.add(
+            {
+              path: input.name,
+              content: input,
+            },
+            {
+              cidVersion: this.config.cidVersion,
+            }
+          );
+          return { success: true, cid: add.cid.toString() };
         } else if (typeof window === "undefined") {
-          const { readFile } = await import("fs/promises");
-          content = await readFile(input);
+          // Stream directly from file system to IPFS with filename
+          const { createReadStream } = await import("fs");
+          const { basename } = await import("path");
+          const filename = basename(input);
+          const fileStream = createReadStream(input);
+
+          // Pass filename and stream to preserve metadata
+          const add = await this.rpcClient.add(
+            {
+              path: filename,
+              content: fileStream,
+            },
+            {
+              cidVersion: this.config.cidVersion,
+            }
+          );
+          return { success: true, cid: add.cid.toString() };
         } else {
           throw new Error(
             "File path strings are only supported in Node.js environments"
           );
         }
-
-        return this.add.buffer(content);
       } catch (error) {
         return createErrorResult<UploadResult>(error);
       }
@@ -53,7 +73,9 @@ export class NodeUploader implements BaseUploader {
 
     text: async (content: string): Promise<UploadResult> => {
       try {
-        const add = await this.rpcClient.add(content, { cidVersion: 1 });
+        const add = await this.rpcClient.add(content, {
+          cidVersion: this.config.cidVersion,
+        });
         return { success: true, cid: add.cid.toString() };
       } catch (error) {
         return createErrorResult<UploadResult>(error);
@@ -63,7 +85,9 @@ export class NodeUploader implements BaseUploader {
     json: async <T extends JsonValue>(content: T): Promise<UploadResult> => {
       try {
         const jsonString = JSON.stringify(content);
-        const add = await this.rpcClient.add(jsonString, { cidVersion: 1 });
+        const add = await this.rpcClient.add(jsonString, {
+          cidVersion: this.config.cidVersion,
+        });
         return { success: true, cid: add.cid.toString() };
       } catch (error) {
         return createErrorResult<UploadResult>(error);
@@ -102,7 +126,7 @@ export class NodeUploader implements BaseUploader {
           // Try with different IPFS client options
           const options = {
             wrapWithDirectory: true,
-            cidVersion: 1 as const,
+            cidVersion: this.config.cidVersion,
             // progress: (progress: number) => {
             //   console.log("Upload progress:", progress);
             // },
@@ -149,7 +173,7 @@ export class NodeUploader implements BaseUploader {
         }
 
         const add = await this.rpcClient.add(urlSource(url), {
-          cidVersion: 1,
+          cidVersion: this.config.cidVersion,
         });
         return { success: true, cid: add.cid.toString() };
       } catch (error) {
@@ -160,7 +184,7 @@ export class NodeUploader implements BaseUploader {
     buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
       try {
         const add = await this.rpcClient.add(content, {
-          cidVersion: 1,
+          cidVersion: this.config.cidVersion,
         });
         return { success: true, cid: add.cid.toString() };
       } catch (error) {

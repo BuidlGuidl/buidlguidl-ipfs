@@ -82,6 +82,7 @@ export interface PinataOptions {
   groupId?: string;
   expires?: number;
   defaultFilename?: string;
+  cidVersion?: 0 | 1;
 }
 
 export interface PinataJwtOptions {
@@ -102,6 +103,7 @@ export interface PinataUploaderConfig {
 export interface NodeUploaderConfig {
   options: KuboOptions;
   id?: string;
+  cidVersion?: 0 | 1;
 }
 
 export interface S3Options {

@@ -161,13 +161,8 @@ app.post('/api/v0/add', async (c) => {
 
 		// Copy all params except cid-version
 		url.searchParams.forEach((value, key) => {
-			if (key !== 'cid-version') {
-				ipfsUrl.searchParams.append(key, value);
-			}
+			ipfsUrl.searchParams.append(key, value);
 		});
-
-		// Always use CIDv1
-		ipfsUrl.searchParams.append('cid-version', '1');
 
 		// Filter headers
 		const headers = Object.fromEntries(
