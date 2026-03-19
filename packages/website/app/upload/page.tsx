@@ -8,6 +8,9 @@ function CodeExample({ apiKey = "YOUR_API_KEY" }: { apiKey?: string }) {
   return (
     <div className="space-y-6 mt-8 p-6 bg-gray-900 rounded-lg border border-gray-800">
       <h2 className="text-xl font-semibold text-gray-100">Code Examples</h2>
+      <p className="text-sm text-gray-400 -mt-2">
+        AI agents: see <a href="/SKILL.md" className="underline hover:text-gray-200">/SKILL.md</a> for a bot-readable guide with full upload process.
+      </p>
 
       <div className="space-y-4">
         <div>
