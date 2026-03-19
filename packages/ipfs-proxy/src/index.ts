@@ -216,38 +216,49 @@ app.post('/api/v0/add', async (c) => {
 		try {
 			const res = await ipfsPromise;
 			if (!res.ok) {
-				throw new Error(`IPFS error: ${res.status}`);
+				const errorBody = await res.text();
+				const message = errorBody.trim() || res.statusText;
+				return c.json({ error: message }, res.status as 400 | 401 | 403 | 404 | 500);
 			}
 
 			// Now handle the IPFS response with our stream handler
 			const parser = new JsonParser(wrapWithDirectory);
 
-			return stream(c, async (stream) => {
-				const processStream = new TransformStream({
-					transform(chunk, controller) {
-						try {
-							parser.addChunk(chunk);
-							controller.enqueue(chunk);
-						} catch (e) {
-							console.error(`Error processing chunk for key ${apiKey}:`, e);
-							controller.error(e);
-						}
-					},
-					flush(controller) {
-						parser.flush();
-						const cidsToPin = parser.getCidsToPin();
-						if (cidsToPin.length === 0) {
-							console.error(`No CIDs to pin for key ${apiKey}`);
-							controller.error(new Error('No CIDs to pin'));
-							return;
-						}
-						c.executionCtx.waitUntil(createPins(env, apiKey, cidsToPin, customName, parser.entries.length));
-					},
-				});
+			return stream(
+				c,
+				async (stream) => {
+					const processStream = new TransformStream({
+						transform(chunk, controller) {
+							try {
+								parser.addChunk(chunk);
+								controller.enqueue(chunk);
+							} catch (e) {
+								console.error(`Error processing chunk for key ${apiKey}:`, e);
+								controller.error(e);
+							}
+						},
+						flush(controller) {
+							parser.flush();
+							const cidsToPin = parser.getCidsToPin();
+							if (cidsToPin.length === 0) {
+								console.error(`No CIDs to pin for key ${apiKey}`);
+								controller.error(new Error('No CIDs to pin'));
+								return;
+							}
+							c.executionCtx.waitUntil(createPins(env, apiKey, cidsToPin, customName, parser.entries.length));
+						},
+					});
 
-				// Pipe IPFS response through our processor and to the client
-				await stream.pipe(res.body!.pipeThrough(processStream));
-			});
+					// Pipe IPFS response through our processor and to the client
+					await stream.pipe(res.body!.pipeThrough(processStream));
+				},
+				async (err, stream) => {
+					const message = err instanceof Error ? err.message : String(err);
+					console.error(`Stream error for key ${apiKey}:`, err);
+					// Response already started (200); send a single NDJSON error line so client can parse it
+					await stream.write(new TextEncoder().encode(JSON.stringify({ Error: message }) + '\n'));
+				}
+			);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('exceeds maximum allowed size')) {
 				return c.json({ error: error.message }, 413);

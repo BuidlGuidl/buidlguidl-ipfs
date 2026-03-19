@@ -29,24 +29,17 @@ pnpm deploy
 
 ### Environment Variables
 
-Development variables can be set in `.dev.vars`:
-```
-IPFS_API_URL=http://localhost:5555
-IPFS_AUTH_USERNAME=user
-IPFS_AUTH_PASSWORD=your_password
-```
+For **local development**, copy `.dev.vars.example` to `.dev.vars` and set the values (see that file for the full list). The worker expects `APP_API_URL`, `WORKER_AUTH_SECRET`, and IPFS basic auth credentials.
 
-Production variables:
+For **production and staging**, see [DEPLOY.md](./DEPLOY.md) for a full runbook and secret checklist. Summary of variables:
+
 - `APP_API_URL` - The domain of the app that will be making the `api/auth` verification, and the callback to `/api/pin`
 - `WORKER_AUTH_SECRET` - A secret key for the worker, used to validate requests to the `/api/auth` and `/api/pin` endpoints come from a trusted worker
 - `IPFS_AUTH_USERNAME` and `IPFS_AUTH_PASSWORD` are basic auth for authentication of the cloudflare worker by the IPFS node
 - `DEFAULT_API_KEY` - A default API key to use if no API key is provided (optional - this enables unauthenticated pinning to the associated account)
 - `MAX_UPLOAD_SIZE` - The maximum size of a file to upload, in bytes. Defaults to 100MB.
 
-All variables should be set as secrets:
-```bash
-wrangler secret put <VARIABLE>
-```
+Set secrets via `wrangler secret put <VARIABLE>` (or in the Cloudflare dashboard). See [DEPLOY.md](./DEPLOY.md).
 
 ## Usage
 
@@ -85,4 +78,5 @@ Response:
 - 401: Unauthorized (invalid API key)
 - 413: Payload too large (file too large)
 - 405: Method not allowed (only POST is supported)
-- 500: IPFS node errors or internal errors 
+- **Non-2xx from IPFS** (e.g. IPFS auth failure, node error): Status and body from the IPFS node are forwarded as-is. The client receives the same HTTP status and a JSON body `{ "error": "<message>" }` with the upstream message.
+- **Error during stream** (e.g. no CIDs to pin, parse error): The response has already started (200). A single NDJSON line is sent with the error: `{"Error":"<message>"}\n`. Clients should check each line for an `Error` field and treat the upload as failed when present. 

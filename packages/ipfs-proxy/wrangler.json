@@ -1,13 +1,20 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "ipfs-proxy",
-	"main": "src/index.ts",
-	"compatibility_date": "2025-01-24",
-	"observability": {
-		"enabled": true
-	},
-	"vars": {
-		"APP_API_URL": "https://buidlguidl-ipfs.vercel.app",
-		"MAX_UPLOAD_SIZE": "104857600"
-	}
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ipfs-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-24",
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_API_URL": "https://buidlguidl-ipfs.vercel.app",
+    "MAX_UPLOAD_SIZE": "104857600"
+  },
+  "env": {
+    "staging": {
+      "name": "ipfs-proxy-staging",
+      "vars": {
+        "APP_API_URL": "https://your-staging-app.vercel.app",
+        "MAX_UPLOAD_SIZE": "104857600"
+      }
+    }
+  }
 }

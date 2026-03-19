@@ -1,0 +1,18 @@
+# Local development only. Copy to .dev.vars and fill in real values.
+# .dev.vars is gitignored and loaded by `wrangler dev`.
+
+# App that runs /api/auth and /api/pin (e.g. your local website)
+APP_API_URL=http://localhost:3000
+
+# Must match the secret used by your app to verify worker callbacks
+WORKER_AUTH_SECRET=your-dev-worker-auth-secret
+
+# Basic auth for the IPFS node the worker proxies to
+IPFS_AUTH_USERNAME=user
+IPFS_AUTH_PASSWORD=your_password
+
+# Optional: default API key when x-api-key header is omitted (enables unauthenticated pinning in dev)
+# DEFAULT_API_KEY=optional-default-key
+
+# Optional: max upload size in bytes (default 100MB)
+# MAX_UPLOAD_SIZE=104857600
