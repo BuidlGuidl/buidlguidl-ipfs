@@ -34,6 +34,33 @@ Or manually save to `~/.bgipfs/credentials.json`:
 
 ---
 
+## Single file upload
+
+If you just need to upload one file (an image, JSON, PDF, etc.) you do not need a build step:
+
+```bash
+bgipfs upload path/to/file.png --config ~/.bgipfs/credentials.json
+```
+
+Output on success:
+```
+✓ File uploaded. CID: bafybeig2zw2u6l3yjoncmvqphl7mywrmoknceflkkvvu3iwivsgndq36k4
+```
+
+Access it at:
+```
+https://{CID}.ipfs.community.bgipfs.com/
+```
+
+The CID points directly to the file — no filename path needed.
+
+You can also upload from a URL:
+```bash
+bgipfs upload https://example.com/image.png --config ~/.bgipfs/credentials.json
+```
+
+---
+
 ## Step 2 — Build for IPFS
 
 ### Next.js / Scaffold-ETH 2
