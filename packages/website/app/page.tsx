@@ -68,7 +68,7 @@ export default function Home() {
             {/* Action Buttons */}
             <div className="flex gap-4 items-center">
               <Link
-                className="rounded-lg px-6 py-2 bg-black dark:bg-white text-white dark:text-black font-semibold 
+                className="rounded-lg px-6 py-2 bg-black dark:bg-white text-white dark:text-black font-semibold
                            transition-all hover:scale-105 hover:shadow-lg"
                 href="/upload"
               >
@@ -76,10 +76,19 @@ export default function Home() {
               </Link>
               <span className="text-gray-400">or</span>
               <LoginButton
-                className="rounded-lg px-6 py-2 border border-white/20 font-semibold 
+                className="rounded-lg px-6 py-2 border border-white/20 font-semibold
                            transition-all hover:scale-105 hover:shadow-lg hover:bg-white/5"
               />
             </div>
+
+            {/* AI Agent CTA */}
+            <p className="text-sm text-gray-400">
+              AI agent?{" "}
+              <Link href="/SKILL.md" className="underline hover:text-gray-200">
+                /SKILL.md
+              </Link>{" "}
+              has everything you need.
+            </p>
           </main>
         </div>
       </div>
