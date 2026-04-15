@@ -1,20 +1,23 @@
-# bgipfs Upload — AI Agent Guide
-
-## One-line summary
-Upload a built web app to bgipfs and get a permanent IPFS URL.
-
 ---
+name: bgipfs-upload
+description: "Upload files and web apps to IPFS using the bgipfs CLI. Use when deploying a static site to IPFS, uploading individual files for permanent storage, configuring bgipfs API credentials, building Next.js or Scaffold-ETH 2 projects for IPFS, or diagnosing common IPFS upload failures like auth errors and stale content."
+---
+
+# bgipfs Upload Guide
+
+Upload a built web app or individual files to IPFS and get a permanent URL via the bgipfs CLI.
 
 ## Prerequisites
 
-- `bgipfs` CLI: `npm install -g bgipfs`
+- `bgipfs` CLI installed: `npm install -g bgipfs`
 - A bgipfs API key from https://bgipfs.com (account → API Keys)
 
----
+## Workflow
 
-## Step 1 — Save credentials
+### 1. Configure credentials
 
-The CLI has an init command:
+Run the CLI init command:
+
 ```bash
 bgipfs upload config init --nodeUrl="https://upload.bgipfs.com" --apiKey="YOUR_KEY"
 ```
@@ -30,40 +33,33 @@ Or manually save to `~/.bgipfs/credentials.json`:
 }
 ```
 
-⚠️ Never commit this file. Add `~/.bgipfs/` to your ignore list.
+> **Important**: Never commit credentials. Add `~/.bgipfs/` to `.gitignore`.
 
----
+### 2. Upload a single file (optional)
 
-## Single file upload
-
-If you just need to upload one file (an image, JSON, PDF, etc.) you do not need a build step:
+For individual files (images, JSON, PDFs) — no build step needed:
 
 ```bash
 bgipfs upload path/to/file.png --config ~/.bgipfs/credentials.json
 ```
 
-Output on success:
-```
-✓ File uploaded. CID: bafybeig2zw2u6l3yjoncmvqphl7mywrmoknceflkkvvu3iwivsgndq36k4
-```
+Upload from a URL:
 
-Access it at:
-```
-https://{CID}.ipfs.community.bgipfs.com/
-```
-
-The CID points directly to the file — no filename path needed.
-
-You can also upload from a URL:
 ```bash
 bgipfs upload https://example.com/image.png --config ~/.bgipfs/credentials.json
 ```
 
----
+Output on success:
 
-## Step 2 — Build for IPFS
+```
+✓ File uploaded. CID: bafybeig2zw2u6l3yjoncmvqphl7mywrmoknceflkkvvu3iwivsgndq36k4
+```
 
-### Next.js / Scaffold-ETH 2
+Access at: `https://{CID}.ipfs.community.bgipfs.com/`
+
+### 3. Build for IPFS (web apps)
+
+#### Next.js / Scaffold-ETH 2
 
 ```bash
 cd packages/nextjs
@@ -71,12 +67,13 @@ rm -rf .next out
 NEXT_PUBLIC_IPFS_BUILD=true NODE_OPTIONS="--require ./polyfill-localstorage.cjs" npm run build
 ```
 
-**Three required flags:**
+Three required flags:
+
 - `NEXT_PUBLIC_IPFS_BUILD=true` — enables IPFS mode (trailingSlash, correct asset paths)
 - `NODE_OPTIONS="--require ./polyfill-localstorage.cjs"` — fixes Node 25+ `localStorage` bug that breaks RainbowKit/next-themes at build time
-- `rm -rf .next out` — always clean first; stale chunks are the #1 IPFS bug
+- `rm -rf .next out` — always clean first; stale chunks are the #1 IPFS deployment bug
 
-The polyfill file (`polyfill-localstorage.cjs`) should live in `packages/nextjs/`:
+The polyfill file (`polyfill-localstorage.cjs`) must exist in `packages/nextjs/`:
 
 ```js
 // polyfill-localstorage.cjs
@@ -94,72 +91,60 @@ if (typeof globalThis.localStorage !== "undefined" &&
 }
 ```
 
-### Other frameworks
+#### Other frameworks
 
-Build to a static output directory, then:
+Build to a static output directory, then upload directly:
+
 ```bash
 bgipfs upload ./dist --config ~/.bgipfs/credentials.json
 ```
 
----
-
-## Step 3 — Upload
+### 4. Upload the build
 
 ```bash
 bgipfs upload packages/nextjs/out --config ~/.bgipfs/credentials.json
 ```
 
 Output on success:
+
 ```
 ✓ File uploaded. CID: bafybeig2zw2u6l3yjoncmvqphl7mywrmoknceflkkvvu3iwivsgndq36k4
 ```
 
----
+### 5. Access and verify
 
-## Step 4 — Access
+Access the deployment at:
 
 ```
 https://{CID}.ipfs.community.bgipfs.com/
 ```
 
-This is a subdomain gateway. The DNS wildcard resolves `{anything}.ipfs.community.bgipfs.com` to the IPFS gateway. No CNAME setup needed.
+This is a subdomain gateway — the DNS wildcard resolves `{anything}.ipfs.community.bgipfs.com` to the IPFS gateway. No CNAME setup needed.
 
----
-
-## Auth — The Gotcha
-
-**Use `X-API-Key` header. NOT `Authorization: Bearer`.**
-
-Wrong:
-```bash
-curl -H "Authorization: Bearer $KEY" ...
-```
-
-Correct:
-```json
-{ "headers": { "X-API-Key": "$KEY" } }
-```
-
-The CLI handles this automatically when you use `--config`.
-
----
-
-## Verify the Upload
+Verify the upload:
 
 ```bash
 curl -s https://{CID}.ipfs.community.bgipfs.com/ | grep "your-unique-string"
 ```
 
-If the string appears, the new build is live. If not, the upload may have failed silently or the build was empty.
+If the string appears, the new build is live.
 
----
+## Authentication
 
-## Common Errors
+Use the `X-API-Key` header — **not** `Authorization: Bearer`:
+
+```json
+{ "headers": { "X-API-Key": "YOUR_KEY" } }
+```
+
+The CLI handles this automatically when using `--config`.
+
+## Troubleshooting
 
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Error: upload failed` | Invalid API key | Verify key at bgipfs.com/account |
 | 401 / 403 | Wrong header format | Use `X-API-Key`, not Bearer |
-| Stale content | `rm -rf .next out` not run | Clean before every build |
+| Stale content | Old build artifacts | Run `rm -rf .next out` before every build |
 | `localStorage.getItem is not a function` | Node 25+ bug | Add polyfill to `NODE_OPTIONS` |
 | Blank page on gateway | `trailingSlash` not enabled | Set `NEXT_PUBLIC_IPFS_BUILD=true` |
