@@ -5,3 +5,4 @@ data/
 identity.json
 htpasswd
 docker-compose.override.yml
+.pnpm-store

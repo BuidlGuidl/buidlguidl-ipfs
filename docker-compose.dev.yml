@@ -1,0 +1,19 @@
+# Local Postgres for the website (Prisma). Start with: pnpm dev:db
+# DATABASE_URL (see packages/website/.env.example):
+#   postgresql://bgipfs:bgipfs_dev@127.0.0.1:5432/bgipfs
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pinner-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: bgipfs
+      POSTGRES_PASSWORD: bgipfs_dev
+      POSTGRES_DB: bgipfs
+    volumes:
+      - pinner_postgres_dev:/var/lib/postgresql/data
+
+volumes:
+  pinner_postgres_dev:
