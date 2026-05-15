@@ -1,2 +1,15 @@
 packages:
   - 'packages/*'
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  bigint-buffer: true
+  bufferutil: true
+  esbuild: true
+  keccak: true
+  prisma: true
+  protobufjs: true
+  sharp: true
+  utf-8-validate: true
+  workerd: true
+  yarn: true

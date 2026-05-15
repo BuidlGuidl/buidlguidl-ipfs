@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:db": "docker compose -f docker-compose.dev.yml up -d",
     "dev:apps": "concurrently -n website,proxy -c blue,magenta \"pnpm --filter app dev\" \"pnpm --filter ipfs-proxy dev\"",
-    "dev:cluster": "pnpm --dir packages/bgipfs exec bgipfs cluster start",
+    "dev:cluster": "pnpm --filter bgipfs build && node packages/bgipfs/bin/run.js cluster start",
     "dev:website:prod-debug": "dotenv -e packages/website/.env.prod-debug.local -- pnpm --filter app dev"
   },
   "keywords": [],
