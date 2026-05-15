@@ -11,4 +11,5 @@ identity.json
 service.json
 htpasswd
 docker-compose.override.yml
+config-backup/
 .pnpm-store

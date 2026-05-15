@@ -7,17 +7,31 @@ import {z} from 'zod'
 
 import {BaseCommand} from '../../../base-command.js'
 import {AuthService} from '../../../lib/auth-service.js'
+import {getBgipfsIpfsConfigPolicy} from '../../../lib/bgipfs-owned-keys.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {baseSchema} from '../../../lib/env-schema.js'
+import {
+  type IpfsConfigChange,
+  backupIpfsConfig,
+  computeIpfsConfigChanges,
+  mergeIpfsConfig,
+  readIpfsConfig,
+  readIpfsRepoVersion,
+  writeIpfsConfig,
+} from '../../../lib/ipfs-config.js'
 import {checkDocker, checkRunningContainers} from '../../../lib/system.js'
 import {TemplateManager} from '../../../lib/templates.js'
 
-type ConfigMode = 'all' | 'environment' | 'initialization' | 'templates'
+type ConfigMode = 'all' | 'environment' | 'initialization' | 'ipfs' | 'templates'
 
 export default class Init extends BaseCommand {
   static description = 'Set up the necessary configuration for IPFS Cluster'
 
   static flags = {
+    'dry-run': Flags.boolean({
+      default: false,
+      description: 'Preview IPFS config changes without writing them',
+    }),
     force: Flags.boolean({
       char: 'f',
       default: false,
@@ -28,7 +42,7 @@ export default class Init extends BaseCommand {
       char: 'm',
       default: 'all',
       description: 'Configuration mode to run',
-      options: ['templates', 'environment', 'initialization', 'all'],
+      options: ['templates', 'environment', 'initialization', 'ipfs', 'all'],
     }),
   }
 
@@ -42,13 +56,14 @@ export default class Init extends BaseCommand {
     const templates = new TemplateManager()
 
     const mode = flags.mode as ConfigMode
-    const shouldRunTemplates = mode === 'all' || mode === 'templates'
-    const shouldRunEnvironment = mode === 'all' || mode === 'environment'
-    const shouldRunInitialization = mode === 'all' || mode === 'initialization'
+    const shouldRunTemplates = this.modeIncludes(mode, 'templates')
+    const shouldRunEnvironment = this.modeIncludes(mode, 'environment')
+    const shouldRunInitialization = this.modeIncludes(mode, 'initialization')
+    const shouldRunIpfs = this.modeIncludes(mode, 'ipfs')
 
-    // Check for running containers only if we need to initialize
-    await checkDocker()
+    // Docker is only required for the initialization flow.
     if (shouldRunInitialization) {
+      await checkDocker()
       const running = await checkRunningContainers()
       if (running.length > 0) {
         if (flags.force) {
@@ -81,6 +96,11 @@ export default class Init extends BaseCommand {
         await this.initializeCluster(flags.force)
       }
 
+      // Step 4: IPFS config
+      if (shouldRunIpfs) {
+        await this.configureIpfsConfig(flags.force, flags['dry-run'])
+      }
+
       this.logSuccess('Configuration completed successfully!')
       if (shouldRunTemplates) {
         this.logInfo('Your docker-compose files have been updated')
@@ -93,7 +113,10 @@ export default class Init extends BaseCommand {
       if (shouldRunInitialization) {
         this.logInfo('Your cluster identity is in identity.json')
         this.logInfo('Your cluster service configuration is in service.json')
+        this.logInfo('Your IPFS daemon configuration is in ipfs.config.json')
         this.logInfo('You can now start the cluster with `bgipfs cluster start`')
+      } else if (shouldRunIpfs) {
+        this.logInfo('Restart the cluster with `bgipfs cluster restart` for IPFS config changes to take effect')
       } else if (shouldRunTemplates || shouldRunEnvironment) {
         this.logInfo('You may need to restart the cluster with `bgipfs cluster restart` for changes to take effect')
       }
@@ -182,6 +205,43 @@ export default class Init extends BaseCommand {
     ]
   }
 
+  private async configureIpfsConfig(force: boolean, dryRun: boolean): Promise<void> {
+    this.logInfo('Checking IPFS daemon configuration...')
+
+    const config = await readIpfsConfig()
+    const repoVersion = await readIpfsRepoVersion()
+    const policy = getBgipfsIpfsConfigPolicy(config, repoVersion)
+    const changes = computeIpfsConfigChanges(config, policy.ownedKeys, policy.removedKeys)
+
+    if (changes.length === 0) {
+      this.logSuccess('ipfs.config.json is already current')
+      return
+    }
+
+    this.logInfo('The following bgipfs-owned IPFS config keys will be updated:')
+    this.log(this.formatIpfsConfigChanges(changes))
+
+    if (dryRun) {
+      this.logInfo('Dry run complete; no files were changed')
+      return
+    }
+
+    if (!force) {
+      const shouldUpdate = await this.confirm('Apply these IPFS config changes?')
+      if (!shouldUpdate) {
+        this.logInfo('IPFS config update cancelled')
+        return
+      }
+    }
+
+    const backupPath = await backupIpfsConfig()
+    const merged = mergeIpfsConfig(config, policy.ownedKeys, policy.removedKeys)
+    await writeIpfsConfig(merged)
+
+    this.logSuccess(`Backed up ipfs.config.json to ${backupPath}`)
+    this.logSuccess('IPFS config updated')
+  }
+
   private async copyFileIfNotEmpty(source: string, dest: string): Promise<boolean> {
     const stats = await fs.stat(source)
     if (stats.size === 0) {
@@ -239,6 +299,21 @@ export default class Init extends BaseCommand {
 
     this.logInfo(`Using existing ${description}`)
     return true
+  }
+
+  private formatConfigValue(value: unknown): string {
+    return value === undefined ? '<unset>' : JSON.stringify(value)
+  }
+
+  private formatIpfsConfigChanges(changes: IpfsConfigChange[]): string {
+    return changes
+      .map(
+        ({key, nextValue, previousValue, type}) =>
+          type === 'remove'
+            ? `- ${key}: remove ${this.formatConfigValue(previousValue)}`
+            : `- ${key}: ${this.formatConfigValue(previousValue)} -> ${this.formatConfigValue(nextValue)}`,
+      )
+      .join('\n')
   }
 
   private generateSecret(): string {
@@ -370,6 +445,10 @@ export default class Init extends BaseCommand {
 
       throw error
     }
+  }
+
+  private modeIncludes(mode: ConfigMode, target: Exclude<ConfigMode, 'all'>): boolean {
+    return mode === 'all' || mode === target || (mode === 'initialization' && target === 'ipfs')
   }
 
   private async readCurrentEnv(env: EnvManager): Promise<{
