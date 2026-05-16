@@ -81,16 +81,23 @@ All endpoints return appropriate HTTP status codes:
 
 ## Environment Variables
 
+Copy `.env.example` to `.env`. For local full stack, defaults assume **ipfs-proxy** on `http://127.0.0.1:8787` and Postgres from the root compose file—see the [root README](../../README.md) **Development** section for `pnpm dev:db` and `pnpm dev:apps`.
+
 ```
-## IPFS Configuration:
-IPFS_API_URL=http://127.0.0.1:5555
-IPFS_AUTH_USERNAME=ipfs
-IPFS_AUTH_PASSWORD=your_generated_password
+## IPFS (server uploads via local worker by default)
+IPFS_API_URL=http://127.0.0.1:8787
 
-## Database:
-DATABASE_URL="postgresql://user@localhost:5432/bgipfs"
+## If you point IPFS_API_URL at a basic-auth cluster instead of the worker, set Kubo basic auth (not read by the worker path):
+# IPFS_AUTH_USERNAME=user
+# IPFS_AUTH_PASSWORD=your_cluster_upload_password
 
-## Authentication:
+## Database (matches root docker-compose.dev.yml when using pnpm dev:db)
+DATABASE_URL="postgresql://bgipfs:bgipfs_dev@127.0.0.1:5432/bgipfs"
+
+## Must match WORKER_AUTH_SECRET in packages/ipfs-proxy/.dev.vars
+WORKER_AUTH_SECRET=dev-shared-secret
+
+## Privy (required for web login)
 NEXT_PUBLIC_PRIVY_APP_ID=your-privy-app-id
 PRIVY_APP_SECRET=your_privy_app_secret
 PRIVY_VERIFICATION_KEY=your-verification-key-from-dashboard
@@ -100,9 +107,12 @@ DEFAULT_SIZE_LIMIT=104857600
 NEXT_PUBLIC_DEFAULT_CLUSTER_ID=community
 ```
 
+After `pnpm db:seed`, the default cluster row keeps **upstream** `apiUrl` at `http://localhost:5555` (Traefik) for the worker to proxy to—not the worker URL itself.
+
 ## Development
 
-1. Copy `.env.example` to `.env` and fill in the required values
-2. Install dependencies: `pnpm install`
-3. Push database schema: `pnpm prisma db push`
-4. Start the development server: `pnpm dev`
+1. Follow the **Local full stack** checklist in the [root README](../../README.md).
+2. Install dependencies from repo root: `pnpm install`
+3. Copy `.env.example` to `.env` and fill required values
+4. Push database schema: `pnpm prisma db push`
+5. For day-to-day app + worker only (with DB and cluster already running): from repo root, `pnpm dev:apps`, or from this package: `pnpm dev`

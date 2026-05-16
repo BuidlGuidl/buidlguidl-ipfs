@@ -5,12 +5,18 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:db": "docker compose -f docker-compose.dev.yml up -d",
+    "dev:apps": "concurrently -n website,proxy -c blue,magenta \"pnpm --filter app dev\" \"pnpm --filter ipfs-proxy dev\"",
+    "dev:cluster": "pnpm --filter bgipfs build && node packages/bgipfs/bin/run.js cluster start",
+    "dev:website:prod-debug": "dotenv -e packages/website/.env.prod-debug.local -- pnpm --filter app dev"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@changesets/cli": "^2.27.11"
+    "@changesets/cli": "^2.27.11",
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^8.0.0"
   }
 }

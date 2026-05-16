@@ -1,7 +1,14 @@
 node_modules
 data/
+auth/
 .DS_Store
 .env
+docker-compose.yml
+docker-compose.dns.yml
+init.docker-compose.yml
+ipfs.config.json
 identity.json
+service.json
 htpasswd
 docker-compose.override.yml
+.pnpm-store

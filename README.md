@@ -22,7 +22,23 @@ The website for BuidlGuidl's IPFS products (this repository). Information, docum
 This project is under active development. Each package includes its own README with specific setup instructions and current limitations.
 
 ## Development
-This is a monorepo managed with pnpm workspaces. See individual package documentation for specific setup instructions.
+
+This is a monorepo managed with pnpm workspaces.
+
+### Local full stack (Postgres, IPFS cluster, website, ipfs-proxy)
+
+1. From the repo root, install dependencies: `pnpm install`
+2. Copy env files: `packages/website/.env.example` → `packages/website/.env`, and `packages/ipfs-proxy/.dev.vars.example` → `packages/ipfs-proxy/.dev.vars`. Fill Privy values in `.env`; keep `WORKER_AUTH_SECRET` the same in both files.
+3. Start Postgres: `pnpm dev:db` (uses [docker-compose.dev.yml](docker-compose.dev.yml))
+4. Apply the schema: `pnpm --filter app prisma db push` (and optionally `pnpm --filter app db:seed`)
+5. One-time setup: `pnpm --filter bgipfs build && node packages/bgipfs/bin/run.js cluster config`, then copy the generated `USER_USERNAME` and `USER_PASSWORD` into `packages/ipfs-proxy/.dev.vars` as `IPFS_AUTH_USERNAME` and `IPFS_AUTH_PASSWORD`. When ready: `pnpm dev:cluster`
+6. Run website and worker together: `pnpm dev:apps`
+
+### Prod-debug (local Next, prod data)
+
+Copy `packages/website/.env.prod-debug.example` to `packages/website/.env.prod-debug.local`, add real production values (never commit this file). Run `pnpm dev:website:prod-debug`. Prefer a read-only or staging database when possible; uploads can affect production pins. You usually do **not** run the local `ipfs-proxy` in this mode.
+
+See [packages/website/README.md](packages/website/README.md) for API and feature documentation.
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.

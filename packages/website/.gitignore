@@ -35,6 +35,8 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.prod-debug.example
+.env.prod-debug.local
 
 # vercel
 .vercel
@@ -46,6 +48,3 @@ next-env.d.ts
 # Prisma
 prisma/*.db
 prisma/*.db-journal
-.env
-.env.*
-!.env.example
