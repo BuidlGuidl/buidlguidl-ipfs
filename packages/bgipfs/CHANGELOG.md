@@ -1,5 +1,11 @@
 # bgipfs
 
+## 0.0.20
+
+### Patch Changes
+
+- d36e28d: Remove accelerated DHT client from default IPFS config and use entity-level provider records for current Kubo repos.
+
 ## 0.0.19
 
 ### Patch Changes
