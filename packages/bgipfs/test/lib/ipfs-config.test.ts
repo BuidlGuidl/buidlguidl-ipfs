@@ -34,21 +34,14 @@ describe('ipfs-config', () => {
     }
 
     const changes = computeIpfsConfigChanges(config, {
-      'Provide.Strategy': 'roots',
-      'Routing.AcceleratedDHTClient': true,
+      'Provide.Strategy': 'pinned+entities',
       'Routing.Type': 'dht',
     })
 
     expect(changes).to.deep.equal([
       {
         key: 'Provide.Strategy',
-        nextValue: 'roots',
-        previousValue: undefined,
-        type: 'set',
-      },
-      {
-        key: 'Routing.AcceleratedDHTClient',
-        nextValue: true,
+        nextValue: 'pinned+entities',
         previousValue: undefined,
         type: 'set',
       },
@@ -104,7 +97,7 @@ describe('ipfs-config', () => {
     const merged = mergeIpfsConfig(
       config,
       {
-        'Provide.Strategy': 'roots',
+        'Provide.Strategy': 'pinned+entities',
         'Routing.Type': 'dht',
       },
       ['Reprovider'],
@@ -112,7 +105,7 @@ describe('ipfs-config', () => {
 
     expect(merged).to.deep.equal({
       Provide: {
-        Strategy: 'roots',
+        Strategy: 'pinned+entities',
       },
       Routing: {
         Type: 'dht',
@@ -123,17 +116,15 @@ describe('ipfs-config', () => {
   it('does not report current keys as changes', () => {
     const config = {
       Provide: {
-        Strategy: 'roots',
+        Strategy: 'pinned+entities',
       },
       Routing: {
-        AcceleratedDHTClient: true,
         Type: 'dht',
       },
     }
 
     const changes = computeIpfsConfigChanges(config, {
-      'Provide.Strategy': 'roots',
-      'Routing.AcceleratedDHTClient': true,
+      'Provide.Strategy': 'pinned+entities',
       'Routing.Type': 'dht',
     })
 
@@ -167,7 +158,7 @@ describe('ipfs-config', () => {
     const changes = computeIpfsConfigChanges(
       config,
       {
-        'Provide.Strategy': 'roots',
+        'Provide.Strategy': 'pinned+entities',
         'Routing.Type': 'dht',
       },
       ['Reprovider'],
@@ -184,7 +175,7 @@ describe('ipfs-config', () => {
       },
       {
         key: 'Provide.Strategy',
-        nextValue: 'roots',
+        nextValue: 'pinned+entities',
         previousValue: undefined,
         type: 'set',
       },
@@ -208,22 +199,15 @@ describe('ipfs-config', () => {
     }
 
     const changes = computeIpfsConfigChanges(config, {
-      'Provide.Strategy': 'roots',
-      'Routing.AcceleratedDHTClient': true,
+      'Provide.Strategy': 'pinned+entities',
       'Routing.Type': 'dht',
     })
 
     expect(changes).to.deep.equal([
       {
         key: 'Provide.Strategy',
-        nextValue: 'roots',
+        nextValue: 'pinned+entities',
         previousValue: 'all',
-        type: 'set',
-      },
-      {
-        key: 'Routing.AcceleratedDHTClient',
-        nextValue: true,
-        previousValue: undefined,
         type: 'set',
       },
       {
@@ -247,7 +231,6 @@ describe('ipfs-config', () => {
 
     const changes = computeIpfsConfigChanges(config, {
       'Reprovider.Strategy': 'roots',
-      'Routing.AcceleratedDHTClient': true,
       'Routing.Type': 'dht',
     })
 
@@ -256,12 +239,6 @@ describe('ipfs-config', () => {
         key: 'Reprovider.Strategy',
         nextValue: 'roots',
         previousValue: 'all',
-        type: 'set',
-      },
-      {
-        key: 'Routing.AcceleratedDHTClient',
-        nextValue: true,
-        previousValue: undefined,
         type: 'set',
       },
       {
@@ -288,8 +265,7 @@ describe('ipfs-config', () => {
     }
 
     const merged = mergeIpfsConfig(config, {
-      'Provide.Strategy': 'roots',
-      'Routing.AcceleratedDHTClient': true,
+      'Provide.Strategy': 'pinned+entities',
       'Routing.Type': 'dht',
     })
 
@@ -302,10 +278,9 @@ describe('ipfs-config', () => {
         PrivKey: 'private-key',
       },
       Provide: {
-        Strategy: 'roots',
+        Strategy: 'pinned+entities',
       },
       Routing: {
-        AcceleratedDHTClient: true,
         Type: 'dht',
       },
     })
