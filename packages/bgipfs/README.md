@@ -58,6 +58,12 @@ bgipfs cluster
 
 During cluster setup, the `cluster config` command will help you populate:
 
+To preview IPFS config migration changes without writing files:
+
+```bash
+bgipfs cluster config --mode ipfs --ipfs-dry-run
+```
+
 #### Environment Variables (.env)
 - `PEERNAME` - Peer name in the IPFS Cluster
 - `SECRET` - Cluster secret

@@ -28,15 +28,15 @@ export default class Init extends BaseCommand {
   static description = 'Set up the necessary configuration for IPFS Cluster'
 
   static flags = {
-    'dry-run': Flags.boolean({
-      default: false,
-      description: 'Preview IPFS config changes without writing them',
-    }),
     force: Flags.boolean({
       char: 'f',
       default: false,
       description:
         'Force configuration: stop running containers, overwrite templates, and skip prompts if valid env exists',
+    }),
+    'ipfs-dry-run': Flags.boolean({
+      default: false,
+      description: 'Preview IPFS config changes without writing them',
     }),
     mode: Flags.string({
       char: 'm',
@@ -56,6 +56,11 @@ export default class Init extends BaseCommand {
     const templates = new TemplateManager()
 
     const mode = flags.mode as ConfigMode
+    if (flags['ipfs-dry-run'] && mode !== 'ipfs') {
+      this.logError('--ipfs-dry-run only applies with --mode ipfs')
+      return
+    }
+
     const shouldRunTemplates = this.modeIncludes(mode, 'templates')
     const shouldRunEnvironment = this.modeIncludes(mode, 'environment')
     const shouldRunInitialization = this.modeIncludes(mode, 'initialization')
@@ -98,7 +103,7 @@ export default class Init extends BaseCommand {
 
       // Step 4: IPFS config
       if (shouldRunIpfs) {
-        await this.configureIpfsConfig(flags.force, flags['dry-run'])
+        await this.configureIpfsConfig(flags.force, flags['ipfs-dry-run'])
       }
 
       this.logSuccess('Configuration completed successfully!')
