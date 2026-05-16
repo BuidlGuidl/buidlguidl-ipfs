@@ -1,5 +1,13 @@
 # bgipfs
 
+## 0.0.19
+
+### Patch Changes
+
+- a15ca05: Add IPFS daemon config migration defaults and expose an IPFS-only dry run mode.
+- Updated dependencies [00263aa]
+  - ipfs-uploader@0.0.12
+
 ## 0.0.18
 
 ### Patch Changes

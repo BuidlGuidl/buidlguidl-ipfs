@@ -34,3 +34,8 @@ package-lock.json
 tsconfig.tsbuildinfo
 /auth
 /sync-*.csv
+/files-to-pin*
+/missing-cids*
+/temp*
+/pinner-sourced*
+/unfetchable*

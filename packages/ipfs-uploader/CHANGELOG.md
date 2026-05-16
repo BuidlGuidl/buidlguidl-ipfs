@@ -1,5 +1,11 @@
 # ipfs-uploader
 
+## 0.0.12
+
+### Patch Changes
+
+- 00263aa: configurable cidVersion where available, direct file upload
+
 ## 0.0.11
 
 ### Patch Changes
