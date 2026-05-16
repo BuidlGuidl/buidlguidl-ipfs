@@ -5,7 +5,6 @@ export interface BgipfsIpfsConfigPolicy {
 
 const COMMON_OWNED_KEYS: Record<string, unknown> = {
   'Gateway.NoFetch': true,
-  'Routing.AcceleratedDHTClient': true,
   'Routing.Type': 'dht',
 }
 
@@ -19,7 +18,7 @@ export const getBgipfsIpfsConfigPolicy = (
   if (usesProvideConfig) {
     return {
       ownedKeys: {
-        'Provide.Strategy': 'roots',
+        'Provide.Strategy': 'pinned+entities',
         ...COMMON_OWNED_KEYS,
       },
       removedKeys: ['Reprovider'],
