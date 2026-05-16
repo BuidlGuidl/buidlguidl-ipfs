@@ -15,6 +15,7 @@ describe('bgipfs-owned-keys', () => {
 
     expect(policy).to.deep.equal({
       ownedKeys: {
+        'Gateway.NoFetch': true,
         'Reprovider.Strategy': 'roots',
         'Routing.AcceleratedDHTClient': true,
         'Routing.Type': 'dht',
@@ -35,6 +36,7 @@ describe('bgipfs-owned-keys', () => {
 
     expect(policy).to.deep.equal({
       ownedKeys: {
+        'Gateway.NoFetch': true,
         'Provide.Strategy': 'roots',
         'Routing.AcceleratedDHTClient': true,
         'Routing.Type': 'dht',
@@ -52,6 +54,7 @@ describe('bgipfs-owned-keys', () => {
       }),
     ).to.deep.equal({
       ownedKeys: {
+        'Gateway.NoFetch': true,
         'Reprovider.Strategy': 'roots',
         'Routing.AcceleratedDHTClient': true,
         'Routing.Type': 'dht',
@@ -67,6 +70,7 @@ describe('bgipfs-owned-keys', () => {
       }),
     ).to.deep.equal({
       ownedKeys: {
+        'Gateway.NoFetch': true,
         'Provide.Strategy': 'roots',
         'Routing.AcceleratedDHTClient': true,
         'Routing.Type': 'dht',

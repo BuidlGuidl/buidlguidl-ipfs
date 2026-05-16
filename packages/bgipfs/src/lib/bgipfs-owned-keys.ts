@@ -4,6 +4,7 @@ export interface BgipfsIpfsConfigPolicy {
 }
 
 const COMMON_OWNED_KEYS: Record<string, unknown> = {
+  'Gateway.NoFetch': true,
   'Routing.AcceleratedDHTClient': true,
   'Routing.Type': 'dht',
 }
