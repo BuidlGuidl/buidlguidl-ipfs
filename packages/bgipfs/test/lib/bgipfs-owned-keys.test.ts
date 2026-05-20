@@ -23,7 +23,7 @@ describe('bgipfs-owned-keys', () => {
     })
   })
 
-  it('uses current Provide keys and removes Reprovider for repo version 18+', () => {
+  it('uses current Provide keys and removes deprecated provider keys for repo version 18+', () => {
     const policy = getBgipfsIpfsConfigPolicy(
       {
         Reprovider: {
@@ -39,7 +39,7 @@ describe('bgipfs-owned-keys', () => {
         'Provide.Strategy': 'pinned+entities',
         'Routing.Type': 'dht',
       },
-      removedKeys: ['Reprovider'],
+      removedKeys: ['Provider', 'Reprovider'],
     })
   })
 
@@ -71,7 +71,7 @@ describe('bgipfs-owned-keys', () => {
         'Provide.Strategy': 'pinned+entities',
         'Routing.Type': 'dht',
       },
-      removedKeys: ['Reprovider'],
+      removedKeys: ['Provider', 'Reprovider'],
     })
   })
 })

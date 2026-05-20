@@ -21,7 +21,7 @@ export const getBgipfsIpfsConfigPolicy = (
         'Provide.Strategy': 'pinned+entities',
         ...COMMON_OWNED_KEYS,
       },
-      removedKeys: ['Reprovider'],
+      removedKeys: ['Provider', 'Reprovider'],
     }
   }
 

@@ -53,7 +53,7 @@ export default class Reset extends BaseCommand {
       if (flags.config) {
         // Remove config files
         this.logInfo('Removing configuration files...')
-        const configFiles = ['.env', 'htpasswd', 'identity.json', 'service.json']
+        const configFiles = ['.env', 'htpasswd', 'identity.json', 'ipfs.config.json', 'service.json']
 
         await Promise.all(
           configFiles.map((file: string) =>

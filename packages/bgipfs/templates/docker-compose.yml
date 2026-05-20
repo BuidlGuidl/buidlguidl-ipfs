@@ -1,18 +1,17 @@
 services:
   ipfs:
     container_name: ipfs
-    image: ipfs/kubo:release
+    image: ipfs/kubo:v0.41.0
     ports:
       - "4001:4001"  # swarm
       - "8080:8080"  # gateway (IP mode only)
       - "127.0.0.1:5001:5001"  # api access from localhost
     volumes:
       - ./data/ipfs:/data/ipfs
-      - ./ipfs.config.json:/data/ipfs/config:ro
 
   cluster:
     container_name: cluster
-    image: ipfs/ipfs-cluster:${IPFS_CLUSTER_VERSION:-latest}
+    image: ipfs/ipfs-cluster:${IPFS_CLUSTER_VERSION:-v1.1.6}
     depends_on:
       - ipfs
     environment:

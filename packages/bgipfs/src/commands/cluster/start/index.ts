@@ -27,17 +27,6 @@ export default class Start extends BaseCommand {
     try {
       this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
-      // Update IPFS config in DNS mode
-      if (flags.mode === 'dns') {
-        try {
-          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
-          await this.updateIpfsConfig(env.GATEWAY_DOMAIN)
-        } catch (error) {
-          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
-          return
-        }
-      }
-
       // Build compose file list
       const composeFiles = ['docker-compose.yml']
       if (flags.mode === 'dns') {
@@ -45,6 +34,7 @@ export default class Start extends BaseCommand {
         composeFiles.push('docker-compose.dns.yml')
       }
 
+      const ipfsConfigPath = await this.getLiveIpfsConfigPath()
       this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
 
       // Check required files
@@ -55,7 +45,7 @@ export default class Start extends BaseCommand {
         'identity.json',
         'auth/admin-htpasswd',
         'auth/user-htpasswd',
-        'ipfs.config.json',
+        ipfsConfigPath,
       ]
 
       // Check all required files
@@ -67,6 +57,17 @@ export default class Start extends BaseCommand {
           this.logSuccess(`Found ${file}`)
         } catch {
           this.logError(`Missing required file: ${file}`)
+          return
+        }
+      }
+
+      // Update IPFS config in DNS mode
+      if (flags.mode === 'dns') {
+        try {
+          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
+          await this.updateIpfsConfig(ipfsConfigPath, env.GATEWAY_DOMAIN)
+        } catch (error) {
+          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
           return
         }
       }
@@ -181,8 +182,24 @@ export default class Start extends BaseCommand {
     }
   }
 
-  private async updateIpfsConfig(gatewayDomain: string): Promise<void> {
-    const configPath = 'ipfs.config.json'
+  private async getLiveIpfsConfigPath(): Promise<string> {
+    const repoConfigPath = 'data/ipfs/config'
+    const hasRepoConfig = await fs
+      .access(repoConfigPath)
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasRepoConfig) {
+      return 'ipfs.config.json'
+    }
+
+    const compose = await fs.readFile('docker-compose.yml', 'utf8').catch(() => '')
+    const usesBindMount = compose.split('\n').some((line) => line.trim() === '- ./ipfs.config.json:/data/ipfs/config:ro')
+
+    return usesBindMount ? 'ipfs.config.json' : repoConfigPath
+  }
+
+  private async updateIpfsConfig(configPath: string, gatewayDomain: string): Promise<void> {
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
     const publicGateways = config.Gateway.PublicGateways || {}
 
