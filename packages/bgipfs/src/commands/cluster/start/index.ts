@@ -5,6 +5,7 @@ import {promises as fs} from 'node:fs'
 import {BaseCommand} from '../../../base-command.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {DnsConfig, dnsSchema} from '../../../lib/env-schema.js'
+import {getLiveIpfsConfigPath, writeIpfsConfig} from '../../../lib/ipfs-config.js'
 import {checkRunningContainers} from '../../../lib/system.js'
 
 export default class Start extends BaseCommand {
@@ -34,7 +35,7 @@ export default class Start extends BaseCommand {
         composeFiles.push('docker-compose.dns.yml')
       }
 
-      const ipfsConfigPath = await this.getLiveIpfsConfigPath()
+      const ipfsConfigPath = await getLiveIpfsConfigPath()
       this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
 
       // Check required files
@@ -182,23 +183,6 @@ export default class Start extends BaseCommand {
     }
   }
 
-  private async getLiveIpfsConfigPath(): Promise<string> {
-    const repoConfigPath = 'data/ipfs/config'
-    const hasRepoConfig = await fs
-      .access(repoConfigPath)
-      .then(() => true)
-      .catch(() => false)
-
-    if (!hasRepoConfig) {
-      return 'ipfs.config.json'
-    }
-
-    const compose = await fs.readFile('docker-compose.yml', 'utf8').catch(() => '')
-    const usesBindMount = compose.split('\n').some((line) => line.trim() === '- ./ipfs.config.json:/data/ipfs/config:ro')
-
-    return usesBindMount ? 'ipfs.config.json' : repoConfigPath
-  }
-
   private async updateIpfsConfig(configPath: string, gatewayDomain: string): Promise<void> {
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
     const publicGateways = config.Gateway.PublicGateways || {}
@@ -225,7 +209,7 @@ export default class Start extends BaseCommand {
         },
       }
 
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+      await writeIpfsConfig(config, configPath)
       this.logSuccess('IPFS config updated')
     }
   }

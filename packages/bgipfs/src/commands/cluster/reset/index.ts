@@ -46,12 +46,9 @@ export default class Reset extends BaseCommand {
       this.logInfo('Stopping and removing containers...')
       await execa('docker', ['compose', 'down', '--remove-orphans', '-v'])
 
-      // Remove data directory
-      this.logInfo('Removing data directory...')
-      await fs.rm('data', {force: true, recursive: true})
-
       if (flags.config) {
-        // Remove config files
+        // Remove config files before the data directory, which can fail on
+        // container-owned files; the config cleanup should still complete.
         this.logInfo('Removing configuration files...')
         const configFiles = ['.env', 'htpasswd', 'identity.json', 'ipfs.config.json', 'service.json']
 
@@ -64,6 +61,10 @@ export default class Reset extends BaseCommand {
         )
       }
 
+      // Remove data directory
+      this.logInfo('Removing data directory...')
+      await this.removeDataDirectory()
+
       this.logSuccess('Reset complete')
       if (flags.config) {
         this.logInfo("You can now run 'bgipfs cluster config' to reconfigure the cluster")
@@ -72,6 +73,22 @@ export default class Reset extends BaseCommand {
       }
     } catch (error) {
       this.logError(`Reset failed: ${(error as Error).message}`)
+    }
+  }
+
+  private async removeDataDirectory(): Promise<void> {
+    try {
+      await fs.rm('data', {force: true, recursive: true})
+    } catch (error) {
+      const {code} = error as NodeJS.ErrnoException
+      if (code !== 'EACCES' && code !== 'EPERM') {
+        throw error
+      }
+
+      throw new Error(
+        'Cannot remove the data directory as the current host user (its contents are owned by the container user). ' +
+          'Remove it manually:\nsudo rm -rf data',
+      )
     }
   }
 }

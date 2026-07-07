@@ -8,12 +8,14 @@ import {z} from 'zod'
 import {BaseCommand} from '../../../base-command.js'
 import {AuthService} from '../../../lib/auth-service.js'
 import {getBgipfsIpfsConfigPolicy} from '../../../lib/bgipfs-owned-keys.js'
+import {usesIpfsConfigBindMount} from '../../../lib/compose-file.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {baseSchema} from '../../../lib/env-schema.js'
 import {
   type IpfsConfigChange,
   backupIpfsConfig,
   computeIpfsConfigChanges,
+  getLiveIpfsConfigPath,
   mergeIpfsConfig,
   readIpfsConfig,
   readIpfsRepoVersion,
@@ -119,7 +121,7 @@ export default class Init extends BaseCommand {
         this.logInfo('Your cluster identity is in identity.json')
         this.logInfo('Your cluster service configuration is in service.json')
         this.logInfo('Your live IPFS daemon configuration is in data/ipfs/config')
-        if (await this.usesIpfsConfigBindMount()) {
+        if (await usesIpfsConfigBindMount()) {
           this.logInfo('Your legacy bind-mounted IPFS daemon configuration is in ipfs.config.json')
         }
 
@@ -217,7 +219,7 @@ export default class Init extends BaseCommand {
   private async configureIpfsConfig(force: boolean, dryRun: boolean): Promise<void> {
     this.logInfo('Checking IPFS daemon configuration...')
 
-    const liveConfigPath = await this.getLiveIpfsConfigPath()
+    const liveConfigPath = await getLiveIpfsConfigPath()
     const config = await readIpfsConfig(liveConfigPath)
     const repoVersion = await readIpfsRepoVersion()
     const policy = getBgipfsIpfsConfigPolicy(config, repoVersion)
@@ -330,23 +332,6 @@ export default class Init extends BaseCommand {
     return randomBytes(32).toString('hex')
   }
 
-  private async getLiveIpfsConfigPath(): Promise<string> {
-    const repoConfigPath = 'data/ipfs/config'
-    const hasRepoConfig = await fs
-      .access(repoConfigPath)
-      .then(() => true)
-      .catch(() => false)
-
-    if (!hasRepoConfig) {
-      return 'ipfs.config.json'
-    }
-
-    const compose = await fs.readFile('docker-compose.yml', 'utf8').catch(() => '')
-    const usesBindMount = compose.split('\n').some((line) => line.trim() === '- ./ipfs.config.json:/data/ipfs/config:ro')
-
-    return usesBindMount ? 'ipfs.config.json' : repoConfigPath
-  }
-
   private async getPeerAddresses(flags: {force: boolean}, currentEnv: {PEERADDRESSES: string}): Promise<string> {
     return flags.force
       ? currentEnv.PEERADDRESSES
@@ -449,7 +434,7 @@ export default class Init extends BaseCommand {
       )
       if (!serviceSuccess) return
 
-      if (await this.usesIpfsConfigBindMount()) {
+      if (await usesIpfsConfigBindMount()) {
         // Older compose files bind-mount this exported config into the Kubo repo.
         const ipfsSuccess = await this.copyWithConfirmation(
           'data/ipfs/config',
@@ -517,11 +502,6 @@ export default class Init extends BaseCommand {
         }
       })
       .catch(() => defaultEnv)
-  }
-
-  private async usesIpfsConfigBindMount(): Promise<boolean> {
-    const compose = await fs.readFile('docker-compose.yml', 'utf8').catch(() => '')
-    return compose.split('\n').some((line) => line.trim() === '- ./ipfs.config.json:/data/ipfs/config:ro')
   }
 
   private validateInput(schema: z.ZodType, value: string): string | true {

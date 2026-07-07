@@ -2,13 +2,44 @@ import {Flags} from '@oclif/core'
 import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
 import path from 'node:path'
+import {setTimeout as delay} from 'node:timers/promises'
 
 import {BaseCommand} from '../../../base-command.js'
 import {getBgipfsIpfsConfigPolicy} from '../../../lib/bgipfs-owned-keys.js'
-import {backupIpfsConfig, mergeIpfsConfig, readIpfsConfig, readIpfsRepoVersion, writeIpfsConfig} from '../../../lib/ipfs-config.js'
+import {
+  isValidDockerTag,
+  removeIpfsConfigBindMount,
+  replaceServiceImage,
+  usesIpfsConfigBindMount,
+} from '../../../lib/compose-file.js'
+import {
+  LEGACY_IPFS_CONFIG_PATH,
+  REPO_IPFS_CONFIG_PATH,
+  backupIpfsConfig,
+  getLiveIpfsConfigPath,
+  getTargetRepoVersion,
+  ipfsConfigWritePermissionHint,
+  mergeIpfsConfig,
+  readIpfsConfig,
+  readIpfsRepoVersion,
+  writeIpfsConfig,
+} from '../../../lib/ipfs-config.js'
 import {checkRunningContainers, getContainerVersions} from '../../../lib/system.js'
 import Restart from '../restart/index.js'
 import Start from '../start/index.js'
+
+const VERSION_FLAGS = ['cluster-version', 'ipfs-version', 'traefik-version'] as const
+
+interface UpdateFlags {
+  'backup-data': boolean
+  'backup-dir': string | undefined
+  'cluster-version': string
+  force: boolean
+  'ipfs-version': string
+  'no-backup': boolean
+  'skip-compose-update': boolean
+  'traefik-version': string
+}
 
 export default class Update extends BaseCommand {
   static description = 'Update IPFS, IPFS Cluster, and key cluster dependencies'
@@ -47,7 +78,8 @@ export default class Update extends BaseCommand {
     }),
     'skip-compose-update': Flags.boolean({
       default: false,
-      description: 'Do not update managed Docker image tags in docker-compose.yml',
+      description:
+        'Leave docker-compose.yml untouched (skips image tag updates and legacy config bind mount removal; the IPFS config migration still runs against the current repo version)',
     }),
     'traefik-version': Flags.string({
       default: 'v3.6.1',
@@ -55,22 +87,20 @@ export default class Update extends BaseCommand {
     }),
   }
 
-  // eslint-disable-next-line complexity
   async run(): Promise<void> {
     const {flags} = await this.parse(Update)
 
     try {
-      await this.preflight()
+      await this.preflight(flags)
 
       // Check if services are running
       const running = await checkRunningContainers()
       const isRunning = running.length > 0
 
       // Get current versions if services are running
-      let currentVersions: {cluster: string; ipfs: string} | undefined
       if (isRunning) {
         try {
-          currentVersions = await getContainerVersions()
+          const currentVersions = await getContainerVersions()
           this.logInfo(`Current versions:
   IPFS: ${currentVersions.ipfs}
   IPFS Cluster: ${currentVersions.cluster}`)
@@ -90,42 +120,9 @@ export default class Update extends BaseCommand {
         }
       }
 
-      // Handle backup
-      if (!flags['no-backup']) {
-        const backupDir =
-          flags['backup-dir'] || `backup_${new Date().toISOString().replaceAll(/[.:]/g, '').slice(0, 15)}`
+      await this.maybeCreateBackup(flags)
 
-        if (flags.force) {
-          await this.createBackup(backupDir, flags['backup-data'])
-        } else {
-          const shouldBackup = await this.confirm(
-            `Would you like to create a backup before updating? (Will be stored in ${backupDir})`,
-          )
-          if (shouldBackup) {
-            await this.createBackup(backupDir, flags['backup-data'])
-          } else {
-            this.logInfo('Skipping backup')
-          }
-        }
-      }
-
-      const usesConfigBindMount = !flags['skip-compose-update'] && (await this.usesIpfsConfigBindMount())
-      if (!flags['skip-compose-update']) {
-        const ipfsConfigPath = usesConfigBindMount ? 'ipfs.config.json' : await this.getLiveIpfsConfigPath()
-        await this.migrateIpfsConfig(flags['ipfs-version'], ipfsConfigPath)
-      }
-
-      if (usesConfigBindMount) {
-        await this.stageIpfsConfigForUnmountedRepo()
-      }
-
-      const composeChanged = flags['skip-compose-update']
-        ? false
-        : await this.updateManagedImageTags({
-          clusterVersion: flags['cluster-version'],
-          ipfsVersion: flags['ipfs-version'],
-          traefikVersion: flags['traefik-version'],
-        })
+      const {composeChanged, willRemoveBindMount} = await this.prepareConfigAndCompose(flags)
 
       const beforeImages = await this.getComposeImageIds()
       const beforeRunningImages = isRunning ? await this.getRunningServiceImageIds() : new Map<string, string>()
@@ -137,13 +134,14 @@ export default class Update extends BaseCommand {
       const afterImages = await this.getComposeImageIds()
       const afterServiceImages = await this.getComposeServiceImageIds()
       this.logImageChanges(beforeImages, afterImages)
+
+      const imagesChanged = [...afterImages].some(
+        ([image, imageId]) => beforeImages.get(image) !== undefined && beforeImages.get(image) !== imageId,
+      )
       const runningImagesOutdated = isRunning && this.hasRunningImageMismatch(beforeRunningImages, afterServiceImages)
 
-      // Check if versions changed
-      if (
-        isRunning &&
-        !(await this.checkVersions(currentVersions, beforeImages, afterImages, composeChanged || runningImagesOutdated))
-      ) {
+      if (isRunning && !composeChanged && !imagesChanged && !runningImagesOutdated) {
+        this.logInfo('No updates available - all images are up to date')
         return
       }
 
@@ -156,9 +154,9 @@ export default class Update extends BaseCommand {
         await Start.run([])
       }
 
-      this.logSuccess('IPFS cluster updated successfully')
       await this.verifyUpdatedCluster()
-      if (usesConfigBindMount) {
+      this.logSuccess('IPFS cluster updated successfully')
+      if (willRemoveBindMount) {
         await this.archiveLegacyIpfsConfig()
       }
 
@@ -174,9 +172,8 @@ export default class Update extends BaseCommand {
   }
 
   private async archiveLegacyIpfsConfig(): Promise<void> {
-    const legacyPath = 'ipfs.config.json'
     const hasLegacyConfig = await fs
-      .access(legacyPath)
+      .access(LEGACY_IPFS_CONFIG_PATH)
       .then(() => true)
       .catch(() => false)
 
@@ -184,50 +181,10 @@ export default class Update extends BaseCommand {
       return
     }
 
-    const archivePath = `${legacyPath}.legacy-${new Date().toISOString().replaceAll(/[.:]/g, '-')}`
-    await fs.rename(legacyPath, archivePath)
+    const archivePath = `${LEGACY_IPFS_CONFIG_PATH}.legacy-${new Date().toISOString().replaceAll(/[.:]/g, '-')}`
+    await fs.rename(LEGACY_IPFS_CONFIG_PATH, archivePath)
     this.logInfo(`Archived legacy exported IPFS config to ${archivePath}`)
-    this.logInfo('The live Kubo config is now data/ipfs/config')
-  }
-
-  private async checkVersions(
-    currentVersions?: {cluster: string; ipfs: string},
-    beforeImages?: Map<string, string>,
-    afterImages?: Map<string, string>,
-    restartNeeded = false,
-  ): Promise<boolean> {
-    const imagesChanged =
-      beforeImages &&
-      afterImages &&
-      [...afterImages].some(([image, imageId]) => beforeImages.get(image) && beforeImages.get(image) !== imageId)
-
-    try {
-      const newVersions = await getContainerVersions()
-      if (currentVersions) {
-        const ipfsUpdated = newVersions.ipfs !== currentVersions.ipfs
-        const clusterUpdated = newVersions.cluster !== currentVersions.cluster
-
-        if (!ipfsUpdated && !clusterUpdated) {
-          if (!imagesChanged && !restartNeeded) {
-            this.logInfo('No updates available - already running latest versions')
-            return false
-          }
-
-          this.logInfo('Restarting to apply updated image configuration')
-        }
-
-        if (ipfsUpdated || clusterUpdated) {
-          this.logInfo(`New versions available:
-  IPFS: ${currentVersions.ipfs} -> ${newVersions.ipfs}
-  IPFS Cluster: ${currentVersions.cluster} -> ${newVersions.cluster}`)
-        }
-      }
-
-      return true
-    } catch (error) {
-      this.logWarning(`Failed to check new versions: ${(error as Error).message}`)
-      return true // Continue with update if version check fails
-    }
+    this.logInfo(`The live Kubo config is now ${REPO_IPFS_CONFIG_PATH}`)
   }
 
   private async createBackup(backupDir: string, includeData: boolean): Promise<void> {
@@ -245,8 +202,8 @@ export default class Update extends BaseCommand {
 
     // Large blockstores should be backed up with volume snapshots in production.
     const itemsToBackup = [
-      {dest: 'ipfs.config.json', optional: true, src: 'ipfs.config.json'},
-      {dest: 'data/ipfs/config', optional: true, src: 'data/ipfs/config'},
+      {dest: 'ipfs.config.json', optional: true, src: LEGACY_IPFS_CONFIG_PATH},
+      {dest: 'data/ipfs/config', optional: true, src: REPO_IPFS_CONFIG_PATH},
       {dest: 'service.json', src: 'service.json'},
       {dest: 'identity.json', src: 'identity.json'},
       {dest: 'auth', src: 'auth'},
@@ -305,17 +262,23 @@ export default class Update extends BaseCommand {
 
   private async getComposeServiceImageIds(): Promise<Map<string, string>> {
     const {stdout} = await execa('docker', ['compose', 'config', '--format', 'json'])
-    const config = JSON.parse(stdout) as {services: Record<string, {image?: string}>}
+    const composeConfig = JSON.parse(stdout) as {services: Record<string, {image?: string}>}
     const serviceImages = new Map<string, string>()
 
     await Promise.all(
-      Object.entries(config.services).map(async ([service, config]) => {
-        if (!config.image) {
+      Object.entries(composeConfig.services).map(async ([service, serviceConfig]) => {
+        if (!serviceConfig.image) {
           return
         }
 
         try {
-          const {stdout: imageId} = await execa('docker', ['image', 'inspect', config.image, '--format', '{{.Id}}'])
+          const {stdout: imageId} = await execa('docker', [
+            'image',
+            'inspect',
+            serviceConfig.image,
+            '--format',
+            '{{.Id}}',
+          ])
           serviceImages.set(service, imageId.trim())
         } catch {
           serviceImages.set(service, 'not-present')
@@ -324,16 +287,6 @@ export default class Update extends BaseCommand {
     )
 
     return serviceImages
-  }
-
-  private async getLiveIpfsConfigPath(): Promise<string> {
-    const repoConfigPath = 'data/ipfs/config'
-    const hasRepoConfig = await fs
-      .access(repoConfigPath)
-      .then(() => true)
-      .catch(() => false)
-
-    return hasRepoConfig ? repoConfigPath : 'ipfs.config.json'
   }
 
   private async getRunningServiceImageIds(): Promise<Map<string, string>> {
@@ -353,16 +306,6 @@ export default class Update extends BaseCommand {
     )
 
     return serviceImages
-  }
-
-  private getTargetRepoVersion(ipfsVersion: string): number | undefined {
-    const match = ipfsVersion.match(/^v?(\d+)\.(\d+)\.(\d+)/)
-    if (!match) {
-      return undefined
-    }
-
-    const [, major, minor] = match.map(Number)
-    return major > 0 || minor >= 38 ? 18 : undefined
   }
 
   private hasRunningImageMismatch(
@@ -387,7 +330,9 @@ export default class Update extends BaseCommand {
       const beforeId = beforeImages.get(image)
       if (!beforeId) {
         this.logInfo(`${image}: newly tracked`)
-      } else if (beforeId === 'not-present' && afterId !== 'not-present') {
+      } else if (afterId === 'not-present') {
+        this.logWarning(`${image}: not present locally after pull`)
+      } else if (beforeId === 'not-present') {
         this.logSuccess(`${image}: pulled`)
       } else if (beforeId === afterId) {
         this.logInfo(`${image}: unchanged`)
@@ -397,9 +342,42 @@ export default class Update extends BaseCommand {
     }
   }
 
-  private async migrateIpfsConfig(ipfsVersion: string, configPath: string): Promise<void> {
+  private async maybeCreateBackup(flags: UpdateFlags): Promise<void> {
+    if (flags['no-backup']) {
+      return
+    }
+
+    const backupDir = flags['backup-dir'] || `backup_${new Date().toISOString().replaceAll(/[.:]/g, '').slice(0, 15)}`
+
+    if (flags.force) {
+      await this.createBackup(backupDir, flags['backup-data'])
+      return
+    }
+
+    const shouldBackup = await this.confirm(
+      `Would you like to create a backup before updating? (Will be stored in ${backupDir})`,
+    )
+    if (shouldBackup) {
+      await this.createBackup(backupDir, flags['backup-data'])
+    } else {
+      this.logInfo('Skipping backup')
+    }
+  }
+
+  private async migrateIpfsConfig(targetIpfsVersion: string | undefined, configPath: string): Promise<void> {
+    const hasConfig = await fs
+      .access(configPath)
+      .then(() => true)
+      .catch(() => false)
+
+    if (!hasConfig) {
+      this.logWarning(`No IPFS config found at ${configPath}; skipping config migration`)
+      return
+    }
+
     const config = await readIpfsConfig(configPath)
-    const repoVersion = this.getTargetRepoVersion(ipfsVersion) ?? (await readIpfsRepoVersion())
+    const targetRepoVersion = targetIpfsVersion === undefined ? undefined : getTargetRepoVersion(targetIpfsVersion)
+    const repoVersion = targetRepoVersion ?? (await readIpfsRepoVersion())
     const policy = getBgipfsIpfsConfigPolicy(config, repoVersion)
     const migrated = mergeIpfsConfig(config, policy.ownedKeys, policy.removedKeys)
 
@@ -413,55 +391,61 @@ export default class Update extends BaseCommand {
     this.logSuccess(`Migrated IPFS config for target Kubo version; backup saved to ${backupPath}`)
   }
 
-  private async preflight(): Promise<void> {
+  private async preflight(flags: UpdateFlags): Promise<void> {
+    for (const flag of VERSION_FLAGS) {
+      if (!isValidDockerTag(flags[flag])) {
+        throw new Error(`Invalid Docker image tag for --${flag}: "${flags[flag]}"`)
+      }
+    }
+
     await execa('docker', ['compose', 'version'])
     await fs.access('docker-compose.yml')
   }
 
-  private removeIpfsConfigBindMount(compose: string): string {
-    return compose
-      .split('\n')
-      .filter((line) => line.trim() !== '- ./ipfs.config.json:/data/ipfs/config:ro')
-      .join('\n')
-  }
+  private async prepareConfigAndCompose(
+    flags: UpdateFlags,
+  ): Promise<{composeChanged: boolean; willRemoveBindMount: boolean}> {
+    const skipComposeUpdate = flags['skip-compose-update']
+    const usesBindMount = await usesIpfsConfigBindMount()
+    const willRemoveBindMount = usesBindMount && !skipComposeUpdate
 
-  private replaceServiceImage(compose: string, service: string, image: string): string {
-    const lines = compose.split('\n')
-    const servicePattern = new RegExp(`^  ${service}:\\s*$`)
-
-    const serviceStart = lines.findIndex((line) => servicePattern.test(line))
-    if (serviceStart === -1) {
-      throw new Error(`Could not find ${service} service in docker-compose.yml`)
+    if (usesBindMount && skipComposeUpdate) {
+      this.logWarning(
+        'Legacy read-only IPFS config bind mount detected, but --skip-compose-update leaves it in place. ' +
+          'Kubo upgrades cannot migrate the repo until it is removed; re-run without --skip-compose-update.',
+      )
     }
 
-    for (let index = serviceStart + 1; index < lines.length; index++) {
-      if (/^ {2}[\w-]+:\s*$/.test(lines[index])) {
-        break
-      }
+    // The config migration always runs against the live config; it only
+    // targets the pinned Kubo version when the compose tags are updated to it.
+    await this.migrateIpfsConfig(skipComposeUpdate ? undefined : flags['ipfs-version'], await getLiveIpfsConfigPath())
 
-      if (/^ {4}image:\s*/.test(lines[index])) {
-        lines[index] = `    image: ${image}`
-        return lines.join('\n')
-      }
+    if (willRemoveBindMount) {
+      await this.stageIpfsConfigForUnmountedRepo()
     }
 
-    throw new Error(`Could not find image for ${service} service in docker-compose.yml`)
+    const composeChanged = skipComposeUpdate
+      ? false
+      : await this.updateManagedImageTags({
+          clusterVersion: flags['cluster-version'],
+          ipfsVersion: flags['ipfs-version'],
+          traefikVersion: flags['traefik-version'],
+        })
+
+    return {composeChanged, willRemoveBindMount}
   }
 
   private async stageIpfsConfigForUnmountedRepo(): Promise<void> {
     try {
-      await fs.copyFile('ipfs.config.json', 'data/ipfs/config')
-      this.logSuccess('Staged ipfs.config.json into data/ipfs/config')
+      await fs.copyFile(LEGACY_IPFS_CONFIG_PATH, REPO_IPFS_CONFIG_PATH)
+      this.logSuccess(`Staged ${LEGACY_IPFS_CONFIG_PATH} into ${REPO_IPFS_CONFIG_PATH}`)
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException
-      if (nodeError.code !== 'EACCES' && nodeError.code !== 'EPERM') {
+      const {code} = error as NodeJS.ErrnoException
+      if (code !== 'EACCES' && code !== 'EPERM') {
         throw error
       }
 
-      throw new Error(
-        'Cannot write data/ipfs/config with the current host user. Run this command, then retry the update:\n' +
-          'sudo install -m 0644 -o "$(stat -c %u data/ipfs)" -g "$(stat -c %g data/ipfs)" ipfs.config.json data/ipfs/config',
-      )
+      throw new Error(ipfsConfigWritePermissionHint(REPO_IPFS_CONFIG_PATH))
     }
   }
 
@@ -474,10 +458,10 @@ export default class Update extends BaseCommand {
     const original = await fs.readFile(composePath, 'utf8')
     let updated = original
 
-    updated = this.replaceServiceImage(updated, 'ipfs', `ipfs/kubo:${versions.ipfsVersion}`)
-    updated = this.replaceServiceImage(updated, 'cluster', `ipfs/ipfs-cluster:${versions.clusterVersion}`)
-    updated = this.replaceServiceImage(updated, 'traefik', `traefik:${versions.traefikVersion}`)
-    updated = this.removeIpfsConfigBindMount(updated)
+    updated = replaceServiceImage(updated, 'ipfs', `ipfs/kubo:${versions.ipfsVersion}`)
+    updated = replaceServiceImage(updated, 'cluster', `ipfs/ipfs-cluster:${versions.clusterVersion}`)
+    updated = replaceServiceImage(updated, 'traefik', `traefik:${versions.traefikVersion}`)
+    updated = removeIpfsConfigBindMount(updated)
 
     if (updated === original) {
       this.logInfo('Docker image tags are already up to date')
@@ -492,20 +476,38 @@ export default class Update extends BaseCommand {
     return true
   }
 
-  private async usesIpfsConfigBindMount(): Promise<boolean> {
-    const compose = await fs.readFile('docker-compose.yml', 'utf8')
-    return compose.split('\n').some((line) => line.trim() === '- ./ipfs.config.json:/data/ipfs/config:ro')
-  }
-
   private async verifyUpdatedCluster(): Promise<void> {
-    const running = await checkRunningContainers()
-    for (const service of ['ipfs', 'cluster']) {
-      if (!running.some((container) => container.includes(service))) {
-        throw new Error(`${service} container is not running after update`)
+    this.logInfo('Verifying services after update...')
+    const requiredServices = ['ipfs', 'cluster']
+    let consecutiveHealthyChecks = 0
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      // eslint-disable-next-line no-await-in-loop
+      const running = await checkRunningContainers()
+      const missing = requiredServices.filter((service) => !running.some((container) => container.includes(service)))
+
+      if (missing.length === 0) {
+        consecutiveHealthyChecks++
+        // Require two healthy checks in a row so a container that starts and
+        // then exits (e.g. on a failed repo migration) is not reported healthy.
+        if (consecutiveHealthyChecks >= 2) {
+          // eslint-disable-next-line no-await-in-loop
+          const versions = await getContainerVersions()
+          this.logSuccess(`Running IPFS ${versions.ipfs} and IPFS Cluster ${versions.cluster}`)
+          return
+        }
+      } else {
+        consecutiveHealthyChecks = 0
+        this.logInfo(`Waiting for ${missing.join(', ')} to start...`)
       }
+
+      // eslint-disable-next-line no-await-in-loop
+      await delay(5000)
     }
 
-    const versions = await getContainerVersions()
-    this.logSuccess(`Running IPFS ${versions.ipfs} and IPFS Cluster ${versions.cluster}`)
+    throw new Error(
+      'ipfs/cluster containers did not stay running after the update. ' +
+        'Check `docker compose logs`; large repos may still be running a migration.',
+    )
   }
 }

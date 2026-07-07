@@ -1,6 +1,11 @@
 import {promises as fs} from 'node:fs'
 import path from 'node:path'
 
+import {usesIpfsConfigBindMount} from './compose-file.js'
+
+export const LEGACY_IPFS_CONFIG_PATH = 'ipfs.config.json'
+export const REPO_IPFS_CONFIG_PATH = 'data/ipfs/config'
+
 export interface IpfsConfigChange {
   key: string
   nextValue: unknown
@@ -50,7 +55,41 @@ export const mergeIpfsConfig = (
   return merged
 }
 
-export const readIpfsConfig = async (configPath = 'ipfs.config.json'): Promise<Record<string, unknown>> => {
+// The IPFS config file bgipfs should read and write: the Kubo repo config at
+// data/ipfs/config, unless the compose file still bind-mounts the legacy
+// exported ipfs.config.json over it (in which case that file is the live one).
+export const getLiveIpfsConfigPath = async (): Promise<string> => {
+  const hasRepoConfig = await fs
+    .access(REPO_IPFS_CONFIG_PATH)
+    .then(() => true)
+    .catch(() => false)
+
+  if (!hasRepoConfig) {
+    return LEGACY_IPFS_CONFIG_PATH
+  }
+
+  return (await usesIpfsConfigBindMount()) ? LEGACY_IPFS_CONFIG_PATH : REPO_IPFS_CONFIG_PATH
+}
+
+// Repo version the given Kubo release will migrate to. Kubo 0.38 moved to repo
+// version 18; we assume 18 for anything newer (including future majors) since
+// the bgipfs config policy only branches at >= 18. Returns undefined for
+// older releases and non-semver tags like `release`.
+export const getTargetRepoVersion = (ipfsVersion: string): number | undefined => {
+  const match = ipfsVersion.match(/^v?(\d+)\.(\d+)\.(\d+)/)
+  if (!match) {
+    return undefined
+  }
+
+  const [, major, minor] = match.map(Number)
+  return major > 0 || minor >= 38 ? 18 : undefined
+}
+
+export const ipfsConfigWritePermissionHint = (configPath: string): string =>
+  `Cannot write ${configPath} as the current host user. Take ownership of the file and retry:\n` +
+  `sudo chown "$(id -u):$(id -g)" ${configPath}`
+
+export const readIpfsConfig = async (configPath = LEGACY_IPFS_CONFIG_PATH): Promise<Record<string, unknown>> => {
   const content = await fs.readFile(configPath, 'utf8')
   const parsed = JSON.parse(content) as unknown
 
@@ -72,7 +111,7 @@ export const readIpfsRepoVersion = async (versionPath = 'data/ipfs/version'): Pr
 }
 
 export const backupIpfsConfig = async (
-  configPath = 'ipfs.config.json',
+  configPath = LEGACY_IPFS_CONFIG_PATH,
   backupDir = 'config-backup',
 ): Promise<string> => {
   await fs.mkdir(backupDir, {recursive: true})
@@ -84,9 +123,18 @@ export const backupIpfsConfig = async (
 
 export const writeIpfsConfig = async (
   config: Record<string, unknown>,
-  configPath = 'ipfs.config.json',
+  configPath = LEGACY_IPFS_CONFIG_PATH,
 ): Promise<void> => {
-  await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n')
+  try {
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n')
+  } catch (error) {
+    const {code} = error as NodeJS.ErrnoException
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new Error(ipfsConfigWritePermissionHint(configPath))
+    }
+
+    throw error
+  }
 }
 
 const getNestedValue = (config: Record<string, unknown>, key: string): unknown => {

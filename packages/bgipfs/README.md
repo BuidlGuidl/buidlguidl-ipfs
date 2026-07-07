@@ -129,10 +129,11 @@ bgipfs cluster update --ipfs-version v0.41.0 --cluster-version v1.1.6 --traefik-
 The update process:
 1. Checks Docker Compose and the local compose file
 2. Creates a backup of configuration files (unless --no-backup is specified). Use `--backup-data` or a volume snapshot for IPFS data.
-3. Updates managed image tags in `docker-compose.yml` (unless `--skip-compose-update` is specified)
-4. Pulls the requested Docker images and reports image changes
-5. Restarts or starts services with the new images
-6. Verifies IPFS and IPFS Cluster are running and reports their versions
+3. Migrates the live IPFS config for the target Kubo version
+4. Updates managed image tags in `docker-compose.yml` and removes the legacy config bind mount (unless `--skip-compose-update` is specified, which leaves the compose file untouched and migrates the config against the current repo version instead)
+5. Pulls the requested Docker images and reports image changes
+6. Restarts or starts services with the new images
+7. Verifies IPFS and IPFS Cluster are running and reports their versions
 
 ### IPFS Peering
 
