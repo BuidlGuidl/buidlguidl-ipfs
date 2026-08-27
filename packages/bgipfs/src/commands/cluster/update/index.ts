@@ -1,4 +1,4 @@
-import {Flags} from '@oclif/core'
+import {Flags, Interfaces} from '@oclif/core'
 import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
 import path from 'node:path'
@@ -12,10 +12,13 @@ import {
   replaceServiceImage,
   usesIpfsConfigBindMount,
 } from '../../../lib/compose-file.js'
+import {DEFAULT_VERSIONS} from '../../../lib/default-versions.js'
+import {fileExists, isPermissionError} from '../../../lib/files.js'
 import {
   LEGACY_IPFS_CONFIG_PATH,
   REPO_IPFS_CONFIG_PATH,
   backupIpfsConfig,
+  computeIpfsConfigChanges,
   getLiveIpfsConfigPath,
   getTargetRepoVersion,
   ipfsConfigWritePermissionHint,
@@ -30,16 +33,7 @@ import Start from '../start/index.js'
 
 const VERSION_FLAGS = ['cluster-version', 'ipfs-version', 'traefik-version'] as const
 
-interface UpdateFlags {
-  'backup-data': boolean
-  'backup-dir': string | undefined
-  'cluster-version': string
-  force: boolean
-  'ipfs-version': string
-  'no-backup': boolean
-  'skip-compose-update': boolean
-  'traefik-version': string
-}
+type UpdateFlags = Interfaces.InferredFlags<typeof Update.flags>
 
 export default class Update extends BaseCommand {
   static description = 'Update IPFS, IPFS Cluster, and key cluster dependencies'
@@ -60,7 +54,7 @@ export default class Update extends BaseCommand {
       description: 'Directory to store backup (defaults to ./backup_YYYYMMDD_HHMMSS)',
     }),
     'cluster-version': Flags.string({
-      default: 'v1.1.6',
+      default: DEFAULT_VERSIONS.cluster,
       description: 'IPFS Cluster Docker tag to use',
     }),
     force: Flags.boolean({
@@ -69,7 +63,7 @@ export default class Update extends BaseCommand {
       description: 'Force update: skip confirmation prompts',
     }),
     'ipfs-version': Flags.string({
-      default: 'v0.41.0',
+      default: DEFAULT_VERSIONS.ipfs,
       description: 'Kubo Docker tag to use',
     }),
     'no-backup': Flags.boolean({
@@ -82,7 +76,7 @@ export default class Update extends BaseCommand {
         'Leave docker-compose.yml untouched (skips image tag updates and legacy config bind mount removal; the IPFS config migration still runs against the current repo version)',
     }),
     'traefik-version': Flags.string({
-      default: 'v3.6.1',
+      default: DEFAULT_VERSIONS.traefik,
       description: 'Traefik Docker tag to use',
     }),
   }
@@ -124,15 +118,16 @@ export default class Update extends BaseCommand {
 
       const {composeChanged, willRemoveBindMount} = await this.prepareConfigAndCompose(flags)
 
-      const beforeImages = await this.getComposeImageIds()
-      const beforeRunningImages = isRunning ? await this.getRunningServiceImageIds() : new Map<string, string>()
+      const [{imageIds: beforeImages}, beforeRunningImages] = await Promise.all([
+        this.snapshotComposeImages(),
+        isRunning ? this.getRunningServiceImageIds() : new Map<string, string>(),
+      ])
 
       // Pull latest images first
       this.logInfo('Pulling latest images...')
       await execa('docker', ['compose', 'pull'])
 
-      const afterImages = await this.getComposeImageIds()
-      const afterServiceImages = await this.getComposeServiceImageIds()
+      const {imageIds: afterImages, serviceImageIds: afterServiceImages} = await this.snapshotComposeImages()
       this.logImageChanges(beforeImages, afterImages)
 
       const imagesChanged = [...afterImages].some(
@@ -172,12 +167,7 @@ export default class Update extends BaseCommand {
   }
 
   private async archiveLegacyIpfsConfig(): Promise<void> {
-    const hasLegacyConfig = await fs
-      .access(LEGACY_IPFS_CONFIG_PATH)
-      .then(() => true)
-      .catch(() => false)
-
-    if (!hasLegacyConfig) {
+    if (!(await fileExists(LEGACY_IPFS_CONFIG_PATH))) {
       return
     }
 
@@ -188,13 +178,8 @@ export default class Update extends BaseCommand {
   }
 
   private async createBackup(backupDir: string, includeData: boolean): Promise<void> {
-    // Check if backup directory exists
-    try {
-      await fs.access(backupDir)
-      this.logError(`Backup directory ${backupDir} already exists`)
-      return
-    } catch {
-      // Directory doesn't exist, which is what we want
+    if (await fileExists(backupDir)) {
+      throw new Error(`Backup directory ${backupDir} already exists`)
     }
 
     this.logInfo('Creating backup before update...')
@@ -228,7 +213,7 @@ export default class Update extends BaseCommand {
         await fs.cp(item.src, path.join(backupDir, item.dest), {recursive: true})
         this.logSuccess(`Successfully backed up ${item.src}`)
       } catch (error) {
-        if ('optional' in item && item.optional) {
+        if ('optional' in item && item.optional && (error as NodeJS.ErrnoException).code === 'ENOENT') {
           this.logInfo(`Skipping missing optional backup item ${item.src}`)
           continue
         }
@@ -238,72 +223,29 @@ export default class Update extends BaseCommand {
     }
   }
 
-  private async getComposeImageIds(): Promise<Map<string, string>> {
-    const {stdout} = await execa('docker', ['compose', 'config', '--images'])
-    const images = stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-
-    const result = new Map<string, string>()
-    await Promise.all(
-      images.map(async (image) => {
-        try {
-          const {stdout: imageId} = await execa('docker', ['image', 'inspect', image, '--format', '{{.Id}}'])
-          result.set(image, imageId.trim())
-        } catch {
-          result.set(image, 'not-present')
-        }
-      }),
-    )
-
-    return result
-  }
-
-  private async getComposeServiceImageIds(): Promise<Map<string, string>> {
-    const {stdout} = await execa('docker', ['compose', 'config', '--format', 'json'])
-    const composeConfig = JSON.parse(stdout) as {services: Record<string, {image?: string}>}
-    const serviceImages = new Map<string, string>()
-
-    await Promise.all(
-      Object.entries(composeConfig.services).map(async ([service, serviceConfig]) => {
-        if (!serviceConfig.image) {
-          return
-        }
-
-        try {
-          const {stdout: imageId} = await execa('docker', [
-            'image',
-            'inspect',
-            serviceConfig.image,
-            '--format',
-            '{{.Id}}',
-          ])
-          serviceImages.set(service, imageId.trim())
-        } catch {
-          serviceImages.set(service, 'not-present')
-        }
-      }),
-    )
-
-    return serviceImages
-  }
-
   private async getRunningServiceImageIds(): Promise<Map<string, string>> {
-    const {stdout} = await execa('docker', ['compose', 'ps', '--format', 'json'])
-    const containers = stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as {ID: string; Service: string})
-
     const serviceImages = new Map<string, string>()
-    await Promise.all(
-      containers.map(async (container) => {
-        const {stdout: imageId} = await execa('docker', ['inspect', container.ID, '--format', '{{.Image}}'])
-        serviceImages.set(container.Service, imageId.trim())
-      }),
-    )
+
+    try {
+      const {stdout} = await execa('docker', ['compose', 'ps', '--format', 'json'])
+      const containers = stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as {ID: string; Service: string})
+
+      await Promise.all(
+        containers.map(async (container) => {
+          const {stdout: imageId} = await execa('docker', ['inspect', container.ID, '--format', '{{.Image}}'])
+          serviceImages.set(container.Service, imageId.trim())
+        }),
+      )
+    } catch {
+      // Best-effort: if `docker compose ps` output cannot be parsed, only the
+      // running-image staleness check is lost; compose/image changes still
+      // trigger a restart.
+      return new Map()
+    }
 
     return serviceImages
   }
@@ -323,6 +265,15 @@ export default class Update extends BaseCommand {
     }
 
     return hasMismatch
+  }
+
+  private async inspectImageId(image: string): Promise<string> {
+    try {
+      const {stdout} = await execa('docker', ['image', 'inspect', image, '--format', '{{.Id}}'])
+      return stdout.trim()
+    } catch {
+      return 'not-present'
+    }
   }
 
   private logImageChanges(beforeImages: Map<string, string>, afterImages: Map<string, string>): void {
@@ -365,12 +316,7 @@ export default class Update extends BaseCommand {
   }
 
   private async migrateIpfsConfig(targetIpfsVersion: string | undefined, configPath: string): Promise<void> {
-    const hasConfig = await fs
-      .access(configPath)
-      .then(() => true)
-      .catch(() => false)
-
-    if (!hasConfig) {
+    if (!(await fileExists(configPath))) {
       this.logWarning(`No IPFS config found at ${configPath}; skipping config migration`)
       return
     }
@@ -379,16 +325,19 @@ export default class Update extends BaseCommand {
     const targetRepoVersion = targetIpfsVersion === undefined ? undefined : getTargetRepoVersion(targetIpfsVersion)
     const repoVersion = targetRepoVersion ?? (await readIpfsRepoVersion())
     const policy = getBgipfsIpfsConfigPolicy(config, repoVersion)
-    const migrated = mergeIpfsConfig(config, policy.ownedKeys, policy.removedKeys)
+    const changes = computeIpfsConfigChanges(config, policy.ownedKeys, policy.removedKeys)
 
-    if (JSON.stringify(config) === JSON.stringify(migrated)) {
+    if (changes.length === 0) {
       this.logInfo('IPFS config is already compatible with the target Kubo version')
       return
     }
 
     const backupPath = await backupIpfsConfig(configPath)
+    const migrated = mergeIpfsConfig(config, policy.ownedKeys, policy.removedKeys)
     await writeIpfsConfig(migrated, configPath)
-    this.logSuccess(`Migrated IPFS config for target Kubo version; backup saved to ${backupPath}`)
+    this.logSuccess(
+      `Migrated IPFS config (${changes.map((change) => change.key).join(', ')}); backup saved to ${backupPath}`,
+    )
   }
 
   private async preflight(flags: UpdateFlags): Promise<void> {
@@ -435,17 +384,45 @@ export default class Update extends BaseCommand {
     return {composeChanged, willRemoveBindMount}
   }
 
+  private async snapshotComposeImages(): Promise<{
+    imageIds: Map<string, string>
+    serviceImageIds: Map<string, string>
+  }> {
+    const {stdout} = await execa('docker', ['compose', 'config', '--format', 'json'])
+    const composeConfig = JSON.parse(stdout) as {services: Record<string, {image?: string}>}
+
+    const serviceImages = new Map<string, string>()
+    for (const [service, serviceConfig] of Object.entries(composeConfig.services)) {
+      if (serviceConfig.image) {
+        serviceImages.set(service, serviceConfig.image)
+      }
+    }
+
+    const imageIds = new Map<string, string>()
+    await Promise.all(
+      [...new Set(serviceImages.values())].map(async (image) => {
+        imageIds.set(image, await this.inspectImageId(image))
+      }),
+    )
+
+    const serviceImageIds = new Map<string, string>()
+    for (const [service, image] of serviceImages) {
+      serviceImageIds.set(service, imageIds.get(image) ?? 'not-present')
+    }
+
+    return {imageIds, serviceImageIds}
+  }
+
   private async stageIpfsConfigForUnmountedRepo(): Promise<void> {
     try {
       await fs.copyFile(LEGACY_IPFS_CONFIG_PATH, REPO_IPFS_CONFIG_PATH)
       this.logSuccess(`Staged ${LEGACY_IPFS_CONFIG_PATH} into ${REPO_IPFS_CONFIG_PATH}`)
     } catch (error) {
-      const {code} = error as NodeJS.ErrnoException
-      if (code !== 'EACCES' && code !== 'EPERM') {
-        throw error
+      if (isPermissionError(error)) {
+        throw new Error(ipfsConfigWritePermissionHint(REPO_IPFS_CONFIG_PATH))
       }
 
-      throw new Error(ipfsConfigWritePermissionHint(REPO_IPFS_CONFIG_PATH))
+      throw error
     }
   }
 
@@ -479,9 +456,17 @@ export default class Update extends BaseCommand {
   private async verifyUpdatedCluster(): Promise<void> {
     this.logInfo('Verifying services after update...')
     const requiredServices = ['ipfs', 'cluster']
+    // Repo migrations on large blockstores can take a while, so poll for a few
+    // minutes before declaring the update failed.
+    const maxAttempts = 36
     let consecutiveHealthyChecks = 0
 
-    for (let attempt = 0; attempt < 8; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) {
+        // eslint-disable-next-line no-await-in-loop
+        await delay(5000)
+      }
+
       // eslint-disable-next-line no-await-in-loop
       const running = await checkRunningContainers()
       const missing = requiredServices.filter((service) => !running.some((container) => container.includes(service)))
@@ -500,9 +485,6 @@ export default class Update extends BaseCommand {
         consecutiveHealthyChecks = 0
         this.logInfo(`Waiting for ${missing.join(', ')} to start...`)
       }
-
-      // eslint-disable-next-line no-await-in-loop
-      await delay(5000)
     }
 
     throw new Error(

@@ -11,7 +11,7 @@ services:
 
   cluster:
     container_name: cluster
-    image: ipfs/ipfs-cluster:${IPFS_CLUSTER_VERSION:-v1.1.6}
+    image: ipfs/ipfs-cluster:v1.1.6
     depends_on:
       - ipfs
     environment:

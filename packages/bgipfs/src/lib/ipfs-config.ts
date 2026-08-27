@@ -2,6 +2,7 @@ import {promises as fs} from 'node:fs'
 import path from 'node:path'
 
 import {usesIpfsConfigBindMount} from './compose-file.js'
+import {fileExists, isPermissionError} from './files.js'
 
 export const LEGACY_IPFS_CONFIG_PATH = 'ipfs.config.json'
 export const REPO_IPFS_CONFIG_PATH = 'data/ipfs/config'
@@ -59,12 +60,7 @@ export const mergeIpfsConfig = (
 // data/ipfs/config, unless the compose file still bind-mounts the legacy
 // exported ipfs.config.json over it (in which case that file is the live one).
 export const getLiveIpfsConfigPath = async (): Promise<string> => {
-  const hasRepoConfig = await fs
-    .access(REPO_IPFS_CONFIG_PATH)
-    .then(() => true)
-    .catch(() => false)
-
-  if (!hasRepoConfig) {
+  if (!(await fileExists(REPO_IPFS_CONFIG_PATH))) {
     return LEGACY_IPFS_CONFIG_PATH
   }
 
@@ -85,12 +81,25 @@ export const getTargetRepoVersion = (ipfsVersion: string): number | undefined =>
   return major > 0 || minor >= 38 ? 18 : undefined
 }
 
-export const ipfsConfigWritePermissionHint = (configPath: string): string =>
-  `Cannot write ${configPath} as the current host user. Take ownership of the file and retry:\n` +
+const ipfsConfigPermissionHint = (action: 'read' | 'write', configPath: string): string =>
+  `Cannot ${action} ${configPath} as the current host user. Take ownership of the file and retry:\n` +
   `sudo chown "$(id -u):$(id -g)" ${configPath}`
 
+export const ipfsConfigWritePermissionHint = (configPath: string): string =>
+  ipfsConfigPermissionHint('write', configPath)
+
 export const readIpfsConfig = async (configPath = LEGACY_IPFS_CONFIG_PATH): Promise<Record<string, unknown>> => {
-  const content = await fs.readFile(configPath, 'utf8')
+  let content: string
+  try {
+    content = await fs.readFile(configPath, 'utf8')
+  } catch (error) {
+    if (isPermissionError(error)) {
+      throw new Error(ipfsConfigPermissionHint('read', configPath))
+    }
+
+    throw error
+  }
+
   const parsed = JSON.parse(content) as unknown
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -128,8 +137,7 @@ export const writeIpfsConfig = async (
   try {
     await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n')
   } catch (error) {
-    const {code} = error as NodeJS.ErrnoException
-    if (code === 'EACCES' || code === 'EPERM') {
+    if (isPermissionError(error)) {
       throw new Error(ipfsConfigWritePermissionHint(configPath))
     }
 

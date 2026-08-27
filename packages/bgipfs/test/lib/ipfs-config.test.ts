@@ -339,6 +339,24 @@ describe('ipfs-config', () => {
     expect(getTargetRepoVersion('latest')).to.equal(undefined)
   })
 
+  it('reports a permission hint when the config is not readable', async function () {
+    if (process.getuid?.() === 0) {
+      this.skip()
+    }
+
+    const configPath = path.join(workdir, 'config')
+    await writeFile(configPath, '{}\n')
+    await chmod(configPath, 0o000)
+
+    try {
+      await readIpfsConfig(configPath)
+      expect.fail('expected readIpfsConfig to throw')
+    } catch (error) {
+      expect((error as Error).message).to.include('sudo chown')
+      expect((error as Error).message).to.include(configPath)
+    }
+  })
+
   it('reports a permission hint when the config is not writable', async function () {
     if (process.getuid?.() === 0) {
       this.skip()

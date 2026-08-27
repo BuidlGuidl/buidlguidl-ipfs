@@ -3,6 +3,7 @@ import {execa} from 'execa'
 import {promises as fs} from 'node:fs'
 
 import {BaseCommand} from '../../../base-command.js'
+import {isPermissionError} from '../../../lib/files.js'
 
 export default class Reset extends BaseCommand {
   static description = 'Reset IPFS cluster and remove all data'
@@ -80,8 +81,7 @@ export default class Reset extends BaseCommand {
     try {
       await fs.rm('data', {force: true, recursive: true})
     } catch (error) {
-      const {code} = error as NodeJS.ErrnoException
-      if (code !== 'EACCES' && code !== 'EPERM') {
+      if (!isPermissionError(error)) {
         throw error
       }
 

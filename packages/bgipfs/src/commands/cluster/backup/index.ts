@@ -3,6 +3,7 @@ import {promises as fs} from 'node:fs'
 import path from 'node:path'
 
 import {BaseCommand} from '../../../base-command.js'
+import {fileExists} from '../../../lib/files.js'
 
 export default class Backup extends BaseCommand {
   static description = 'Create a backup of IPFS cluster data and configuration'
@@ -25,36 +26,39 @@ export default class Backup extends BaseCommand {
 
       this.logInfo(`Creating backup in ${backupDir}...`)
 
-      // Check if backup directory exists
-      try {
-        await fs.access(backupDir)
-        this.logError(`Backup directory ${backupDir} already exists`)
-        return
-      } catch {
-        // Directory doesn't exist, which is what we want
+      if (await fileExists(backupDir)) {
+        throw new Error(`Backup directory ${backupDir} already exists`)
       }
 
       // Create backup directory
       await fs.mkdir(backupDir, {recursive: true})
 
-      // List of files and directories to backup
-      const itemsToBackup = [
+      // List of files and directories to backup. The legacy exported IPFS
+      // config only exists on clusters that still bind-mount it; the live
+      // config is captured as part of data/ipfs.
+      const itemsToBackup: Array<{dest: string; optional?: boolean; src: string}> = [
         {dest: 'ipfs', src: 'data/ipfs'},
         {dest: 'ipfs-cluster', src: 'data/ipfs-cluster'},
-        {dest: 'ipfs.config.json', src: 'ipfs.config.json'},
+        {dest: 'ipfs.config.json', optional: true, src: 'ipfs.config.json'},
         {dest: 'service.json', src: 'service.json'},
         {dest: 'identity.json', src: 'identity.json'},
         {dest: 'auth', src: 'auth'},
       ]
 
       // Copy each item
-      await Promise.all(
+      const copiedItems = await Promise.all(
         itemsToBackup.map(async (item) => {
           try {
             this.logInfo(`Backing up ${item.src}...`)
             await fs.cp(item.src, path.join(backupDir, item.dest), {recursive: true})
             this.logSuccess(`Successfully backed up ${item.src}`)
+            return item
           } catch (error) {
+            if (item.optional && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+              this.logInfo(`Skipping missing optional backup item ${item.src}`)
+              return
+            }
+
             this.logError(`Failed to backup ${item.src}: ${(error as Error).message}`)
           }
         }),
@@ -63,14 +67,16 @@ export default class Backup extends BaseCommand {
       // Verify backup
       this.logInfo('Verifying backup...')
       await Promise.all(
-        itemsToBackup.map(async (item) => {
-          try {
-            await fs.access(path.join(backupDir, item.dest))
-            this.logSuccess(`Verified ${item.dest} in backup`)
-          } catch {
-            this.logError(`Failed to verify ${item.dest} in backup`)
-          }
-        }),
+        copiedItems
+          .filter((item) => item !== undefined)
+          .map(async (item) => {
+            try {
+              await fs.access(path.join(backupDir, item.dest))
+              this.logSuccess(`Verified ${item.dest} in backup`)
+            } catch {
+              this.logError(`Failed to verify ${item.dest} in backup`)
+            }
+          }),
       )
 
       this.logSuccess(`Backup completed successfully in ${backupDir}`)
