@@ -17,7 +17,8 @@ services:
       - "traefik.http.routers.main-gateway.middlewares=xfp-https@docker"
       
       # Subdomain gateway router
-      - "traefik.http.routers.subdomain-gateway.rule=HostRegexp(`{subdomain:[^.]+}.ipfs.${GATEWAY_DOMAIN}`)"
+      # Traefik v3 Go-regexp syntax; $$ is compose escaping for a literal $
+      - "traefik.http.routers.subdomain-gateway.rule=HostRegexp(`^[^.]+[.]ipfs[.]${GATEWAY_DOMAIN}$$`)"
       - "traefik.http.routers.subdomain-gateway.entrypoints=web"
       - "traefik.http.routers.subdomain-gateway.service=ipfs-gateway"
       - "traefik.http.routers.subdomain-gateway.middlewares=xfp-https@docker"

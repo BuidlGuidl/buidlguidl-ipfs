@@ -1,6 +1,7 @@
 import {expect} from 'chai'
 
 import {
+  ensureServiceRestartPolicy,
   hasIpfsConfigBindMount,
   isValidDockerTag,
   removeIpfsConfigBindMount,
@@ -64,6 +65,36 @@ describe('compose-file', () => {
       expect(() => replaceServiceImage(compose, 'ipfs', 'ipfs/kubo:v0.41.0')).to.throw(
         'Could not find image for ipfs service',
       )
+    })
+  })
+
+  describe('ensureServiceRestartPolicy', () => {
+    it('inserts a restart policy directly under the service when absent', () => {
+      const updated = ensureServiceRestartPolicy(SAMPLE_COMPOSE, 'ipfs')
+
+      const lines = updated.split('\n')
+      const serviceIndex = lines.indexOf('  ipfs:')
+      expect(lines[serviceIndex + 1]).to.equal('    restart: unless-stopped')
+      expect(updated.split('restart:')).to.have.length(2)
+    })
+
+    it('is a no-op when the service already has a restart policy', () => {
+      const withPolicy = ensureServiceRestartPolicy(SAMPLE_COMPOSE, 'cluster')
+      expect(ensureServiceRestartPolicy(withPolicy, 'cluster')).to.equal(withPolicy)
+      expect(ensureServiceRestartPolicy(withPolicy, 'cluster', 'always')).to.equal(withPolicy)
+    })
+
+    it('only affects the named service', () => {
+      const updated = ensureServiceRestartPolicy(SAMPLE_COMPOSE, 'traefik')
+
+      const lines = updated.split('\n')
+      const serviceIndex = lines.indexOf('  traefik:')
+      expect(lines[serviceIndex + 1]).to.equal('    restart: unless-stopped')
+      expect(ensureServiceRestartPolicy(updated, 'ipfs')).to.not.equal(updated)
+    })
+
+    it('throws when the service is missing', () => {
+      expect(() => ensureServiceRestartPolicy(SAMPLE_COMPOSE, 'nginx')).to.throw('Could not find nginx service')
     })
   })
 
