@@ -7,6 +7,7 @@ import {setTimeout as delay} from 'node:timers/promises'
 import {BaseCommand} from '../../../base-command.js'
 import {getBgipfsIpfsConfigPolicy} from '../../../lib/bgipfs-owned-keys.js'
 import {
+  ensureServiceRestartPolicy,
   isValidDockerTag,
   removeIpfsConfigBindMount,
   replaceServiceImage,
@@ -83,6 +84,7 @@ export default class Update extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(Update)
+    let backupDir: string | undefined
 
     try {
       await this.preflight(flags)
@@ -114,7 +116,7 @@ export default class Update extends BaseCommand {
         }
       }
 
-      await this.maybeCreateBackup(flags)
+      backupDir = await this.maybeCreateBackup(flags)
 
       const {composeChanged, willRemoveBindMount} = await this.prepareConfigAndCompose(flags)
 
@@ -155,14 +157,15 @@ export default class Update extends BaseCommand {
         await this.archiveLegacyIpfsConfig()
       }
 
-      if (!flags['no-backup'] && !flags.force) {
-        this.logInfo(`A backup was created in: ${flags['backup-dir'] || 'backup_*'}`)
+      if (backupDir) {
+        this.logInfo(`A backup was created in: ${backupDir}`)
       }
     } catch (error) {
-      this.logError(`Update failed: ${(error as Error).message}`)
-      if (!flags['no-backup'] && !flags.force) {
-        this.logInfo('A backup was created before the update attempt')
+      if (backupDir) {
+        this.logInfo(`A backup was created before the update attempt in: ${backupDir}`)
       }
+
+      this.logError(`Update failed: ${(error as Error).message}`)
     }
   }
 
@@ -293,26 +296,29 @@ export default class Update extends BaseCommand {
     }
   }
 
-  private async maybeCreateBackup(flags: UpdateFlags): Promise<void> {
+  // Returns the backup directory when a backup was actually created.
+  private async maybeCreateBackup(flags: UpdateFlags): Promise<string | undefined> {
     if (flags['no-backup']) {
-      return
+      return undefined
     }
 
     const backupDir = flags['backup-dir'] || `backup_${new Date().toISOString().replaceAll(/[.:]/g, '').slice(0, 15)}`
 
     if (flags.force) {
       await this.createBackup(backupDir, flags['backup-data'])
-      return
+      return backupDir
     }
 
     const shouldBackup = await this.confirm(
       `Would you like to create a backup before updating? (Will be stored in ${backupDir})`,
     )
-    if (shouldBackup) {
-      await this.createBackup(backupDir, flags['backup-data'])
-    } else {
+    if (!shouldBackup) {
       this.logInfo('Skipping backup')
+      return undefined
     }
+
+    await this.createBackup(backupDir, flags['backup-data'])
+    return backupDir
   }
 
   private async migrateIpfsConfig(targetIpfsVersion: string | undefined, configPath: string): Promise<void> {
@@ -439,6 +445,10 @@ export default class Update extends BaseCommand {
     updated = replaceServiceImage(updated, 'cluster', `ipfs/ipfs-cluster:${versions.clusterVersion}`)
     updated = replaceServiceImage(updated, 'traefik', `traefik:${versions.traefikVersion}`)
     updated = removeIpfsConfigBindMount(updated)
+
+    for (const service of ['ipfs', 'cluster', 'traefik']) {
+      updated = ensureServiceRestartPolicy(updated, service)
+    }
 
     if (updated === original) {
       this.logInfo('Docker image tags are already up to date')
