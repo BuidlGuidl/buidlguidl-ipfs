@@ -5,6 +5,7 @@ import {promises as fs} from 'node:fs'
 import {BaseCommand} from '../../../base-command.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {DnsConfig, dnsSchema} from '../../../lib/env-schema.js'
+import {getLiveIpfsConfigPath, writeIpfsConfig} from '../../../lib/ipfs-config.js'
 import {checkRunningContainers} from '../../../lib/system.js'
 
 export default class Start extends BaseCommand {
@@ -27,17 +28,6 @@ export default class Start extends BaseCommand {
     try {
       this.logInfo(`Starting IPFS cluster in ${flags.mode.toUpperCase()} mode...`)
 
-      // Update IPFS config in DNS mode
-      if (flags.mode === 'dns') {
-        try {
-          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
-          await this.updateIpfsConfig(env.GATEWAY_DOMAIN)
-        } catch (error) {
-          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
-          return
-        }
-      }
-
       // Build compose file list
       const composeFiles = ['docker-compose.yml']
       if (flags.mode === 'dns') {
@@ -45,6 +35,7 @@ export default class Start extends BaseCommand {
         composeFiles.push('docker-compose.dns.yml')
       }
 
+      const ipfsConfigPath = await getLiveIpfsConfigPath()
       this.logInfo(`Using compose files: ${composeFiles.join(', ')}`)
 
       // Check required files
@@ -55,7 +46,7 @@ export default class Start extends BaseCommand {
         'identity.json',
         'auth/admin-htpasswd',
         'auth/user-htpasswd',
-        'ipfs.config.json',
+        ipfsConfigPath,
       ]
 
       // Check all required files
@@ -67,6 +58,17 @@ export default class Start extends BaseCommand {
           this.logSuccess(`Found ${file}`)
         } catch {
           this.logError(`Missing required file: ${file}`)
+          return
+        }
+      }
+
+      // Update IPFS config in DNS mode
+      if (flags.mode === 'dns') {
+        try {
+          const env = (await new EnvManager().readEnv({schema: dnsSchema})) as DnsConfig
+          await this.updateIpfsConfig(ipfsConfigPath, env.GATEWAY_DOMAIN)
+        } catch (error) {
+          this.logError(`Failed to process IPFS config: ${(error as Error).message}`)
           return
         }
       }
@@ -181,8 +183,7 @@ export default class Start extends BaseCommand {
     }
   }
 
-  private async updateIpfsConfig(gatewayDomain: string): Promise<void> {
-    const configPath = 'ipfs.config.json'
+  private async updateIpfsConfig(configPath: string, gatewayDomain: string): Promise<void> {
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
     const publicGateways = config.Gateway.PublicGateways || {}
 
@@ -208,7 +209,7 @@ export default class Start extends BaseCommand {
         },
       }
 
-      await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+      await writeIpfsConfig(config, configPath)
       this.logSuccess('IPFS config updated')
     }
   }

@@ -78,9 +78,16 @@ bgipfs cluster config --mode ipfs --ipfs-dry-run
 #### Configuration Files
 - `identity.json` - Cluster peer identity [DO NOT SHARE]
 - `service.json` - Cluster service configuration
-- `ipfs.config.json` - IPFS node configuration
+- `data/ipfs/config` - live Kubo configuration used by new and updated clusters
+- `ipfs.config.json` - legacy IPFS node configuration only for older compose files that still bind-mount it
 - `auth/admin-htpasswd` - Admin credentials for dashboard access
 - `auth/user-htpasswd` - User credentials for upload endpoint
+
+For new and updated clusters, Kubo owns its live repository config at `data/ipfs/config`. Use
+`bgipfs cluster config --mode ipfs` to apply bgipfs-managed IPFS config changes, or edit
+`data/ipfs/config` directly for manual Kubo settings before restarting the cluster.
+New clusters do not create `ipfs.config.json`. During legacy upgrades, any old exported
+`ipfs.config.json` is archived after the bind mount is removed and the upgraded cluster verifies.
 
 #### Backup
 The `cluster backup` command creates a complete backup of your IPFS cluster, including:
@@ -100,7 +107,7 @@ bgipfs cluster backup --output ./my-backup
 
 ### Updating
 
-The `cluster update` command helps you update IPFS and IPFS Cluster to their latest versions:
+The `cluster update` command helps you update Kubo, IPFS Cluster, and Traefik Docker images:
 
 ```bash
 # Update with automatic backup
@@ -111,14 +118,22 @@ bgipfs cluster update --no-backup
 
 # Update with backup to specific directory
 bgipfs cluster update --backup-dir ./my-backup
+
+# Include data/ipfs and data/ipfs-cluster in the filesystem backup
+bgipfs cluster update --backup-data
+
+# Pin specific Docker tags instead of the defaults
+bgipfs cluster update --ipfs-version v0.41.0 --cluster-version v1.1.6 --traefik-version v3.6.1
 ```
 
 The update process:
-1. Creates a backup of all data and configuration (unless --no-backup is specified)
-2. Stops the running services
-3. Pulls the latest Docker images
-4. Starts the services with the new versions
-5. Verifies all services are running correctly
+1. Checks Docker Compose and the local compose file
+2. Creates a backup of configuration files (unless --no-backup is specified). Use `--backup-data` or a volume snapshot for IPFS data.
+3. Migrates the live IPFS config for the target Kubo version
+4. Updates managed image tags in `docker-compose.yml` and removes the legacy config bind mount (unless `--skip-compose-update` is specified, which leaves the compose file untouched and migrates the config against the current repo version instead)
+5. Pulls the requested Docker images and reports image changes
+6. Restarts or starts services with the new images
+7. Verifies IPFS and IPFS Cluster are running and reports their versions
 
 ### IPFS Peering
 

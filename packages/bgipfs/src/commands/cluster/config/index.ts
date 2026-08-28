@@ -8,12 +8,14 @@ import {z} from 'zod'
 import {BaseCommand} from '../../../base-command.js'
 import {AuthService} from '../../../lib/auth-service.js'
 import {getBgipfsIpfsConfigPolicy} from '../../../lib/bgipfs-owned-keys.js'
+import {usesIpfsConfigBindMount} from '../../../lib/compose-file.js'
 import {EnvManager} from '../../../lib/env-manager.js'
 import {baseSchema} from '../../../lib/env-schema.js'
 import {
   type IpfsConfigChange,
   backupIpfsConfig,
   computeIpfsConfigChanges,
+  getLiveIpfsConfigPath,
   mergeIpfsConfig,
   readIpfsConfig,
   readIpfsRepoVersion,
@@ -118,7 +120,11 @@ export default class Init extends BaseCommand {
       if (shouldRunInitialization) {
         this.logInfo('Your cluster identity is in identity.json')
         this.logInfo('Your cluster service configuration is in service.json')
-        this.logInfo('Your IPFS daemon configuration is in ipfs.config.json')
+        this.logInfo('Your live IPFS daemon configuration is in data/ipfs/config')
+        if (await usesIpfsConfigBindMount()) {
+          this.logInfo('Your legacy bind-mounted IPFS daemon configuration is in ipfs.config.json')
+        }
+
         this.logInfo('You can now start the cluster with `bgipfs cluster start`')
       } else if (shouldRunIpfs) {
         this.logInfo('Restart the cluster with `bgipfs cluster restart` for IPFS config changes to take effect')
@@ -213,13 +219,14 @@ export default class Init extends BaseCommand {
   private async configureIpfsConfig(force: boolean, dryRun: boolean): Promise<void> {
     this.logInfo('Checking IPFS daemon configuration...')
 
-    const config = await readIpfsConfig()
+    const liveConfigPath = await getLiveIpfsConfigPath()
+    const config = await readIpfsConfig(liveConfigPath)
     const repoVersion = await readIpfsRepoVersion()
     const policy = getBgipfsIpfsConfigPolicy(config, repoVersion)
     const changes = computeIpfsConfigChanges(config, policy.ownedKeys, policy.removedKeys)
 
     if (changes.length === 0) {
-      this.logSuccess('ipfs.config.json is already current')
+      this.logSuccess(`${liveConfigPath} is already current`)
       return
     }
 
@@ -239,11 +246,11 @@ export default class Init extends BaseCommand {
       }
     }
 
-    const backupPath = await backupIpfsConfig()
+    const backupPath = await backupIpfsConfig(liveConfigPath)
     const merged = mergeIpfsConfig(config, policy.ownedKeys, policy.removedKeys)
-    await writeIpfsConfig(merged)
+    await writeIpfsConfig(merged, liveConfigPath)
 
-    this.logSuccess(`Backed up ipfs.config.json to ${backupPath}`)
+    this.logSuccess(`Backed up ${liveConfigPath} to ${backupPath}`)
     this.logSuccess('IPFS config updated')
   }
 
@@ -427,14 +434,18 @@ export default class Init extends BaseCommand {
       )
       if (!serviceSuccess) return
 
-      // Handle ipfs.config.json
-      const ipfsSuccess = await this.copyWithConfirmation(
-        'data/ipfs/config',
-        'ipfs.config.json',
-        force,
-        'ipfs.config.json',
-      )
-      if (!ipfsSuccess) return
+      if (await usesIpfsConfigBindMount()) {
+        // Older compose files bind-mount this exported config into the Kubo repo.
+        const ipfsSuccess = await this.copyWithConfirmation(
+          'data/ipfs/config',
+          'ipfs.config.json',
+          force,
+          'ipfs.config.json',
+        )
+        if (!ipfsSuccess) return
+      } else {
+        this.logSuccess('Live IPFS config is available at data/ipfs/config')
+      }
 
       this.logSuccess('Configuration files copied successfully')
     } catch (error) {

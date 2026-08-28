@@ -1,11 +1,12 @@
 import {expect} from 'chai'
-import {mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdtemp, readFile, readdir, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 
 import {
   backupIpfsConfig,
   computeIpfsConfigChanges,
+  getTargetRepoVersion,
   mergeIpfsConfig,
   readIpfsConfig,
   readIpfsRepoVersion,
@@ -326,5 +327,51 @@ describe('ipfs-config', () => {
 
     expect(await readIpfsRepoVersion(versionPath)).to.equal(undefined)
     expect(await readIpfsRepoVersion(path.join(workdir, 'missing'))).to.equal(undefined)
+  })
+
+  it('maps Kubo versions to their target repo version', () => {
+    expect(getTargetRepoVersion('v0.41.0')).to.equal(18)
+    expect(getTargetRepoVersion('0.38.0')).to.equal(18)
+    expect(getTargetRepoVersion('v0.41.0-rc1')).to.equal(18)
+    expect(getTargetRepoVersion('v1.0.0')).to.equal(18)
+    expect(getTargetRepoVersion('v0.37.9')).to.equal(undefined)
+    expect(getTargetRepoVersion('release')).to.equal(undefined)
+    expect(getTargetRepoVersion('latest')).to.equal(undefined)
+  })
+
+  it('reports a permission hint when the config is not readable', async function () {
+    if (process.getuid?.() === 0) {
+      this.skip()
+    }
+
+    const configPath = path.join(workdir, 'config')
+    await writeFile(configPath, '{}\n')
+    await chmod(configPath, 0o000)
+
+    try {
+      await readIpfsConfig(configPath)
+      expect.fail('expected readIpfsConfig to throw')
+    } catch (error) {
+      expect((error as Error).message).to.include('sudo chown')
+      expect((error as Error).message).to.include(configPath)
+    }
+  })
+
+  it('reports a permission hint when the config is not writable', async function () {
+    if (process.getuid?.() === 0) {
+      this.skip()
+    }
+
+    const configPath = path.join(workdir, 'config')
+    await writeFile(configPath, '{}\n')
+    await chmod(configPath, 0o444)
+
+    try {
+      await writeIpfsConfig({Routing: {Type: 'dht'}}, configPath)
+      expect.fail('expected writeIpfsConfig to throw')
+    } catch (error) {
+      expect((error as Error).message).to.include('sudo chown')
+      expect((error as Error).message).to.include(configPath)
+    }
   })
 })
