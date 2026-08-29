@@ -1,14 +1,30 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
+import {
+	PAYMENT_REQUEST_HEADERS,
+	type PaymentInfo,
+	gatePayment,
+	isPaymentEnabled,
+	paymentNetwork,
+	paymentPrice,
+	readReceiptReference,
+} from './payment';
 
 interface Env {
 	IPFS_AUTH_USERNAME: string;
 	IPFS_AUTH_PASSWORD: string;
 	APP_API_URL: string;
 	WORKER_AUTH_SECRET: string;
-	DEFAULT_API_KEY: string;
+	DEFAULT_API_KEY?: string;
 	MAX_UPLOAD_SIZE?: string; // Optional environment variable for max upload size in bytes
+	// Paid (keyless) uploads via MPP/x402. Enabled when PAYMENT_RECIPIENT and
+	// MPP_SECRET_KEY are set; paid pins are attributed to DEFAULT_API_KEY's account.
+	PAYMENT_RECIPIENT?: string; // 0x address receiving USDC
+	PAYMENT_PRICE?: string; // price per upload in USDC display units (default 0.01)
+	PAYMENT_NETWORK?: string; // 'base' | 'base-sepolia' (default base-sepolia)
+	PAYMENT_FACILITATOR_URL?: string; // x402 facilitator (default https://x402.org/facilitator)
+	MPP_SECRET_KEY?: string; // >=32 bytes, HMAC-binds payment challenges
 }
 
 interface AuthResponse {
@@ -116,7 +132,8 @@ app.use(
 	cors({
 		origin: '*',
 		allowMethods: ['POST', 'OPTIONS'],
-		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name'],
+		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name', 'Authorization', 'Payment-Authorization', 'Payment-Signature', 'X-Payment'],
+		exposeHeaders: ['WWW-Authenticate', 'Payment-Receipt', 'Payment-Required', 'Payment-Response'],
 		maxAge: 86400,
 	})
 );
@@ -124,10 +141,35 @@ app.use(
 // Main upload route
 app.post('/api/v0/add', async (c) => {
 	const env = c.env;
-	const apiKey = c.req.header('x-api-key') || env.DEFAULT_API_KEY;
+	const headerApiKey = c.req.header('x-api-key');
+	// Keyless requests go through the MPP/x402 payment gate when configured.
+	const usePayment = !headerApiKey && isPaymentEnabled(env);
 
+	if (usePayment && !env.DEFAULT_API_KEY) {
+		console.error('PAYMENT_RECIPIENT is set but DEFAULT_API_KEY is not; paid pins need an account to attribute to');
+		return c.json({ error: 'Paid uploads are not configured' }, 500);
+	}
+
+	const apiKey = headerApiKey || env.DEFAULT_API_KEY;
 	if (!apiKey) {
 		return c.json({ error: 'API key is required' }, 401);
+	}
+
+	const maxSize = parseInt(env.MAX_UPLOAD_SIZE || '104857600'); // 100MB
+
+	// Reject oversized/undeclared uploads before touching auth or payment, so a
+	// payment is never settled for an upload that would then be refused.
+	const contentLength = c.req.header('content-length');
+	if (contentLength && parseInt(contentLength) > maxSize) {
+		return c.json(
+			{
+				error: `Upload size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB`,
+			},
+			413
+		);
+	}
+	if (usePayment && contentLength === undefined) {
+		return c.json({ error: 'Content-Length is required for paid uploads' }, 411);
 	}
 
 	try {
@@ -155,6 +197,26 @@ app.post('/api/v0/add', async (c) => {
 		const request = c.req.raw;
 		if (!request.body) throw new Error('No body provided');
 
+		// Payment gate runs last, after every other check that could reject the
+		// upload: 'paid' means the transfer has settled on-chain, so nothing
+		// after this point should fail for foreseeable reasons.
+		let paymentInfo: PaymentInfo | undefined;
+		let withReceipt: ((response: Response) => Response) | undefined;
+		if (usePayment) {
+			const gate = await gatePayment(request, env, maxSize);
+			if (gate.status === 'challenge') {
+				return gate.response;
+			}
+			withReceipt = gate.withReceipt;
+			paymentInfo = {
+				payerAddress: gate.payerAddress,
+				payerSource: gate.payerSource,
+				network: paymentNetwork(env),
+				amount: paymentPrice(env),
+			};
+			console.log(`Paid upload settled for payer ${gate.payerAddress ?? 'unknown'}`);
+		}
+
 		const auth = btoa(`${env.IPFS_AUTH_USERNAME}:${env.IPFS_AUTH_PASSWORD}`);
 		const url = new URL(request.url);
 		const ipfsUrl = new URL('/api/v0/add', apiUrl);
@@ -164,33 +226,16 @@ app.post('/api/v0/add', async (c) => {
 			ipfsUrl.searchParams.append(key, value);
 		});
 
-		// Filter headers
+		// Filter headers (payment credentials must never reach the cluster)
+		const strippedHeaders = ['host', 'transfer-encoding', 'content-length', ...PAYMENT_REQUEST_HEADERS];
 		const headers = Object.fromEntries(
-			Array.from(request.headers.entries()).filter(
-				([key]) => !['host', 'transfer-encoding', 'content-length', 'authorization'].includes(key.toLowerCase())
-			)
+			Array.from(request.headers.entries()).filter(([key]) => !strippedHeaders.includes(key.toLowerCase()))
 		);
 
 		const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 		const customName = request.headers.get('x-pin-name');
 
-		const maxSize = parseInt(env.MAX_UPLOAD_SIZE || '104857600'); // 100MB
-
-		// Early size check using content-length header if available
-		const contentLength = request.headers.get('content-length');
-		if (contentLength) {
-			const declaredSize = parseInt(contentLength);
-			if (declaredSize > maxSize) {
-				return c.json(
-					{
-						error: `Upload size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB`,
-					},
-					413
-				);
-			}
-		}
-
-		// If no content-length or size is ok, proceed with streaming size check
+		// Streaming size check (content-length was validated before auth/payment)
 		const abortController = new AbortController();
 		let totalSize = 0;
 
@@ -224,7 +269,7 @@ app.post('/api/v0/add', async (c) => {
 			// Now handle the IPFS response with our stream handler
 			const parser = new JsonParser(wrapWithDirectory);
 
-			return stream(
+			const streamResponse = stream(
 				c,
 				async (stream) => {
 					const processStream = new TransformStream({
@@ -245,7 +290,7 @@ app.post('/api/v0/add', async (c) => {
 								controller.error(new Error('No CIDs to pin'));
 								return;
 							}
-							c.executionCtx.waitUntil(createPins(env, apiKey, cidsToPin, customName, parser.entries.length));
+							c.executionCtx.waitUntil(createPins(env, apiKey, cidsToPin, customName, parser.entries.length, paymentInfo));
 						},
 					});
 
@@ -259,6 +304,16 @@ app.post('/api/v0/add', async (c) => {
 					await stream.write(new TextEncoder().encode(JSON.stringify({ Error: message }) + '\n'));
 				}
 			);
+
+			if (withReceipt && paymentInfo) {
+				// Attach the Payment-Receipt / x402 PAYMENT-RESPONSE headers, and pull
+				// the settlement reference (tx hash) into the pin record. This runs
+				// before the body streams, so the flush above sees the reference.
+				const paidResponse = withReceipt(streamResponse);
+				paymentInfo.reference = readReceiptReference(paidResponse);
+				return paidResponse;
+			}
+			return streamResponse;
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('exceeds maximum allowed size')) {
 				return c.json({ error: error.message }, 413);
@@ -279,6 +334,7 @@ async function createPins(
 	cidsToPin: Array<{ cid: string; size: bigint; name?: string }>,
 	customName: string | null,
 	totalEntries: number,
+	payment?: PaymentInfo,
 ) {
 	const pinsToCreate = cidsToPin.map((pin) => ({
 		...pin,
@@ -295,12 +351,17 @@ async function createPins(
 		body: JSON.stringify({
 			apiKey,
 			pins: pinsToCreate,
+			...(payment ? { payment } : {}),
 		}),
 	});
 
 	if (!pinResponse.ok) {
 		const error = await pinResponse.text();
-		throw new Error(`Failed to save CIDs: ${pinsToCreate.map((p) => p.cid).join(', ')} - ${error}`);
+		throw new Error(
+			`Failed to save CIDs: ${pinsToCreate.map((p) => p.cid).join(', ')}${
+				payment ? ` (PAID upload, payer ${payment.payerAddress ?? 'unknown'}, tx ${payment.reference ?? 'unknown'})` : ''
+			} - ${error}`
+		);
 	} else {
 		console.log(`Pins saved: ${pinsToCreate.map((p) => p.cid).join(', ')} (${totalEntries} entries)`);
 	}
