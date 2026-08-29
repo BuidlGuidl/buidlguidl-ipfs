@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getUserId, handleRouteError } from "@/app/lib/api-auth";
-import crypto from "crypto";
+import {
+  createUserWithDefaults,
+  syncUserWallets,
+} from "@/app/lib/privy-wallet";
 
-// Default values
-const DEFAULT_PIN_LIMIT = 1000;
-const DEFAULT_SIZE_LIMIT = 100 * 1024 * 1024; // 100MB
-const DEFAULT_CLUSTER_ID = "default";
-
-// Get values from env with fallbacks
-const PIN_LIMIT = Number(process.env.DEFAULT_PIN_LIMIT) || DEFAULT_PIN_LIMIT;
-const SIZE_LIMIT = Number(process.env.DEFAULT_SIZE_LIMIT) || DEFAULT_SIZE_LIMIT;
-const CLUSTER_ID =
-  process.env.NEXT_PUBLIC_DEFAULT_CLUSTER_ID || DEFAULT_CLUSTER_ID;
+const USER_INCLUDE = {
+  clusters: {
+    include: {
+      ipfsCluster: true,
+    },
+  },
+  apiKeys: {
+    where: { deletedAt: null },
+    include: {
+      ipfsCluster: true,
+    },
+  },
+  wallets: true,
+} as const;
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,54 +28,16 @@ export async function GET(request: NextRequest) {
     // First try to find the user
     let user = await prisma.user.findUnique({
       where: { id: userId },
-      include: {
-        clusters: {
-          include: {
-            ipfsCluster: true,
-          },
-        },
-        apiKeys: {
-          where: { deletedAt: null },
-          include: {
-            ipfsCluster: true,
-          },
-        },
-      },
+      include: USER_INCLUDE,
     });
 
     // Create user with default API key and cluster access if doesn't exist
     if (!user) {
       try {
-        user = await prisma.user.create({
-          data: {
-            id: userId,
-            pinLimit: PIN_LIMIT,
-            sizeLimit: SIZE_LIMIT,
-            apiKeys: {
-              create: {
-                name: "default",
-                apiKey: crypto.randomUUID(),
-                ipfsClusterId: CLUSTER_ID,
-              },
-            },
-            clusters: {
-              create: {
-                clusterId: CLUSTER_ID,
-              },
-            },
-          },
-          include: {
-            clusters: {
-              include: {
-                ipfsCluster: true,
-              },
-            },
-            apiKeys: {
-              include: {
-                ipfsCluster: true,
-              },
-            },
-          },
+        await createUserWithDefaults(userId);
+        user = await prisma.user.findUniqueOrThrow({
+          where: { id: userId },
+          include: USER_INCLUDE,
         });
 
         console.log("User created successfully:", { userId: user.id });
@@ -80,6 +49,17 @@ export async function GET(request: NextRequest) {
         });
         throw createError;
       }
+    }
+
+    // Lazily mirror the user's Privy-linked wallets (also serves as an
+    // incremental backfill for accounts created before the mirror existed)
+    if (user.wallets.length === 0) {
+      const addresses = await syncUserWallets(userId);
+      user.wallets = addresses.map((address) => ({
+        address,
+        userId,
+        createdAt: new Date(),
+      }));
     }
 
     // Convert BigInt to string for JSON serialization

@@ -19,10 +19,24 @@ model User {
   clusters  UserCluster[]
   pins      Pin[]
   apiKeys   ApiKey[]
+  wallets   UserWallet[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   @@map("users")
+}
+
+// Mirror of the Ethereum wallet addresses linked to a user's Privy account
+// (lowercase). Used to associate paid (MPP/x402) pins with the payer's
+// account. Seeded at login, extended lazily when a known Privy wallet pays.
+model UserWallet {
+  address   String   @id // lowercase 0x address
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("user_wallets")
 }
 
 model IpfsCluster {
@@ -76,6 +90,11 @@ model Pin {
   size          BigInt
   deletedAt     DateTime?
   ipfsClusterId String
+  // Set on pins created through the paid (MPP/x402) keyless upload path
+  payerAddress     String?
+  paymentReference String? // settlement tx hash
+  paymentNetwork   String? // e.g. 'base', 'base-sepolia'
+  paymentAmount    String? // USDC display units, e.g. '0.01'
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   user          User        @relation(fields: [userId], references: [id])
