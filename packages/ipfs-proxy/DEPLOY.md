@@ -34,7 +34,7 @@ Optional:
 
 | Secret            | Description |
 | ----------------- | ----------- |
-| `DEFAULT_API_KEY` | If set, used when the client omits `x-api-key` (e.g. unauthenticated pinning to a single account, or the account paid pins are attributed to when payments are enabled). |
+| `DEFAULT_API_KEY` | If set, used when the client omits `x-api-key` (e.g. unauthenticated pinning to a single account). When payments are enabled it is required: it resolves the target cluster, gates capacity before settlement, and owns paid pins whose payer can't be resolved to an account. |
 
 Optional — paid keyless uploads via MPP/x402 (see [README](./README.md#paid-uploads-mpp--x402)). Setting `PAYMENT_RECIPIENT` + `MPP_SECRET_KEY` turns keyless requests from anonymous pinning into 402-gated paid pinning; `DEFAULT_API_KEY` becomes required:
 

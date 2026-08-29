@@ -19,7 +19,9 @@ interface Env {
 	DEFAULT_API_KEY?: string;
 	MAX_UPLOAD_SIZE?: string; // Optional environment variable for max upload size in bytes
 	// Paid (keyless) uploads via MPP/x402. Enabled when PAYMENT_RECIPIENT and
-	// MPP_SECRET_KEY are set; paid pins are attributed to DEFAULT_API_KEY's account.
+	// MPP_SECRET_KEY are set. DEFAULT_API_KEY is still required: it resolves the
+	// target cluster, gates capacity before settlement, and owns pins whose
+	// payer can't be resolved to an account.
 	PAYMENT_RECIPIENT?: string; // 0x address receiving USDC
 	PAYMENT_PRICE?: string; // price per upload in USDC display units (default 0.01)
 	PAYMENT_NETWORK?: string; // 'base' | 'base-sepolia' (default base-sepolia)
@@ -146,7 +148,7 @@ app.post('/api/v0/add', async (c) => {
 	const usePayment = !headerApiKey && isPaymentEnabled(env);
 
 	if (usePayment && !env.DEFAULT_API_KEY) {
-		console.error('PAYMENT_RECIPIENT is set but DEFAULT_API_KEY is not; paid pins need an account to attribute to');
+		console.error('PAYMENT_RECIPIENT is set but DEFAULT_API_KEY is not; paid uploads need it for cluster resolution and as the fallback pin owner');
 		return c.json({ error: 'Paid uploads are not configured' }, 500);
 	}
 

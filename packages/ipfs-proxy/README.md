@@ -73,7 +73,7 @@ The price is a flat `PAYMENT_PRICE` USDC per upload (up to `MAX_UPLOAD_SIZE`), p
 
 Notes:
 
-- `DEFAULT_API_KEY` must be set: paid pins are recorded against its account, with `payerAddress`, the settlement tx hash, network, and amount stored on each pin.
+- `DEFAULT_API_KEY` must be set: it resolves the target cluster and gates capacity before settlement. Paid pins are attributed to the payer's account by wallet address (via the app's Privy integration), with `payerAddress`, the settlement tx hash, network, and amount stored on each pin; pins whose payer can't be resolved fall back to this account.
 - Paid requests must send `Content-Length` (411 otherwise), so a payment is never settled for an upload that would be rejected mid-stream.
 - The successful response carries `Payment-Receipt` (and x402 `PAYMENT-RESPONSE`) headers with the settlement reference.
 - A generic client pays in two requests (402, then retry with credential — the body is sent twice). To avoid resending the body, probe first with an empty request to fetch the challenge.
