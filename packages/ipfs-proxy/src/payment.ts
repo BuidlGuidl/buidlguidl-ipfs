@@ -109,16 +109,17 @@ export async function gatePayment(request: Request, env: PaymentEnv, maxUploadBy
 }
 
 /**
- * Extracts the payer's address from whichever credential header the client
- * used. Best-effort: attribution metadata only, never used for auth.
+ * Extracts the payer's address from the settled credential. Reads only the
+ * headers mppx consumes for settlement (`Authorization` for MPP native,
+ * `PAYMENT-SIGNATURE`/`X-PAYMENT` for x402): those are verified before
+ * `status: 'paid'`, any other payment header is unverified client input.
  */
-function extractPayer(request: Request): { payerAddress?: string; payerSource?: string } {
+export function extractPayer(request: Request): { payerAddress?: string; payerSource?: string } {
 	// MPP native credential (EIP-3009 authorization payload)
-	for (const header of ['authorization', 'payment-authorization']) {
-		const value = request.headers.get(header);
-		if (!value) continue;
+	const mppValue = request.headers.get('authorization');
+	if (mppValue) {
 		try {
-			const credential = Credential.deserialize(value);
+			const credential = Credential.deserialize(mppValue);
 			const payload = credential.payload as { authorization?: { from?: string } } | undefined;
 			// Payer is in the EIP-3009 payload, or the source DID (did:pkh:eip155:<chainId>:0x...)
 			const fromSource = credential.source?.split(':').pop();
@@ -127,7 +128,7 @@ function extractPayer(request: Request): { payerAddress?: string; payerSource?: 
 				return { payerAddress, payerSource: credential.source };
 			}
 		} catch {
-			// Not an MPP Payment credential; try the next header.
+			// Not an MPP Payment credential; fall through to x402.
 		}
 	}
 

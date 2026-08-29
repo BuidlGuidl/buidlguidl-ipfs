@@ -1,5 +1,7 @@
+import { Challenge, Credential, x402 } from 'mppx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
+import { extractPayer } from '../src/payment';
 
 const baseEnv = {
 	IPFS_AUTH_USERNAME: 'user',
@@ -96,6 +98,72 @@ describe('keyless uploads', () => {
 			executionCtx
 		);
 		expect(res.status).toBe(413);
+	});
+});
+
+describe('payer extraction', () => {
+	const payer = '0x1111111111111111111111111111111111111111';
+	const victim = '0x2222222222222222222222222222222222222222';
+
+	async function issueChallenge() {
+		vi.stubGlobal('fetch', mockAuthOk());
+		const res = await app.request(
+			'/api/v0/add',
+			{ method: 'POST', body: 'hello', headers: { 'Content-Length': '5' } },
+			paymentEnv,
+			executionCtx
+		);
+		return Challenge.fromResponse(res);
+	}
+
+	function x402Header(from: string) {
+		return x402.Header.encodePaymentSignature({
+			x402Version: 2,
+			accepted: {
+				amount: '10000',
+				asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+				maxTimeoutSeconds: 300,
+				network: 'eip155:84532',
+				payTo: paymentEnv.PAYMENT_RECIPIENT,
+				scheme: 'exact',
+			},
+			payload: {
+				authorization: {
+					from,
+					nonce: `0x${'11'.repeat(32)}`,
+					to: paymentEnv.PAYMENT_RECIPIENT,
+					validAfter: '0',
+					validBefore: '9999999999',
+					value: '10000',
+				},
+				signature: `0x${'ab'.repeat(65)}`,
+			},
+		});
+	}
+
+	it('reads the payer from the MPP Authorization credential', async () => {
+		const challenge = await issueChallenge();
+		const credential = Credential.serialize(
+			Credential.from({ challenge, payload: {}, source: `did:pkh:eip155:84532:${payer}` })
+		);
+		const result = extractPayer(new Request('http://localhost/', { headers: { authorization: credential } }));
+		expect(result.payerAddress).toBe(payer);
+	});
+
+	it('reads the payer from the x402 PAYMENT-SIGNATURE credential', async () => {
+		const result = extractPayer(new Request('http://localhost/', { headers: { 'payment-signature': x402Header(payer) } }));
+		expect(result.payerAddress).toBe(payer);
+	});
+
+	it('ignores credentials in headers mppx does not settle from', async () => {
+		const challenge = await issueChallenge();
+		const forged = Credential.serialize(Credential.from({ challenge, payload: { authorization: { from: victim } } }));
+		const result = extractPayer(
+			new Request('http://localhost/', {
+				headers: { 'payment-authorization': forged, 'payment-signature': x402Header(payer) },
+			})
+		);
+		expect(result.payerAddress).toBe(payer);
 	});
 });
 

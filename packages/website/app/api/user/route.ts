@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getUserId, handleRouteError } from "@/app/lib/api-auth";
-import {
-  createUserWithDefaults,
-  syncUserWallets,
-} from "@/app/lib/privy-wallet";
+import { syncUserWallets, userWithDefaults } from "@/app/lib/privy-wallet";
 
 const USER_INCLUDE = {
   clusters: {
@@ -34,9 +31,8 @@ export async function GET(request: NextRequest) {
     // Create user with default API key and cluster access if doesn't exist
     if (!user) {
       try {
-        await createUserWithDefaults(userId);
-        user = await prisma.user.findUniqueOrThrow({
-          where: { id: userId },
+        user = await prisma.user.create({
+          data: userWithDefaults(userId),
           include: USER_INCLUDE,
         });
 
@@ -49,11 +45,9 @@ export async function GET(request: NextRequest) {
         });
         throw createError;
       }
-    }
 
-    // Lazily mirror the user's Privy-linked wallets (also serves as an
-    // incremental backfill for accounts created before the mirror existed)
-    if (user.wallets.length === 0) {
+      // Mirror the Privy-linked wallets once at first login; accounts that
+      // predate the mirror are covered by scripts/backfill-user-wallets.ts
       const addresses = await syncUserWallets(userId);
       user.wallets = addresses.map((address) => ({
         address,

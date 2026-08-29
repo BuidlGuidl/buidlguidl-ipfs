@@ -28,7 +28,7 @@ model User {
 
 // Mirror of the Ethereum wallet addresses linked to a user's Privy account
 // (lowercase). Used to associate paid (MPP/x402) pins with the payer's
-// account. Seeded at login, extended lazily when a known Privy wallet pays.
+// account. Seeded at first login, extended when a known Privy wallet pays.
 model UserWallet {
   address   String   @id // lowercase 0x address
   userId    String

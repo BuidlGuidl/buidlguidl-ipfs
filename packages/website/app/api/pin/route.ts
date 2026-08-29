@@ -35,11 +35,32 @@ export async function POST(request: NextRequest) {
 
     // Paid pins: attribute to the payer's account (resolved via the wallet
     // mirror / Privy) instead of the worker's default account. Falls back to
-    // the key's account if resolution fails; payerAddress is stored either way.
+    // the key's account if resolution fails or the payer is at their limits;
+    // payerAddress is stored either way.
     let pinOwnerId = key.userId;
     if (paymentFields.payerAddress) {
-      const paidUserId = await resolvePaidPinUserId(paymentFields.payerAddress);
-      if (paidUserId) pinOwnerId = paidUserId;
+      const paidUserId = await resolvePaidPinUserId(
+        paymentFields.payerAddress,
+        key.ipfsClusterId
+      );
+      if (paidUserId) {
+        const payer = await prisma.user.findUnique({
+          where: { id: paidUserId },
+          select: {
+            pinCount: true,
+            pinLimit: true,
+            size: true,
+            sizeLimit: true,
+          },
+        });
+        if (
+          payer &&
+          payer.pinCount < payer.pinLimit &&
+          payer.size < payer.sizeLimit
+        ) {
+          pinOwnerId = paidUserId;
+        }
+      }
     }
 
     // Create or update pins and update user stats in a transaction

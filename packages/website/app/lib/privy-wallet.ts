@@ -25,13 +25,21 @@ export function ethAddresses(user: PrivyUser): string[] {
     .map((account) => (account as { address: string }).address.toLowerCase());
 }
 
-/** Inserts wallet mirror rows, ignoring ones already present. */
+/**
+ * Mirrors wallet addresses to a user. Privy owns the wallet↔user link, so a
+ * wallet previously mirrored to another user is reassigned.
+ */
 export async function addUserWallets(userId: string, addresses: string[]) {
   if (addresses.length === 0) return;
-  await prisma.userWallet.createMany({
-    data: addresses.map((address) => ({ address, userId })),
-    skipDuplicates: true,
-  });
+  await prisma.$transaction(
+    addresses.map((address) =>
+      prisma.userWallet.upsert({
+        where: { address },
+        create: { address, userId },
+        update: { userId },
+      })
+    )
+  );
 }
 
 /**
@@ -53,30 +61,25 @@ export async function syncUserWallets(userId: string): Promise<string[]> {
   }
 }
 
-/**
- * Creates the local user with the same defaults as first login
- * (default API key + default cluster access).
- */
-export async function createUserWithDefaults(userId: string) {
-  return prisma.user.create({
-    data: {
-      id: userId,
-      pinLimit: PIN_LIMIT,
-      sizeLimit: SIZE_LIMIT,
-      apiKeys: {
-        create: {
-          name: "default",
-          apiKey: crypto.randomUUID(),
-          ipfsClusterId: CLUSTER_ID,
-        },
-      },
-      clusters: {
-        create: {
-          clusterId: CLUSTER_ID,
-        },
+/** Create-input for a new user: default API key and access on the given cluster. */
+export function userWithDefaults(userId: string, clusterId: string = CLUSTER_ID) {
+  return {
+    id: userId,
+    pinLimit: PIN_LIMIT,
+    sizeLimit: SIZE_LIMIT,
+    apiKeys: {
+      create: {
+        name: "default",
+        apiKey: crypto.randomUUID(),
+        ipfsClusterId: clusterId,
       },
     },
-  });
+    clusters: {
+      create: {
+        clusterId,
+      },
+    },
+  };
 }
 
 /**
@@ -88,12 +91,14 @@ export async function createUserWithDefaults(userId: string) {
  * 3. Privy importUser: pregenerate an account for a never-seen wallet, so the
  *    payer finds their pins when they first log in with it
  *
+ * New local accounts get their defaults on `clusterId`, where the pins land.
  * Returns null on any failure — callers fall back to the default account.
  * The payer address is stored on the pin either way, so attribution can
  * always be repaired later.
  */
 export async function resolvePaidPinUserId(
-  payerAddress: string
+  payerAddress: string,
+  clusterId?: string
 ): Promise<string | null> {
   // Defensive: only well-formed EVM addresses go to the mirror or Privy
   if (!/^0x[0-9a-fA-F]{40}$/.test(payerAddress)) {
@@ -109,12 +114,10 @@ export async function resolvePaidPinUserId(
     if (mirrored) return mirrored.userId;
 
     const privy = privyClient();
-    let privyUser = await privy.getUserByWalletAddress(payerAddress);
+    let privyUser = await privy.getUserByWalletAddress(address);
     if (!privyUser) {
       privyUser = await privy.importUser({
-        linkedAccounts: [
-          { type: "wallet", address: payerAddress, chainType: "ethereum" },
-        ],
+        linkedAccounts: [{ type: "wallet", address, chainType: "ethereum" }],
       });
       console.log(
         `Pregenerated Privy user ${privyUser.id} for payer ${address}`
@@ -127,7 +130,7 @@ export async function resolvePaidPinUserId(
       select: { id: true },
     });
     if (!existing) {
-      await createUserWithDefaults(userId);
+      await prisma.user.create({ data: userWithDefaults(userId, clusterId) });
       console.log(`Created local user ${userId} for payer ${address}`);
     }
     // Mirror every wallet Privy reports, not just the paying one

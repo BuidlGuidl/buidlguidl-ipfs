@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { stream } from 'hono/streaming';
 import {
 	PAYMENT_REQUEST_HEADERS,
+	PAYMENT_RESPONSE_HEADERS,
 	type PaymentInfo,
 	gatePayment,
 	isPaymentEnabled,
@@ -20,8 +21,8 @@ interface Env {
 	MAX_UPLOAD_SIZE?: string; // Optional environment variable for max upload size in bytes
 	// Paid (keyless) uploads via MPP/x402. Enabled when PAYMENT_RECIPIENT and
 	// MPP_SECRET_KEY are set. DEFAULT_API_KEY is still required: it resolves the
-	// target cluster, gates capacity before settlement, and owns pins whose
-	// payer can't be resolved to an account.
+	// target cluster, gates capacity before settlement, and owns pins that
+	// aren't attributed to a payer account.
 	PAYMENT_RECIPIENT?: string; // 0x address receiving USDC
 	PAYMENT_PRICE?: string; // price per upload in USDC display units (default 0.01)
 	PAYMENT_NETWORK?: string; // 'base' | 'base-sepolia' (default base-sepolia)
@@ -134,8 +135,8 @@ app.use(
 	cors({
 		origin: '*',
 		allowMethods: ['POST', 'OPTIONS'],
-		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name', 'Authorization', 'Payment-Authorization', 'Payment-Signature', 'X-Payment'],
-		exposeHeaders: ['WWW-Authenticate', 'Payment-Receipt', 'Payment-Required', 'Payment-Response'],
+		allowHeaders: ['Content-Type', 'x-api-key', 'x-pin-name', ...PAYMENT_REQUEST_HEADERS],
+		exposeHeaders: [...PAYMENT_RESPONSE_HEADERS],
 		maxAge: 86400,
 	})
 );
@@ -174,6 +175,22 @@ app.post('/api/v0/add', async (c) => {
 		return c.json({ error: 'Content-Length is required for paid uploads' }, 411);
 	}
 
+	// Once settled, every response (success or error) goes through withPayment
+	// so the payer always receives the receipt headers with the tx reference.
+	let paymentInfo: PaymentInfo | undefined;
+	let withReceipt: ((response: Response) => Response) | undefined;
+	const withPayment = (response: Response) => {
+		if (!withReceipt || !paymentInfo) return response;
+		const paid = withReceipt(response);
+		paymentInfo.reference = readReceiptReference(paid);
+		if (!paid.ok) {
+			console.error(
+				`Upload failed after payment settled: payer ${paymentInfo.payerAddress ?? 'unknown'}, tx ${paymentInfo.reference ?? 'unknown'}`
+			);
+		}
+		return paid;
+	};
+
 	try {
 		// Verify API key and get IPFS node details
 		const authResponse = await fetch(`${env.APP_API_URL}/api/auth`, {
@@ -202,8 +219,6 @@ app.post('/api/v0/add', async (c) => {
 		// Payment gate runs last, after every other check that could reject the
 		// upload: 'paid' means the transfer has settled on-chain, so nothing
 		// after this point should fail for foreseeable reasons.
-		let paymentInfo: PaymentInfo | undefined;
-		let withReceipt: ((response: Response) => Response) | undefined;
 		if (usePayment) {
 			const gate = await gatePayment(request, env, maxSize);
 			if (gate.status === 'challenge') {
@@ -265,7 +280,7 @@ app.post('/api/v0/add', async (c) => {
 			if (!res.ok) {
 				const errorBody = await res.text();
 				const message = errorBody.trim() || res.statusText;
-				return c.json({ error: message }, res.status as 400 | 401 | 403 | 404 | 500);
+				return withPayment(c.json({ error: message }, res.status as 400 | 401 | 403 | 404 | 500));
 			}
 
 			// Now handle the IPFS response with our stream handler
@@ -307,24 +322,18 @@ app.post('/api/v0/add', async (c) => {
 				}
 			);
 
-			if (withReceipt && paymentInfo) {
-				// Attach the Payment-Receipt / x402 PAYMENT-RESPONSE headers, and pull
-				// the settlement reference (tx hash) into the pin record. This runs
-				// before the body streams, so the flush above sees the reference.
-				const paidResponse = withReceipt(streamResponse);
-				paymentInfo.reference = readReceiptReference(paidResponse);
-				return paidResponse;
-			}
-			return streamResponse;
+			// Receipt headers attach before the body streams, so the flush above
+			// sees the settlement reference.
+			return withPayment(streamResponse);
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('exceeds maximum allowed size')) {
-				return c.json({ error: error.message }, 413);
+				return withPayment(c.json({ error: error.message }, 413));
 			}
 			throw error;
 		}
 	} catch (error) {
 		console.error(`IPFS Add Error for key ${apiKey.toString()}: ${error}`);
-		return c.json({ error: 'Failed to add content to IPFS' }, 500);
+		return withPayment(c.json({ error: 'Failed to add content to IPFS' }, 500));
 	}
 });
 
