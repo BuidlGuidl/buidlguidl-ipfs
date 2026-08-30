@@ -34,7 +34,17 @@ Optional:
 
 | Secret            | Description |
 | ----------------- | ----------- |
-| `DEFAULT_API_KEY` | If set, used when the client omits `x-api-key` (e.g. unauthenticated pinning to a single account). |
+| `DEFAULT_API_KEY` | If set, used when the client omits `x-api-key` (e.g. unauthenticated pinning to a single account). When payments are enabled it is required: it resolves the target cluster, gates capacity before settlement, and owns paid pins that aren't attributed to a payer account (payer unresolved or at their limits). |
+
+Optional — paid keyless uploads via MPP/x402 (see [README](./README.md#paid-uploads-mpp--x402)). Setting `PAYMENT_RECIPIENT` + `MPP_SECRET_KEY` turns keyless requests from anonymous pinning into 402-gated paid pinning; `DEFAULT_API_KEY` becomes required:
+
+| Secret / var              | Description |
+| ------------------------- | ----------- |
+| `PAYMENT_RECIPIENT`       | Wallet address receiving USDC payments. |
+| `MPP_SECRET_KEY`          | Secret; >= 32 random bytes (`openssl rand -hex 32`). HMAC-binds payment challenges. |
+| `PAYMENT_PRICE`           | Price per upload in USDC display units (default `0.01`). |
+| `PAYMENT_NETWORK`         | `base-sepolia` (default) or `base`. |
+| `PAYMENT_FACILITATOR_URL` | x402 facilitator for verify/settle. Default `https://x402.org/facilitator` (Base Sepolia only); mainnet needs a Base-capable facilitator. |
 
 ### Setting secrets via CLI
 

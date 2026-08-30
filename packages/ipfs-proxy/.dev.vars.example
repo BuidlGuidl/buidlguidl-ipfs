@@ -17,3 +17,24 @@ IPFS_AUTH_PASSWORD=copy-user-password-from-bgipfs-env
 
 # Optional: max upload size in bytes (default 100MB)
 # MAX_UPLOAD_SIZE=104857600
+
+# --- Paid keyless uploads (MPP + x402) ---
+# When PAYMENT_RECIPIENT and MPP_SECRET_KEY are both set, requests without an
+# x-api-key get a 402 payment challenge instead of falling back to
+# DEFAULT_API_KEY. DEFAULT_API_KEY is then required: paid pins are recorded
+# against its account.
+
+# Wallet address that receives USDC payments
+# PAYMENT_RECIPIENT=0xYourReceivingAddress
+
+# HMAC secret binding challenges to their contents; generate with: openssl rand -hex 32
+# MPP_SECRET_KEY=
+
+# Price per upload in USDC display units (default 0.01)
+# PAYMENT_PRICE=0.01
+
+# 'base-sepolia' (default, testnet) or 'base' (mainnet)
+# PAYMENT_NETWORK=base-sepolia
+
+# x402 facilitator for verification/settlement (default https://x402.org/facilitator, Base Sepolia only)
+# PAYMENT_FACILITATOR_URL=https://x402.org/facilitator

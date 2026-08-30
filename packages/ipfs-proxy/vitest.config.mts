@@ -1,11 +1,11 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config';
+import { defineConfig } from 'vitest/config';
 
-export default defineWorkersConfig({
+// Tests run in plain Node: the Hono app only uses web-standard APIs, and the
+// pinned @cloudflare/vitest-pool-workers version cannot load the payment
+// dependencies (viem/ox package-exports subpaths) inside workerd. Worker
+// bundling is verified separately via `wrangler deploy --dry-run`.
+export default defineConfig({
 	test: {
-		poolOptions: {
-			workers: {
-				wrangler: { configPath: './wrangler.json' },
-			},
-		},
+		environment: 'node',
 	},
 });
