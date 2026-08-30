@@ -12,9 +12,12 @@ export const pinner = async ({ apiKey }: PinnerOptions = {}) => {
     url: process.env.IPFS_API_URL,
   };
 
-  if (apiKey) {
+  // Keyless (demo) uploads use the server-side demo account key, so they
+  // keep working when the worker gates keyless requests behind payment.
+  const key = apiKey || process.env.DEMO_API_KEY;
+  if (key) {
     uploaderConfig.headers = {
-      "X-API-Key": apiKey,
+      "X-API-Key": key,
     };
   }
 
