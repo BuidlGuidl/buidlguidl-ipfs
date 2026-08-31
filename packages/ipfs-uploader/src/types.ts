@@ -1,5 +1,6 @@
 import { Options as KuboOptions } from "kubo-rpc-client";
 import { ReadStream } from "fs";
+import type { Account } from "viem";
 
 export { KuboOptions };
 
@@ -16,6 +17,10 @@ export interface BaseUploadResult {
   cid: string;
   /** Error message if the upload failed */
   error?: string;
+  /** Payment made for this upload, when the endpoint charged for it */
+  payment?: PaymentDetails;
+  /** Set when the upload failed with HTTP 402: what the endpoint asked to be paid */
+  paymentRequired?: PaymentDetails;
 }
 
 /** Result from a single upload operation */
@@ -100,10 +105,42 @@ export interface PinataUploaderConfig {
   id?: string;
 }
 
+/** Details of a payment challenge (HTTP 402) issued by a paid upload endpoint. */
+export interface PaymentDetails {
+  /** Price in display units, e.g. "0.01" */
+  amount: string;
+  /** Currency symbol when known (e.g. "USDC"), otherwise the token address */
+  currency: string;
+  /** Network name when known (e.g. "base-sepolia"), otherwise "eip155:<chainId>" */
+  network: string;
+  /** Address receiving the payment */
+  recipient: string;
+  /** Server-provided description of what is being paid for */
+  description?: string;
+  /** Address of the paying wallet (set once a credential has been created) */
+  payer?: string;
+}
+
+/**
+ * Opt-in per-upload payment (MPP / x402) for keyless uploads to endpoints
+ * that answer with HTTP 402, such as https://upload.bgipfs.com.
+ */
+export interface PaymentOptions {
+  /** Hex private key of the paying wallet. Prefer `account` outside of CLI/server use. */
+  privateKey?: `0x${string}`;
+  /** viem account used to sign payments (must support `signTypedData`). */
+  account?: Account;
+  /** Spend cap per upload in display units of the accepted currency (e.g. "0.05" USDC). */
+  maxAmount: string;
+  /** Called with the challenge details before a payment credential is signed. */
+  onPayment?: (payment: PaymentDetails) => void | Promise<void>;
+}
+
 export interface NodeUploaderConfig {
   options: KuboOptions;
   id?: string;
   cidVersion?: 0 | 1;
+  payment?: PaymentOptions;
 }
 
 export interface S3Options {
@@ -120,7 +157,9 @@ export interface S3UploaderConfig {
 }
 
 // Allow either simple or full config
-export type NodeConfig = KuboOptions | NodeUploaderConfig;
+export type NodeConfig =
+  | (KuboOptions & { payment?: PaymentOptions; cidVersion?: 0 | 1 })
+  | NodeUploaderConfig;
 export type PinataConfig = PinataOptions | PinataUploaderConfig;
 export type S3Config = S3Options | S3UploaderConfig;
 

@@ -90,6 +90,44 @@ const filesResult = await uploader.add.directory({
 const urlResult = await uploader.add.url("https://example.com");
 ```
 
+## Paying per upload (HTTP 402 / MPP / x402)
+
+Some IPFS node endpoints, such as `https://upload.bgipfs.com`, accept keyless
+uploads in exchange for a small USDC payment: they answer `402 Payment Required`
+with an [MPP](https://mpp.dev)/x402 challenge. Add a `payment` section to a
+node config to pay automatically:
+
+```typescript
+const uploader = createUploader({
+  url: "https://upload.bgipfs.com",
+  payment: {
+    privateKey: process.env.PAYER_KEY as `0x${string}`, // or `account`: any viem Account
+    maxAmount: "0.05", // spend cap per upload, in USDC
+    onPayment: (payment) => console.log(`Paying ${payment.amount} ${payment.currency} on ${payment.network}`),
+  },
+});
+
+const result = await uploader.add.file("./photo.jpg");
+result.payment; // { amount: "0.01", currency: "USDC", network: "base-sepolia", recipient, payer }
+```
+
+How it works: uploads are attempted normally, and if the endpoint answers
+`402`, the challenge on that response is paid — a gasless EIP-3009
+authorization signed locally for the quoted price (refusing anything above
+`maxAmount`) — and the upload is retried once with the credential attached.
+Endpoints that do not ask for payment (or requests carrying an API key) see no
+extra requests. `mppx` and `viem` are loaded lazily, only when a payment is
+actually needed.
+
+Without a `payment` section, a 402 comes back as a failed result whose
+`paymentRequired` field describes the price:
+
+```typescript
+const result = await createUploader({ url: "https://upload.bgipfs.com" }).add.text("hi");
+// result.error === "Payment required (0.01 USDC on base-sepolia per upload): configure payment options or use an API key"
+// result.paymentRequired === { amount: "0.01", currency: "USDC", network: "base-sepolia", recipient: "0x…" }
+```
+
 ## Using Presigned URLs with Pinata
 
 For secure client-side uploads, you can use Pinata's presigned URL functionality. This allows you to upload files without exposing your JWT token to the client.
@@ -132,6 +170,8 @@ interface UploadResult {
   success: boolean;
   cid: string;
   error?: string;
+  payment?: PaymentDetails; // set when the endpoint charged for the upload
+  paymentRequired?: PaymentDetails; // set when the upload failed with HTTP 402
 }
 ```
 

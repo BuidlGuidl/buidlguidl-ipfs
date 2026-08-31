@@ -1,4 +1,4 @@
-import { Credential, Receipt, x402 } from 'mppx';
+import { Credential, Receipt } from 'mppx';
 import { assets, charge } from 'mppx/evm/server';
 import { Mppx } from 'mppx/server/core';
 
@@ -13,7 +13,6 @@ export interface PaymentEnv {
 /** Payment metadata forwarded to the app alongside created pins. */
 export interface PaymentInfo {
 	payerAddress?: string;
-	payerSource?: string;
 	reference?: string;
 	network: string;
 	amount: string;
@@ -24,7 +23,6 @@ export type PaymentGateResult =
 	| {
 			status: 'paid';
 			payerAddress?: string;
-			payerSource?: string;
 			withReceipt: (response: Response) => Response;
 	  };
 
@@ -85,6 +83,14 @@ export async function gatePayment(request: Request, env: PaymentEnv, maxUploadBy
 		secretKey: env.MPP_SECRET_KEY,
 	});
 
+	// The settled payer comes from mppx itself: `payment.success` handlers run
+	// inline during settlement and receive the very credential that was
+	// verified, so attribution can never diverge from what was charged.
+	let payerAddress: string | undefined;
+	mppx.onPaymentSuccess(({ credential }) => {
+		payerAddress = payerFromCredential(credential);
+	});
+
 	const handler = mppx.charge({
 		amount,
 		description: `IPFS pinning upload (max ${Math.floor(maxUploadBytes / (1024 * 1024))}MB)`,
@@ -105,49 +111,25 @@ export async function gatePayment(request: Request, env: PaymentEnv, maxUploadBy
 		return { status: 'challenge', response };
 	}
 
-	return { status: 'paid', ...extractPayer(request), withReceipt: result.withReceipt };
+	return { status: 'paid', payerAddress, withReceipt: result.withReceipt };
+}
+
+/** Whether a request carries anything that could be a payment credential. */
+export function hasPaymentCredential(request: Request): boolean {
+	return PAYMENT_REQUEST_HEADERS.some((header) => request.headers.get(header));
 }
 
 /**
- * Extracts the payer's address from the settled credential. Reads only the
- * headers mppx consumes for settlement (`Authorization` for MPP native,
- * `PAYMENT-SIGNATURE`/`X-PAYMENT` for x402): those are verified before
- * `status: 'paid'`, any other payment header is unverified client input.
+ * The payer's address from a settled credential, as delivered by mppx's
+ * `payment.success` event. The address lives in the EIP-3009 payload
+ * (`authorization.from` — both MPP native and x402 wire formats decode to
+ * this) or in the credential's source DID (did:pkh:eip155:<chainId>:0x...).
  */
-export function extractPayer(request: Request): { payerAddress?: string; payerSource?: string } {
-	// MPP native credential (EIP-3009 authorization payload)
-	const mppValue = request.headers.get('authorization');
-	if (mppValue) {
-		try {
-			const credential = Credential.deserialize(mppValue);
-			const payload = credential.payload as { authorization?: { from?: string } } | undefined;
-			// Payer is in the EIP-3009 payload, or the source DID (did:pkh:eip155:<chainId>:0x...)
-			const fromSource = credential.source?.split(':').pop();
-			const payerAddress = payload?.authorization?.from ?? (fromSource?.startsWith('0x') ? fromSource : undefined);
-			if (payerAddress || credential.source) {
-				return { payerAddress, payerSource: credential.source };
-			}
-		} catch {
-			// Not an MPP Payment credential; fall through to x402.
-		}
-	}
-
-	// x402 credential (v2 PAYMENT-SIGNATURE or legacy X-PAYMENT)
-	for (const header of ['payment-signature', 'x-payment']) {
-		const value = request.headers.get(header);
-		if (!value) continue;
-		try {
-			const payload = x402.Header.decodePaymentSignature(value) as {
-				payload?: { authorization?: { from?: string } };
-			};
-			const payerAddress = payload?.payload?.authorization?.from;
-			if (payerAddress) return { payerAddress };
-		} catch {
-			// Ignore undecodable values.
-		}
-	}
-
-	return {};
+export function payerFromCredential(credential?: Pick<Credential.Credential, 'payload' | 'source'>): string | undefined {
+	const payload = credential?.payload as { authorization?: { from?: string } } | undefined;
+	if (payload?.authorization?.from) return payload.authorization.from;
+	const fromSource = credential?.source?.split(':').pop();
+	return fromSource?.startsWith('0x') ? fromSource : undefined;
 }
 
 /** Reads the settlement reference (tx hash) back off the Payment-Receipt header. */

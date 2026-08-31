@@ -1,7 +1,6 @@
-import { Challenge, Credential, x402 } from 'mppx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../src/index';
-import { extractPayer } from '../src/payment';
+import { payerFromCredential } from '../src/payment';
 
 const baseEnv = {
 	IPFS_AUTH_USERNAME: 'user',
@@ -38,6 +37,13 @@ function mockAuthOk() {
 	});
 }
 
+/** A fetch stub for requests that must be answered before any fetch happens. */
+function mockNoFetch() {
+	return vi.fn(async (input: RequestInfo | URL) => {
+		throw new Error(`Unexpected fetch in test: ${String(input)}`);
+	});
+}
+
 afterEach(() => {
 	vi.unstubAllGlobals();
 });
@@ -54,12 +60,11 @@ describe('keyless uploads', () => {
 		expect(res.status).toBe(500);
 	});
 
-	it('returns a 402 payment challenge with MPP and x402 headers', async () => {
-		vi.stubGlobal('fetch', mockAuthOk());
+	it('returns a 402 payment challenge without spending an /api/auth round-trip', async () => {
+		const fetchMock = mockNoFetch();
+		vi.stubGlobal('fetch', fetchMock);
 		const res = await app.request(
 			'/api/v0/add',
-			// Node's Request does not materialize Content-Length from the body the
-			// way real inbound HTTP requests do, so declare it explicitly.
 			{ method: 'POST', body: 'hello', headers: { 'Content-Length': '5' } },
 			paymentEnv,
 			executionCtx
@@ -70,6 +75,36 @@ describe('keyless uploads', () => {
 		expect(challenge).toContain('Payment');
 		expect(challenge).toContain('method="evm"');
 		expect(challenge).toContain('intent="charge"');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('issues the challenge when Content-Length is missing (chunked clients)', async () => {
+		// kubo-rpc-client always streams multipart bodies chunked with no
+		// Content-Length; the challenge must not depend on a declared size.
+		vi.stubGlobal('fetch', mockNoFetch());
+		const res = await app.request('/api/v0/add', { method: 'POST', body: 'hello' }, paymentEnv, executionCtx);
+		expect(res.status).toBe(402);
+		expect(res.headers.get('WWW-Authenticate')).toContain('Payment');
+	});
+
+	it('treats a malformed Content-Length as undeclared', async () => {
+		vi.stubGlobal('fetch', mockNoFetch());
+		const res = await app.request(
+			'/api/v0/add',
+			{ method: 'POST', body: 'hello', headers: { 'Content-Length': 'abc' } },
+			paymentEnv,
+			executionCtx
+		);
+		expect(res.status).toBe(402);
+	});
+
+	it('answers an empty probe with the challenge', async () => {
+		// README: generic clients probe with an empty request to fetch the
+		// challenge without sending the body twice.
+		vi.stubGlobal('fetch', mockNoFetch());
+		const res = await app.request('/api/v0/add', { method: 'POST' }, paymentEnv, executionCtx);
+		expect(res.status).toBe(402);
+		expect(res.headers.get('WWW-Authenticate')).toContain('Payment');
 	});
 
 	it('returns 402 again for a garbage payment credential', async () => {
@@ -83,17 +118,25 @@ describe('keyless uploads', () => {
 		expect(res.status).toBe(402);
 	});
 
-	it('requires Content-Length for paid uploads', async () => {
-		vi.stubGlobal('fetch', mockAuthOk());
-		const res = await app.request('/api/v0/add', { method: 'POST', body: 'hello' }, paymentEnv, executionCtx);
-		expect(res.status).toBe(411);
-	});
-
 	it('rejects oversized uploads before issuing a challenge', async () => {
-		vi.stubGlobal('fetch', mockAuthOk());
+		vi.stubGlobal('fetch', mockNoFetch());
 		const res = await app.request(
 			'/api/v0/add',
 			{ method: 'POST', body: 'hello', headers: { 'Content-Length': '999999999' } },
+			{ ...paymentEnv, MAX_UPLOAD_SIZE: '1000' },
+			executionCtx
+		);
+		expect(res.status).toBe(413);
+	});
+
+	it('rejects oversized undeclared bodies before the payment gate settles', async () => {
+		// A credential-bearing request with no Content-Length is buffered up to
+		// maxSize before gatePayment runs, so settlement can never precede the
+		// size check.
+		vi.stubGlobal('fetch', mockAuthOk());
+		const res = await app.request(
+			'/api/v0/add',
+			{ method: 'POST', body: 'x'.repeat(2000), headers: { Authorization: 'Payment bm90LWEtY3JlZGVudGlhbA' } },
 			{ ...paymentEnv, MAX_UPLOAD_SIZE: '1000' },
 			executionCtx
 		);
@@ -103,67 +146,18 @@ describe('keyless uploads', () => {
 
 describe('payer extraction', () => {
 	const payer = '0x1111111111111111111111111111111111111111';
-	const victim = '0x2222222222222222222222222222222222222222';
 
-	async function issueChallenge() {
-		vi.stubGlobal('fetch', mockAuthOk());
-		const res = await app.request(
-			'/api/v0/add',
-			{ method: 'POST', body: 'hello', headers: { 'Content-Length': '5' } },
-			paymentEnv,
-			executionCtx
-		);
-		return Challenge.fromResponse(res);
-	}
-
-	function x402Header(from: string) {
-		return x402.Header.encodePaymentSignature({
-			x402Version: 2,
-			accepted: {
-				amount: '10000',
-				asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-				maxTimeoutSeconds: 300,
-				network: 'eip155:84532',
-				payTo: paymentEnv.PAYMENT_RECIPIENT,
-				scheme: 'exact',
-			},
-			payload: {
-				authorization: {
-					from,
-					nonce: `0x${'11'.repeat(32)}`,
-					to: paymentEnv.PAYMENT_RECIPIENT,
-					validAfter: '0',
-					validBefore: '9999999999',
-					value: '10000',
-				},
-				signature: `0x${'ab'.repeat(65)}`,
-			},
-		});
-	}
-
-	it('reads the payer from the MPP Authorization credential', async () => {
-		const challenge = await issueChallenge();
-		const credential = Credential.serialize(
-			Credential.from({ challenge, payload: {}, source: `did:pkh:eip155:84532:${payer}` })
-		);
-		const result = extractPayer(new Request('http://localhost/', { headers: { authorization: credential } }));
-		expect(result.payerAddress).toBe(payer);
+	it('reads the payer from the EIP-3009 authorization payload', () => {
+		expect(payerFromCredential({ payload: { authorization: { from: payer } } })).toBe(payer);
 	});
 
-	it('reads the payer from the x402 PAYMENT-SIGNATURE credential', async () => {
-		const result = extractPayer(new Request('http://localhost/', { headers: { 'payment-signature': x402Header(payer) } }));
-		expect(result.payerAddress).toBe(payer);
+	it('falls back to the source DID', () => {
+		expect(payerFromCredential({ payload: {}, source: `did:pkh:eip155:84532:${payer}` })).toBe(payer);
 	});
 
-	it('ignores credentials in headers mppx does not settle from', async () => {
-		const challenge = await issueChallenge();
-		const forged = Credential.serialize(Credential.from({ challenge, payload: { authorization: { from: victim } } }));
-		const result = extractPayer(
-			new Request('http://localhost/', {
-				headers: { 'payment-authorization': forged, 'payment-signature': x402Header(payer) },
-			})
-		);
-		expect(result.payerAddress).toBe(payer);
+	it('returns undefined when the credential carries no payer', () => {
+		expect(payerFromCredential({ payload: {}, source: 'did:web:example.com' })).toBeUndefined();
+		expect(payerFromCredential(undefined)).toBeUndefined();
 	});
 });
 
