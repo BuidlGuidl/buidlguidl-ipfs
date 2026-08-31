@@ -26,30 +26,41 @@ const pbkdf2Vector = {
   version: 3,
 }
 
+const errorOf = async (promise: Promise<unknown>): Promise<Error> => {
+  try {
+    await promise
+    throw new Error('expected rejection')
+  } catch (error) {
+    return error as Error
+  }
+}
+
 describe('decryptKeystore', () => {
-  it('decrypts the spec pbkdf2 test vector', () => {
-    expect(decryptKeystore(pbkdf2Vector, PASSWORD)).to.equal(SECRET)
+  it('decrypts the spec pbkdf2 test vector', async () => {
+    expect(await decryptKeystore(pbkdf2Vector, PASSWORD)).to.equal(SECRET)
   })
 
   // The spec's scrypt vector uses r=1 with n=262144, which OpenSSL rejects
   // (it enforces scrypt's N < 2^(16r)); real keystores use r=8, covered here.
-  it('round-trips a generated Foundry-strength (n=8192) scrypt keystore', () => {
+  it('round-trips a generated Foundry-strength (n=8192) scrypt keystore', async () => {
     const key = `0x${'ab'.repeat(32)}` as const
-    expect(decryptKeystore(makeKeystore(key, 'hunter2'), 'hunter2')).to.equal(key)
+    expect(await decryptKeystore(makeKeystore(key, 'hunter2'), 'hunter2')).to.equal(key)
   })
 
-  it('round-trips a geth-strength (n=262144) scrypt keystore', () => {
+  it('round-trips a geth-strength (n=262144) scrypt keystore', async () => {
     const key = `0x${'cd'.repeat(32)}` as const
-    expect(decryptKeystore(makeKeystore(key, 'hunter2', 262_144), 'hunter2')).to.equal(key)
+    expect(await decryptKeystore(makeKeystore(key, 'hunter2', 262_144), 'hunter2')).to.equal(key)
   })
 
-  it('rejects a wrong password via the MAC check', () => {
-    expect(() => decryptKeystore(pbkdf2Vector, 'wrong-password')).to.throw(/Wrong keystore password/)
+  it('rejects a wrong password via the MAC check', async () => {
+    const error = await errorOf(decryptKeystore(pbkdf2Vector, 'wrong-password'))
+    expect(error.message).to.match(/Wrong keystore password/)
   })
 
-  it('rejects unsupported ciphers', () => {
+  it('rejects unsupported ciphers', async () => {
     const bad = {...pbkdf2Vector, crypto: {...pbkdf2Vector.crypto, cipher: 'aes-256-gcm'}}
-    expect(() => decryptKeystore(bad, PASSWORD)).to.throw(/Unsupported keystore cipher/)
+    const error = await errorOf(decryptKeystore(bad, PASSWORD))
+    expect(error.message).to.match(/Unsupported keystore cipher/)
   })
 })
 

@@ -2,12 +2,14 @@ import {createDecipheriv, pbkdf2Sync, scryptSync, timingSafeEqual} from 'node:cr
 import {readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
-import {keccak256} from 'viem'
 
 /**
  * Ethereum keystore v3 (Web3 Secret Storage) decryption, as written by
  * `cast wallet import` (Foundry), geth, and most other Ethereum tooling.
  * Implemented with node:crypto + viem's keccak256 - no extra dependencies.
+ * viem is imported lazily (~140ms for its barrel): only uploads that
+ * actually unlock a keystore pay for it, matching ipfs-uploader's lazy
+ * loading of viem/mppx for payment signing.
  */
 
 interface KeystoreCrypto {
@@ -62,7 +64,7 @@ export const readKeystore = async (path: string): Promise<KeystoreV3> => {
 }
 
 // Decrypts a keystore v3 payload into a 0x-prefixed private key.
-export const decryptKeystore = (keystore: KeystoreV3, password: string): `0x${string}` => {
+export const decryptKeystore = async (keystore: KeystoreV3, password: string): Promise<`0x${string}`> => {
   const crypto = keystore.crypto ?? keystore.Crypto
   if (!crypto) {
     throw new Error('Keystore has no crypto section')
@@ -72,6 +74,7 @@ export const decryptKeystore = (keystore: KeystoreV3, password: string): `0x${st
     throw new Error(`Unsupported keystore cipher: ${crypto.cipher}`)
   }
 
+  const {keccak256} = await import('viem')
   const derivedKey = deriveKey(crypto, password)
   const ciphertext = Buffer.from(crypto.ciphertext, 'hex')
 

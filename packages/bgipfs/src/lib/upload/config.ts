@@ -141,7 +141,7 @@ const keystorePrivateKey = async (
     throw new Error(`Keystore payment needs a password: set ${KEYSTORE_PASSWORD_ENV} or run interactively`)
   }
 
-  const privateKey = decryptKeystore(parsed, password)
+  const privateKey = await decryptKeystore(parsed, password)
   if (!isHexKey(privateKey)) {
     throw new Error(`${path} does not contain a 32-byte private key`)
   }
