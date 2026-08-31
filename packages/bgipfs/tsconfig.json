@@ -1,13 +1,12 @@
 {
   "compilerOptions": {
     "declaration": true,
-    "module": "Node16",
+    "module": "NodeNext",
     "outDir": "dist",
     "rootDir": "src",
-    "skipLibCheck": true,
     "strict": true,
     "target": "es2022",
-    "moduleResolution": "node16"
+    "moduleResolution": "NodeNext"
   },
   "include": ["./src/**/*"],
   "ts-node": {
