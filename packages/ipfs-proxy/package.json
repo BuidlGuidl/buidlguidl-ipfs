@@ -7,6 +7,7 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
+    "test:smoke": "node test/smoke-workerd.mjs",
     "cf-typegen": "wrangler types"
   },
   "devDependencies": {
@@ -17,6 +18,8 @@
     "wrangler": "^3.105.1"
   },
   "dependencies": {
-    "hono": "^4.6.19"
+    "hono": "^4.6.19",
+    "mppx": "0.9.1",
+    "viem": "^2.56.0"
   }
 }

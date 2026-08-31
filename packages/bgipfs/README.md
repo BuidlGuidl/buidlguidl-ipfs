@@ -192,6 +192,56 @@ bgipfs upload https://example.com/image.jpg
 bgipfs upload --config ./custom/path/config.json path/to/file.txt
 ```
 
+### Paying per upload (no API key)
+
+`https://upload.bgipfs.com` accepts keyless uploads for a small USDC payment
+(HTTP 402, [MPP](https://mpp.dev)/x402; currently $0.01 on Base Sepolia). The CLI
+can pay automatically from a wallet you control:
+
+Use a dedicated low-balance wallet for this — the cap bounds each upload, not
+the wallet.
+
+```bash
+# Recommended: pay from a Foundry keystore (created with `cast wallet import my-wallet`)
+bgipfs upload config init --pay --keystore my-wallet
+bgipfs upload path/to/file.txt                       # prompts for the keystore password
+# ℹ Paying 0.01 USDC on base-sepolia to 0x60Ca… from 0xD4Cf…
+# ✓ File uploaded. CID: bafy…
+# ✓ Paid 0.01 USDC on base-sepolia from 0xD4Cf…
+
+# For unattended use, supply the keystore password via the environment
+export BGIPFS_KEYSTORE_PASSWORD=...
+
+# Alternative: raw key in an environment variable (no keystore file needed)
+bgipfs upload config init --pay                      # defaults: $BGIPFS_PAYMENT_KEY, cap 0.05 USDC/upload
+bgipfs upload config init --pay --paymentKeyEnv MY_WALLET_KEY --maxPayment 0.02
+export BGIPFS_PAYMENT_KEY=0x...
+```
+
+`--keystore` takes a name from `~/.foundry/keystores` (as written by
+`cast wallet import`; `$FOUNDRY_DIR` is honored) or a path to any Ethereum
+keystore v3 file — geth-style keystores work too. The resulting
+`ipfs-upload.config.json` looks like:
+
+```json
+{
+  "headers": {},
+  "url": "https://upload.bgipfs.com",
+  "payment": { "keystore": "my-wallet", "maxAmount": "0.05" }
+}
+```
+
+(or `"privateKeyEnv": "BGIPFS_PAYMENT_KEY"` in place of `"keystore"`). The key
+itself is never written to disk by bgipfs and only ever lives in process memory
+for the duration of the upload.
+
+`maxAmount` is a hard spend cap per upload: if the endpoint asks for more, the
+upload is refused without paying. The upload is attempted normally; when the
+endpoint answers 402, the quoted price is signed locally (a gasless EIP-3009
+USDC authorization) and the upload retried once with the payment attached.
+Without a payment section, a 402 is reported with the price and how to enable
+payment.
+
 ## Sync Commands
 This is for manually syncing pin lists between nodes. The specified nodes can be Kubo endpoints, or the IPFS proxy endpoint of an IPFS Cluster node. This is powered by [js-kubo-rpc-client](https://github.com/ipfs/js-kubo-rpc-client)
 

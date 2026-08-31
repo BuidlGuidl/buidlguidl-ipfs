@@ -16,6 +16,7 @@ export { PinataUploader } from "./PinataUploader.js";
 export { S3Uploader } from "./S3Uploader.js";
 export { MultiUploader } from "./MultiUploader.js";
 export { createPresignedUrl } from "./utils/createPresignedUrl.js";
+export { formatPaymentDetails } from "./payment.js";
 
 export function createUploader(
   config: UploaderConfig | UploaderConfig[]

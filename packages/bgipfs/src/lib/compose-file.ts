@@ -21,6 +21,31 @@ export const usesIpfsConfigBindMount = async (composePath = 'docker-compose.yml'
   return hasIpfsConfigBindMount(compose)
 }
 
+// Ensure the service declares a restart policy so containers survive host
+// reboots and daemon crashes; leaves any existing restart policy untouched.
+export const ensureServiceRestartPolicy = (compose: string, service: string, policy = 'unless-stopped'): string => {
+  const lines = compose.split('\n')
+  const servicePattern = new RegExp(`^  ${service}:\\s*$`)
+
+  const serviceStart = lines.findIndex((line) => servicePattern.test(line))
+  if (serviceStart === -1) {
+    throw new Error(`Could not find ${service} service in docker-compose.yml`)
+  }
+
+  for (let index = serviceStart + 1; index < lines.length; index++) {
+    if (/^ {2}[\w-]+:\s*$/.test(lines[index])) {
+      break
+    }
+
+    if (/^ {4}restart:\s*/.test(lines[index])) {
+      return compose
+    }
+  }
+
+  lines.splice(serviceStart + 1, 0, `    restart: ${policy}`)
+  return lines.join('\n')
+}
+
 export const replaceServiceImage = (compose: string, service: string, image: string): string => {
   const lines = compose.split('\n')
   const servicePattern = new RegExp(`^  ${service}:\\s*$`)
