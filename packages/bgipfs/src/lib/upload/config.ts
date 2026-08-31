@@ -33,6 +33,8 @@ export interface ResolveOptions {
   env?: NodeJS.ProcessEnv
   /** Interactive password prompt for keystore decryption (used when $BGIPFS_KEYSTORE_PASSWORD is not set) */
   getPassword?: (keystorePath: string) => Promise<string>
+  /** Memo of decrypted keys by resolved keystore path, so multi-node configs unlock each keystore once */
+  keystoreCache?: Map<string, `0x${string}`>
   onPayment?: (payment: PaymentDetails) => void
 }
 
@@ -65,7 +67,7 @@ export const resolveUploaderConfig = async (
 
   const env = options.env ?? process.env
   const privateKey = keystore
-    ? await keystorePrivateKey(keystore, env, options.getPassword)
+    ? await keystorePrivateKey(keystore, env, options.getPassword, options.keystoreCache)
     : envPrivateKey(privateKeyEnv as string, env)
 
   return {
@@ -87,9 +89,21 @@ export async function readConfig(
     throw new Error('Failed to read config file. Run "bgipfs upload config init" first.')
   }
 
-  return Array.isArray(parsed)
-    ? Promise.all(parsed.map((entry) => resolveUploaderConfig(entry, options)))
-    : resolveUploaderConfig(parsed, options)
+  if (!Array.isArray(parsed)) {
+    return resolveUploaderConfig(parsed, options)
+  }
+
+  // Sequentially: entries may prompt for keystore passwords, and interactive
+  // prompts cannot run concurrently on one terminal. Decrypted keys are
+  // memoized per keystore path so a shared keystore is only unlocked once.
+  const memo: ResolveOptions = {...options, keystoreCache: options.keystoreCache ?? new Map()}
+  const resolved: UploaderConfig[] = []
+  for (const entry of parsed) {
+    // eslint-disable-next-line no-await-in-loop
+    resolved.push(await resolveUploaderConfig(entry, memo))
+  }
+
+  return resolved
 }
 
 const envPrivateKey = (privateKeyEnv: string, env: NodeJS.ProcessEnv): `0x${string}` => {
@@ -112,12 +126,18 @@ const keystorePrivateKey = async (
   keystore: string,
   env: NodeJS.ProcessEnv,
   getPassword?: ResolveOptions['getPassword'],
+  cache?: Map<string, `0x${string}`>,
 ): Promise<`0x${string}`> => {
   const path = resolveKeystorePath(keystore, env)
+  const cached = cache?.get(path)
+  if (cached) return cached
+
   const parsed = await readKeystore(path)
 
-  const password = env[KEYSTORE_PASSWORD_ENV] ?? (await getPassword?.(path))
-  if (password === undefined) {
+  // An empty env var counts as unset (common in CI templates), so an
+  // interactive run still gets its prompt instead of a MAC-mismatch error.
+  const password = env[KEYSTORE_PASSWORD_ENV] || (await getPassword?.(path))
+  if (!password) {
     throw new Error(`Keystore payment needs a password: set ${KEYSTORE_PASSWORD_ENV} or run interactively`)
   }
 
@@ -126,5 +146,6 @@ const keystorePrivateKey = async (
     throw new Error(`${path} does not contain a 32-byte private key`)
   }
 
+  cache?.set(path, privateKey)
   return privateKey
 }

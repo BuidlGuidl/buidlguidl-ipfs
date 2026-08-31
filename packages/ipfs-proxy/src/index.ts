@@ -6,6 +6,7 @@ import {
 	PAYMENT_RESPONSE_HEADERS,
 	type PaymentInfo,
 	gatePayment,
+	hasPaymentCredential,
 	isPaymentEnabled,
 	paymentNetwork,
 	paymentPrice,
@@ -159,20 +160,32 @@ app.post('/api/v0/add', async (c) => {
 	}
 
 	const maxSize = parseInt(env.MAX_UPLOAD_SIZE || '104857600'); // 100MB
-
-	// Reject oversized/undeclared uploads before touching auth or payment, so a
-	// payment is never settled for an upload that would then be refused.
-	const contentLength = c.req.header('content-length');
-	if (contentLength && parseInt(contentLength) > maxSize) {
-		return c.json(
+	const tooLarge = () =>
+		c.json(
 			{
 				error: `Upload size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB`,
 			},
 			413
 		);
+
+	// Reject oversized uploads before touching auth or payment, so a payment
+	// is never settled for an upload that would then be refused. Strict parse:
+	// an empty or malformed Content-Length counts as undeclared rather than
+	// skipping the size checks (parseInt('12abc') would "pass").
+	const contentLength = c.req.header('content-length');
+	const declaredSize = contentLength !== undefined && /^\d+$/.test(contentLength) ? parseInt(contentLength) : undefined;
+	if (declaredSize !== undefined && declaredSize > maxSize) {
+		return tooLarge();
 	}
-	if (usePayment && contentLength === undefined) {
-		return c.json({ error: 'Content-Length is required for paid uploads' }, 411);
+
+	// A keyless request without a payment credential can only ever receive the
+	// 402 challenge, so issue it up front: no /api/auth round-trip, and no
+	// body/length concerns — challenges never read the body, which also lets
+	// clients probe for the price with an empty request.
+	if (usePayment && !hasPaymentCredential(c.req.raw)) {
+		const gate = await gatePayment(c.req.raw, env, maxSize);
+		if (gate.status === 'challenge') return gate.response;
+		return c.json({ error: 'Payment credential required' }, 402);
 	}
 
 	// Once settled, every response (success or error) goes through withPayment
@@ -213,13 +226,29 @@ app.post('/api/v0/add', async (c) => {
 			throw new Error('No API URL returned from auth endpoint');
 		}
 
-		const request = c.req.raw;
+		let request = c.req.raw;
 		if (!request.body) throw new Error('No body provided');
 
-		// Payment gate runs last, after every other check that could reject the
-		// upload: 'paid' means the transfer has settled on-chain, so nothing
-		// after this point should fail for foreseeable reasons.
+		// Payment settlement runs last, after every other check that could
+		// reject the upload: 'paid' means the transfer has settled on-chain, so
+		// nothing after this point should fail for foreseeable reasons.
 		if (usePayment) {
+			// The size must be known before settling so payment is never taken
+			// for an upload the streaming check would then abort. Clients that
+			// stream chunked with no Content-Length (kubo-rpc-client always
+			// does) get their body buffered, bounded by maxSize. In production
+			// Cloudflare's edge buffers the body and adds Content-Length before
+			// the worker runs, making this a no-op there — but local dev and
+			// non-Cloudflare deployments must not depend on that.
+			if (declaredSize === undefined) {
+				const buffered = await bufferUpTo(request.body, maxSize);
+				if (buffered === null) return tooLarge();
+				request = new Request(request.url, {
+					method: request.method,
+					headers: request.headers,
+					body: buffered,
+				});
+			}
 			const gate = await gatePayment(request, env, maxSize);
 			if (gate.status === 'challenge') {
 				return gate.response;
@@ -227,7 +256,6 @@ app.post('/api/v0/add', async (c) => {
 			withReceipt = gate.withReceipt;
 			paymentInfo = {
 				payerAddress: gate.payerAddress,
-				payerSource: gate.payerSource,
 				network: paymentNetwork(env),
 				amount: paymentPrice(env),
 			};
@@ -252,7 +280,8 @@ app.post('/api/v0/add', async (c) => {
 		const wrapWithDirectory = url.searchParams.get('wrap-with-directory') === 'true';
 		const customName = request.headers.get('x-pin-name');
 
-		// Streaming size check (content-length was validated before auth/payment)
+		// Streaming size check (declared sizes were validated before
+		// auth/payment; undeclared paid bodies were buffered within bounds)
 		const abortController = new AbortController();
 		let totalSize = 0;
 
@@ -267,11 +296,12 @@ app.post('/api/v0/add', async (c) => {
 			},
 		});
 
-		// Send to IPFS with abort signal
+		// Send to IPFS with abort signal (body is never null here: checked
+		// above, and the buffered paid path constructs its Request with one)
 		const ipfsPromise = fetch(ipfsUrl, {
 			method: 'POST',
 			headers: { ...headers, Authorization: `Basic ${auth}` },
-			body: request.body.pipeThrough(sizeCheckStream),
+			body: request.body!.pipeThrough(sizeCheckStream),
 			signal: abortController.signal,
 		});
 
@@ -338,6 +368,35 @@ app.post('/api/v0/add', async (c) => {
 });
 
 export default app;
+
+/**
+ * Reads a stream fully into memory, or returns null once it exceeds
+ * `maxSize`. Only used for paid uploads with an undeclared length, so the
+ * bound is the same one the upload itself must satisfy.
+ */
+async function bufferUpTo(stream: ReadableStream<Uint8Array>, maxSize: number): Promise<Uint8Array | null> {
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	const reader = stream.getReader();
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		total += value.length;
+		if (total > maxSize) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(value);
+	}
+
+	const body = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		body.set(chunk, offset);
+		offset += chunk.length;
+	}
+	return body;
+}
 
 async function createPins(
 	env: Env,

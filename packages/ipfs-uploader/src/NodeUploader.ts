@@ -32,8 +32,12 @@ export class NodeUploader implements BaseUploader {
         payment: config.payment,
       };
     } else {
-      const { payment, ...options } = config;
-      this.config = { options: options as KuboOptions, cidVersion: 1, payment };
+      const { payment, cidVersion, ...options } = config;
+      this.config = {
+        options: options as KuboOptions,
+        cidVersion: cidVersion ?? 1,
+        payment,
+      };
     }
     this.rpcClient = create(this.config.options);
   }

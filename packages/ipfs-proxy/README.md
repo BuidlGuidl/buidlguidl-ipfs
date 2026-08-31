@@ -67,14 +67,14 @@ const result = await client.add(/* your file data */)
 When `PAYMENT_RECIPIENT` and `MPP_SECRET_KEY` are set, a request to `/api/v0/add` **without** an `x-api-key` header no longer falls back to anonymous pinning — it returns `402 Payment Required` carrying both payment challenge formats:
 
 - **MPP** ([mpp.dev](https://mpp.dev)): `WWW-Authenticate: Payment ...` header, credential returned in `Authorization: Payment <credential>`
-- **x402** ([x402.org](https://x402.org)): `PAYMENT-REQUIRED` header (v2 wire format; legacy `X-PAYMENT` credentials are also accepted)
+- **x402** ([x402.org](https://x402.org)): `PAYMENT-REQUIRED` header (v2 wire format; credential returned in `PAYMENT-SIGNATURE`)
 
 The price is a flat `PAYMENT_PRICE` USDC per upload (up to `MAX_UPLOAD_SIZE`), paid with a gasless EIP-3009 USDC transfer that the configured facilitator verifies and settles on-chain **before** the upload is forwarded to IPFS. Requests with an `x-api-key` are never gated.
 
 Notes:
 
 - `DEFAULT_API_KEY` must be set: it resolves the target cluster and gates capacity before settlement. Paid pins are attributed to the payer's account by wallet address (via the app's Privy integration), with `payerAddress`, the settlement tx hash, network, and amount stored on each pin; pins fall back to this account when the payer can't be resolved or is at their pin/size limits.
-- Paid requests must send `Content-Length` (411 otherwise), so a payment is never settled for an upload that would be rejected mid-stream.
+- Paid uploads should declare `Content-Length`. Bodies with an undeclared length (e.g. chunked kubo-rpc-client uploads) are buffered by the worker, bounded by `MAX_UPLOAD_SIZE`, before the gate runs — so a payment is never settled for an upload that would be rejected mid-stream, without depending on Cloudflare's edge adding a Content-Length.
 - The successful response carries `Payment-Receipt` (and x402 `PAYMENT-RESPONSE`) headers with the settlement reference.
 - A generic client pays in two requests (402, then retry with credential — the body is sent twice). To avoid resending the body, probe first with an empty request to fetch the challenge.
 - Test end-to-end with the MPP CLI: `npx mppx <worker-url>/api/v0/add`, funded with Base Sepolia USDC (Circle faucet).
@@ -98,7 +98,6 @@ Response:
 - 404: Path not found (only /api/v0/add is supported)
 - 401: Unauthorized (invalid API key)
 - 402: Payment required (keyless request while payments are enabled; see "Paid uploads")
-- 411: Length required (keyless paid request without Content-Length)
 - 413: Payload too large (file too large)
 - 405: Method not allowed (only POST is supported)
 - **Non-2xx from IPFS** (e.g. IPFS auth failure, node error): Status and body from the IPFS node are forwarded as-is. The client receives the same HTTP status and a JSON body `{ "error": "<message>" }` with the upstream message.

@@ -158,7 +158,7 @@ export interface S3UploaderConfig {
 
 // Allow either simple or full config
 export type NodeConfig =
-  | (KuboOptions & { payment?: PaymentOptions })
+  | (KuboOptions & { payment?: PaymentOptions; cidVersion?: 0 | 1 })
   | NodeUploaderConfig;
 export type PinataConfig = PinataOptions | PinataUploaderConfig;
 export type S3Config = S3Options | S3UploaderConfig;
