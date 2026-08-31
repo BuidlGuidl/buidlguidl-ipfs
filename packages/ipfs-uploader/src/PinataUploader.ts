@@ -279,7 +279,7 @@ export class PinataUploader implements BaseUploader {
 
     buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
       try {
-        const blob = new Blob([content]);
+        const blob = new Blob([content as Uint8Array<ArrayBuffer>]);
         const file = new File([blob], `buffer-${Date.now()}`, {
           type: "application/octet-stream",
         });

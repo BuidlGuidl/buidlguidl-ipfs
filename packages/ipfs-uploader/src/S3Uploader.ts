@@ -104,7 +104,7 @@ export class S3Uploader implements BaseUploader {
     await fd.close();
 
     const fileContent = await readFile(output);
-    const file = new File([fileContent], "directory.car", {
+    const file = new File([fileContent as Uint8Array<ArrayBuffer>], "directory.car", {
       type: "application/vnd.ipld.car",
     });
 
@@ -137,7 +137,7 @@ export class S3Uploader implements BaseUploader {
         } else if (typeof window === "undefined") {
           const { readFile } = await import("fs/promises");
           const content = await readFile(input);
-          file = new File([content], input.split("/").pop() || "file");
+          file = new File([content as Uint8Array<ArrayBuffer>], input.split("/").pop() || "file");
         } else {
           throw new Error(
             "File path strings are only supported in Node.js environments"
@@ -278,7 +278,7 @@ export class S3Uploader implements BaseUploader {
 
     buffer: async (content: Buffer | Uint8Array): Promise<UploadResult> => {
       try {
-        const file = new File([content], `buffer-${Date.now()}`, {
+        const file = new File([content as Uint8Array<ArrayBuffer>], `buffer-${Date.now()}`, {
           type: "application/octet-stream",
         });
         return this.uploadFile(file);
