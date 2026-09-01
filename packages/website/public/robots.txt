@@ -1,0 +1,45 @@
+# bgipfs.com robots.txt
+#
+# As a condition of accessing this website, you agree to abide by the
+# following content signals:
+#
+# (a) If a content-signal = yes, you may collect content for the
+#     corresponding use.
+# (b) If a content-signal = no, you may not collect content for the
+#     corresponding use.
+#
+# The absence of a content signal for a corresponding use means no
+# preference has been expressed. Learn more at https://contentsignals.org
+
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+Allow: /
+Disallow: /api/
+Disallow: /pins
+Disallow: /account
+Disallow: /api-keys
+
+# AI crawlers and agents are welcome. Start here:
+#   /llms.txt   — site overview and links for LLMs
+#   /SKILL.md   — agent skill: upload to IPFS via bgipfs
+#   /auth.md    — how to authenticate with the upload API
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: https://www.bgipfs.com/sitemap.xml

@@ -1,3 +1,10 @@
+---
+name: bgipfs-upload
+description: Upload files or built web apps to IPFS via bgipfs and get a permanent IPFS URL. Use when deploying a static site to IPFS, pinning a file, or when the user mentions bgipfs, BuidlGuidl IPFS, or IPFS uploads.
+metadata:
+  author: buidlguidl
+---
+
 # bgipfs Upload — AI Agent Guide
 
 ## One-line summary
@@ -9,6 +16,21 @@ Upload a built web app to bgipfs and get a permanent IPFS URL.
 
 - `bgipfs` CLI: `npm install -g bgipfs`
 - A bgipfs API key from https://bgipfs.com (account → API Keys)
+
+### No API key? Pay per upload (x402/MPP)
+
+Keyless uploads work via micropayments: an upload without a key returns
+HTTP 402 with x402 and MPP payment challenges (flat $0.01 USDC per upload,
+currently on Base Sepolia, max 100MB). If you have a funded wallet key:
+
+```bash
+export BGIPFS_PAYMENT_KEY=0x...   # wallet private key
+bgipfs upload config init --nodeUrl="https://upload.bgipfs.com" --pay
+bgipfs upload path/to/file.png
+```
+
+See https://www.bgipfs.com/auth.md for details. The rest of this guide
+assumes an API key.
 
 ---
 
