@@ -1,0 +1,26 @@
+# BuidlGuidl IPFS (bgipfs)
+
+> A toolkit for uploading to decentralised storage: a simple IPFS pinning
+> service (bgipfs.com), a CLI (bgipfs), and a TypeScript upload library
+> (ipfs-uploader). Uploads are free with an API key; keyless uploads are
+> supported via x402/MPP micropayments.
+
+## Docs
+
+- [AI agent upload guide](https://www.bgipfs.com/SKILL.md): step-by-step SKILL.md for uploading a file or a built web app and getting a permanent IPFS URL
+- [Authentication](https://www.bgipfs.com/auth.md): API keys (X-API-Key header) and keyless paid uploads (x402/MPP)
+- [bgipfs CLI](https://github.com/buidlguidl/buidlguidl-ipfs/tree/main/packages/bgipfs): CLI for running IPFS clusters and uploading to IPFS
+- [ipfs-uploader](https://github.com/buidlguidl/buidlguidl-ipfs/tree/main/packages/ipfs-uploader): TypeScript library for uploading data to multiple providers
+
+## API
+
+- Upload endpoint: https://upload.bgipfs.com (kubo `/api/v0/add`-compatible; auth via `X-API-Key` header, or pay per upload via a 402 x402/MPP challenge)
+- Gateway: https://{cid}.ipfs.community.bgipfs.com/ (subdomain gateway, no setup needed)
+- API catalog: https://www.bgipfs.com/.well-known/api-catalog
+- Agent skills index: https://www.bgipfs.com/.well-known/agent-skills/index.json
+
+## Optional
+
+- [Demo upload page](https://www.bgipfs.com/upload): try an upload in the browser without an account
+- [Source repository](https://github.com/buidlguidl/buidlguidl-ipfs): monorepo for the website, CLI, uploader library, and IPFS proxy
+- [BuidlGuidl](https://buidlguidl.com): the community behind this project
